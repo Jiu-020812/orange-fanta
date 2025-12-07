@@ -1,0 +1,57 @@
+:root {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* 다크모드/검정 배경 없애기 */
+  color-scheme: light;
+  color: #111827;
+  background-color: #f5f6fa;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 기본 링크 스타일 */
+a {
+  font-weight: 500;
+  color: #3b82f6;
+  text-decoration: none;
+}
+a:hover {
+  color: #2563eb;
+}
+
+/* 🔥 body 에서 flex / place-items 전부 제거 */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f5f6fa;
+}
+
+/* 버튼 기본 스타일은 필요하면 쓰고, 아니면 아예 지워도 됨 */
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #3b82f6;
+  color: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.25s, background-color 0.15s;
+}
+button:hover {
+  border-color: #2563eb;
+  background-color: #2563eb;
+}
+button:focus,
+button:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 2px;
+}

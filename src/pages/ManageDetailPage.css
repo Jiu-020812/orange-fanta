@@ -1,0 +1,332 @@
+/* 페이지 전체 */
+.manage-page {
+    padding: 24px;
+    width: 100%;
+  }
+  
+  /* 토스트 */
+  .manage-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px 14px;
+    border-radius: 999px;
+    background-color: rgba(59, 130, 246, 0.95);
+    color: #ffffff;
+    font-size: 13px;
+    z-index: 200;
+  }
+  
+  /* 상단 헤더 */
+  .manage-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 16px;
+    gap: 12px;
+  }
+  
+  /* 공통 버튼 스타일 */
+  .btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  
+  /* 뒤로가기 버튼 */
+  .btn-back {
+    border: 1px solid #cbd5e1;
+    background: #e2e8f0;
+    color: #1e293b;
+  }
+  
+  /* 품목 전체 삭제 버튼 */
+  .btn-delete-item {
+    margin-left: auto;
+    background-color: #dc2626;
+    border: none;
+    color: #ffffff;
+  }
+  
+  /* 메인 타이틀 */
+  .manage-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+  }
+  
+  /* 메인 2열 레이아웃 */
+  .manage-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 24px;
+  }
+  
+  /* 섹션 제목 */
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  
+  /* 옵션 카드 그리드 */
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+  
+  /* 옵션 카드 */
+  .option-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 10px;
+    background-color: #ffffff;
+  }
+  
+  /* 선택된 옵션 카드 */
+  .option-card.selected {
+    border: 2px solid #2563eb;
+  }
+  
+  /* 옵션 카드 전체 클릭 영역 */
+  .option-card-main {
+    margin-bottom: 6px;
+    cursor: pointer;
+  }
+  
+  /* 옵션 이미지 */
+  .option-image {
+    width: 100%;
+    height: 110px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin-bottom: 6px;
+  }
+  
+  /* 옵션 이미지 없음 */
+  .option-image-placeholder {
+    width: 100%;
+    height: 110px;
+    border-radius: 10px;
+    background-color: #f3f4f6;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-size: 12px;
+  }
+  
+  /* 옵션 텍스트 */
+  .option-label {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  /* 옵션 카드 하단 버튼 영역 */
+  .option-card-buttons {
+    display: flex;
+    gap: 6px;
+  }
+  
+  /* 작은 버튼들 */
+  .btn-sm {
+    flex: 1;
+    padding: 4px 0;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  
+  /* 수정 버튼 */
+  .btn-outline-primary {
+    border: 1px solid #93c5fd;
+    background: #dbeafe;
+    color: #000000;
+  }
+  
+  /* 삭제 버튼 */
+  .btn-outline-danger {
+    border: 1px solid #fca5a5;
+    background: #fee2e2;
+    color: #000000;
+  }
+  
+  /* 옵션 추가 박스 */
+  .option-add-box {
+    margin-top: 20px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background-color: #fafafa;
+  }
+  
+  .option-add-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+  }
+  
+  .option-add-input {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+  }
+  
+  .option-add-image-preview {
+    margin-top: 8px;
+    width: 100%;
+    max-width: 180px;
+    border-radius: 8px;
+  }
+  
+  .option-add-submit {
+    margin-top: 10px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+  }
+  
+  /* 오른쪽 안내 문구 */
+  .detail-placeholder {
+    color: #9ca3af;
+    font-size: 14px;
+    margin-top: 20px;
+  }
+  
+  /* 기록 입력 박스 */
+  .purchase-form-wrapper {
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    background-color: #ffffff;
+  }
+  
+  /* 메모 박스 */
+  .memo-box {
+    margin-top: 20px;
+    padding: 14px;
+    background-color: #ffffff;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  }
+  
+  .memo-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #000000;
+    margin-bottom: 8px;
+  }
+  
+  .memo-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background-color: #ffffff;
+    font-size: 13px;
+    resize: vertical;
+    box-sizing: border-box;
+  }
+  
+  .memo-save-btn {
+    margin-top: 8px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    float: right;
+  }
+  
+  /* 모달 공통 */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+  }
+  
+  /* 모달 카드 */
+  .modal-card {
+    width: 100%;
+    max-width: 380px;
+    background-color: #ffffff;
+    border-radius: 14px;
+    padding: 20px;
+  }
+  
+  /* 모달 타이틀 */
+  .modal-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  
+  /* 모달 입력 */
+  .modal-input {
+    width: 100%;
+    margin-top: 14px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+  }
+  
+  /* 모달 버튼 영역 */
+  .modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+  }
+  
+  /* 중립 버튼 */
+  .btn-neutral {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background-color: #f3f4f6;
+    color: #000000;
+    border: none;
+    cursor: pointer;
+  }
+  
+  /* 메인(파란) 버튼 */
+  .btn-primary {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background-color: #2563eb;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+  }
+  
+  /* 위험(빨간) 버튼 */
+  .btn-danger {
+    padding: 6px 14px;
+    border-radius: 8px;
+    background-color: #dc2626;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+  }
+  
+  /* 확인 모달 카드는 조금 좁게 */
+  .confirm-modal-card {
+    max-width: 360px;
+  }
