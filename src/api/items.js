@@ -1,44 +1,47 @@
-import axios from "axios";
+import api from "../api";
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL || "https://orange-fanta-back.vercel.app";
-
-/* ----------------------------------------------------------------
-   📌 1) 전체 품목 가져오기
----------------------------------------------------------------- */
+/**
+ * 🔹 모든 품목 가져오기
+ *   - 백엔드: GET /api/items
+ */
 export async function getItems() {
-  const res = await axios.get(`${API_BASE}/api/items`);
-  return res.data; // ← JSON만 반환
+  const res = await api.get("/items");
+  return res.data;
 }
 
-/* ----------------------------------------------------------------
-   📌 2) 품목 생성
-      (name, size, imageUrl)
----------------------------------------------------------------- */
+/**
+ * 🔹 품목(아이템) 하나 생성하기
+ *   - 백엔드: POST /api/items
+ *   - body: { name, size, imageUrl }
+ */
 export async function createItem({ name, size, imageUrl }) {
-  const res = await axios.post(`${API_BASE}/api/items`, {
+  const res = await api.post("/items", {
     name,
     size,
-    imageUrl,
+    imageUrl: imageUrl ?? null,
   });
   return res.data;
 }
 
-/* ----------------------------------------------------------------
-   📌 3) 특정 품목의 매입 기록 가져오기
----------------------------------------------------------------- */
+/**
+ * 🔹 특정 품목의 기록 목록 가져오기
+ *   - 백엔드: GET /api/items/:itemId/records
+ */
 export async function getRecords(itemId) {
-  const res = await axios.get(`${API_BASE}/api/items/${itemId}/records`);
+  const res = await api.get(`/items/${itemId}/records`);
   return res.data;
 }
 
-/* ----------------------------------------------------------------
-   📌 4) 특정 품목에 매입 기록 추가하기
----------------------------------------------------------------- */
+/**
+ * 🔹 기록 추가하기
+ *   - 백엔드: POST /api/items/:itemId/records
+ *   - body: { price, count, date }
+ */
 export async function createRecord({ itemId, price, count, date }) {
-  const res = await axios.post(
-    `${API_BASE}/api/items/${itemId}/records`,
-    { price, count, date }
-  );
+  const res = await api.post(`/items/${itemId}/records`, {
+    price,
+    count,
+    date,
+  });
   return res.data;
 }

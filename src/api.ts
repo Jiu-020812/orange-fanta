@@ -74,3 +74,5 @@ export async function createRecord(data: {
   );
   return res.data;
 }
+
+export default api;
