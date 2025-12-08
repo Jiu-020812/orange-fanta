@@ -1,12 +1,13 @@
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "https://orange-fanta-back.vercel.app";
+// 백엔드 베이스 URL (환경변수 우선, 없으면 배포주소 사용)
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "https://orange-fanta-back.vercel.app";
 
 // axios 인스턴스 생성
 const api = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: `${API_BASE}/api`, // 예: https://orange-fanta-back.vercel.app/api
+  withCredentials: true,      // 쿠키 사용 시 필요
 });
-
 
 // 타입 정의
 export type Item = {
@@ -25,17 +26,15 @@ export type PurchaseRecord = {
   date: string;
 };
 
+// --------------------------- Items ---------------------------
 
-// 아이템 목록 가져오기
-
+// 모든 아이템 가져오기
 export async function getItems(): Promise<Item[]> {
   const res = await api.get<Item[]>("/items");
   return res.data;
 }
 
-
 // 아이템 생성
-
 export async function createItem(data: {
   name: string;
   size: string;
@@ -46,17 +45,15 @@ export async function createItem(data: {
   return res.data;
 }
 
+// --------------------------- Records ---------------------------
 
 // 특정 Item의 기록 목록
-
 export async function getRecords(itemId: number): Promise<PurchaseRecord[]> {
   const res = await api.get<PurchaseRecord[]>(`/items/${itemId}/records`);
   return res.data;
 }
 
-
-// 특정 Item에 기록 추가하기
-
+// 특정 Item에 기록 추가
 export async function createRecord(data: {
   itemId: number;
   price: number;
