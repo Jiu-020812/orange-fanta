@@ -18,6 +18,8 @@ import {
   getItems as fetchItems,
   createItem,
   createRecord,
+  updateRecord,
+  deleteRecord,
 } from "../api/items";
 
 export default function ManageDetailPage() {
@@ -533,88 +535,119 @@ export default function ManageDetailPage() {
                 }}
               >
                 <PurchaseForm
-                  onAddRecord={async (info) => {
-                    if (!selectedOption) return;
-
-                    const dateValue =
-                      info.date ||
-                      new Date().toISOString().slice(0, 10);
-                    const countValue =
-                      info.count === "" || info.count == null
-                        ? 1
-                        : Number(info.count);
-
-                    // 1) 로컬(IndexedDB) 기록 추가
-                    const newRecord = {
-                      id: uuid(),
-                      shoeId: selectedOptionId,
-                      date: dateValue,
+                 onAddRecord={async (info) => {
+                  if (!selectedOption) return;
+                
+                  const dateValue =
+                    info.date || new Date().toISOString().slice(0, 10);
+                  const countValue =
+                    info.count === "" || info.count == null
+                      ? 1
+                      : Number(info.count);
+                
+                  // 1) 먼저 로컬(IndexedDB)에 기록 추가 (serverId는 아직 null)
+                  const localRecordId = uuid();
+                
+                  const newRecord = {
+                    id: localRecordId,
+                    shoeId: selectedOptionId,
+                    date: dateValue,
+                    price: Number(info.price),
+                    count: countValue,
+                    serverId: null,
+                  };
+                
+                  const updated = [...itemRecords, newRecord];
+                
+                  if (isShoes) {
+                    setRecords(updated);
+                    await saveRecords(updated);
+                  } else {
+                    setFoodRecords(updated);
+                    await saveFoodRecords(updated);
+                  }
+                
+                  // 2) 서버에도 Item/Record 생성
+                  try {
+                    const sizeForServer = isShoes
+                      ? selectedOption.size
+                      : selectedOption.option;
+                
+                    let serverItem =
+                      serverItems.find(
+                        (it) =>
+                          it.name === decodedName && it.size === sizeForServer
+                      ) || null;
+                
+                    if (!serverItem) {
+                      const createdItem = await createItem({
+                        name: decodedName,
+                        size: sizeForServer,
+                        imageUrl: selectedOption?.image || null,
+                      });
+                      serverItem = createdItem;
+                      setServerItems((prev) => [...prev, createdItem]);
+                    }
+                
+                    // 서버에 기록 생성 → 여기서 서버의 record.id를 받음
+                    const createdRecord = await createRecord({
+                      itemId: serverItem.id,
                       price: Number(info.price),
                       count: countValue,
-                    };
-
-                    const updated = [...itemRecords, newRecord];
-
+                      date: dateValue,
+                    });
+                
+                    const serverRecordId = createdRecord.id;
+                
+                    // 3) 방금 추가한 로컬 기록에 serverId 채워넣기
+                    const withServerId = updated.map((r) =>
+                      r.id === localRecordId ? { ...r, serverId: serverRecordId } : r
+                    );
+                
                     if (isShoes) {
-                      setRecords(updated);
-                      await saveRecords(updated);
+                      setRecords(withServerId);
+                      await saveRecords(withServerId);
                     } else {
-                      setFoodRecords(updated);
-                      await saveFoodRecords(updated);
+                      setFoodRecords(withServerId);
+                      await saveFoodRecords(withServerId);
                     }
-
-                    // 2) 신발/음식 모두 서버에도 저장
-                    try {
-                      const sizeForServer = isShoes
-                        ? selectedOption.size
-                        : selectedOption.option;
-
-                      let serverItem =
-                        serverItems.find(
-                          (it) =>
-                            it.name === decodedName &&
-                            it.size === sizeForServer
-                        ) || null;
-
-                      if (!serverItem) {
-                        const created = await createItem({
-                          name: decodedName,
-                          size: sizeForServer,
-                          imageUrl: selectedOption?.image || null,
-                        });
-                        serverItem = created;
-                        setServerItems((prev) => [...prev, created]);
-                      }
-
-                      await createRecord({
-                        itemId: serverItem.id,
-                        price: Number(info.price),
-                        count: countValue,
-                        date: dateValue,
-                      });
-                    } catch (err) {
-                      console.error("백엔드 기록 저장 실패", err);
-                    }
-
-                    showToast("매입 기록 추가 완료");
-                  }}
+                  } catch (err) {
+                    console.error("백엔드 기록 저장 실패", err);
+                    // 서버가 실패해도 로컬 기록은 남겨둔다
+                  }
+                
+                  showToast("매입 기록 추가 완료");
+                }}
                 />
               </div>
 
               <PurchaseList
                 records={filteredRecords}
-                onDeleteRecord={(id) => {
-                  const newList = itemRecords.filter(
-                    (r) => r.id !== id
-                  );
+                onDeleteRecord={async (id) => {
+                  const target = itemRecords.find((r) => r.id === id);
+                
+                  const newList = itemRecords.filter((r) => r.id !== id);
                   setItemRecords(newList);
-
-                  if (isShoes) saveRecords(newList);
-                  else saveFoodRecords(newList);
-
+                
+                  if (isShoes) {
+                    await saveRecords(newList);
+                  } else {
+                    await saveFoodRecords(newList);
+                  }
+                
+                  // 서버에도 삭제 시도 (serverId가 있을 때만)
+                  if (target?.serverId) {
+                    try {
+                      await deleteRecord(target.serverId);
+                    } catch (err) {
+                      console.error("백엔드 기록 삭제 실패", err);
+                      // 굳이 롤백하지는 않고 콘솔만 찍자
+                    }
+                  }
+                
                   showToast("기록 삭제 완료");
                 }}
-                onUpdateRecord={(id, info) => {
+                onUpdateRecord={async (id, info) => {
                   const newList = itemRecords.map((r) =>
                     r.id === id
                       ? {
@@ -631,12 +664,31 @@ export default function ManageDetailPage() {
                         }
                       : r
                   );
-
+                
                   setItemRecords(newList);
-
-                  if (isShoes) saveRecords(newList);
-                  else saveFoodRecords(newList);
-
+                
+                  if (isShoes) {
+                    await saveRecords(newList);
+                  } else {
+                    await saveFoodRecords(newList);
+                  }
+                
+                  // 서버에도 수정 시도
+                  const target = newList.find((r) => r.id === id);
+                  if (target?.serverId) {
+                    try {
+                      await updateRecord({
+                        id: target.serverId,
+                        price: target.price,
+                        count: target.count,
+                        date: target.date,
+                      });
+                    } catch (err) {
+                      console.error("백엔드 기록 수정 실패", err);
+                      // 여기서도 로컬 롤백까진 하지 않고, 일단 콘솔에만 남겨두자
+                    }
+                  }
+                
                   showToast("기록 수정 완료");
                 }}
               />

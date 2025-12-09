@@ -41,4 +41,22 @@ export async function createRecord({ itemId, price, count, date }) {
   return res.data;
 }
 
+// 기록 수정
+export async function updateRecord({ id, price, count, date }) {
+    const res = await api.put("/records", {
+      id,
+      price,
+      count,
+      date,
+    });
+    return res.data;
+  }
+  
+  // 기록 삭제
+  export async function deleteRecord(id) {
+    await api.delete("/records", {
+      params: { id },
+    });
+  }
+
 export default api;
