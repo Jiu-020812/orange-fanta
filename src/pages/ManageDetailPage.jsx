@@ -38,9 +38,10 @@ export default function ManageDetailPage() {
 
   const [memoText, setMemoText] = useState("");
 
+  // 서버에 이미 만들어진 Item 목록 (신발/음식 공통)
   const [serverItems, setServerItems] = useState([]);
 
-  /* ---------------- 초기 데이터 로드 ---------------- */
+  /* ---------------- 초기 데이터 로드 (IndexedDB + 서버 아이템) ---------------- */
   useEffect(() => {
     async function load() {
       const [
@@ -107,7 +108,7 @@ export default function ManageDetailPage() {
     }
   }, [selectedOption]);
 
-  /* ---------------- 메모 저장 ---------------- */
+  /* ---------------- 메모 저장 (IndexedDB에만) ---------------- */
   const handleSaveMemo = async () => {
     if (!selectedOption) return;
 
@@ -138,7 +139,7 @@ export default function ManageDetailPage() {
     setTimeout(() => setToast(""), 2000);
   };
 
-  /* ---------------- 옵션 추가 ---------------- */
+  /* ---------------- 옵션 추가 (IndexedDB + 서버 Item 생성) ---------------- */
   const handleAddOption = async ({ value, image }) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -150,6 +151,7 @@ export default function ManageDetailPage() {
 
     let finalImage = image || "";
 
+    // 같은 품목 이름의 다른 옵션이 있으면 그 이미지 재사용
     if (!finalImage) {
       const sameNameItems = items.filter(
         (item) =>
@@ -175,6 +177,7 @@ export default function ManageDetailPage() {
 
     const newList = [...items, newOption];
 
+    // 1) IndexedDB에 옵션 저장
     if (isShoes) {
       setShoes(newList);
       await saveShoes(newList);
@@ -183,10 +186,33 @@ export default function ManageDetailPage() {
       await saveFoods(newList);
     }
 
+    // 2) 서버에도 Item 생성 (이미 있으면 생략)
+    try {
+      const sizeForServer = isShoes ? newOption.size : newOption.option;
+
+      let serverItem =
+        serverItems.find(
+          (it) => it.name === decodedName && it.size === sizeForServer
+        ) || null;
+
+      if (!serverItem) {
+        const created = await createItem({
+          name: decodedName,
+          size: sizeForServer,
+          imageUrl: newOption.image || null,
+        });
+        serverItem = created;
+        setServerItems((prev) => [...prev, created]);
+      }
+    } catch (err) {
+      console.error("옵션 서버 저장 실패", err);
+    }
+
+    setSelectedOptionId(newOption.id);
     showToast("옵션 추가 완료");
   };
 
-  /* ---------------- 옵션 수정 ---------------- */
+  /* ---------------- 옵션 수정 (현재는 IndexedDB만) ---------------- */
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
@@ -223,11 +249,12 @@ export default function ManageDetailPage() {
       await saveFoods(newList);
     }
 
+    // TODO: 나중에 서버에도 PATCH /api/items 추가해서 동기화
     setEditModal(null);
     showToast("옵션 수정 완료");
   };
 
-  /* ---------------- 옵션 삭제 ---------------- */
+  /* ---------------- 옵션 삭제 (현재는 IndexedDB만) ---------------- */
   const handleDeleteOption = async () => {
     const id = deleteModal;
     if (!id) return;
@@ -247,13 +274,15 @@ export default function ManageDetailPage() {
       await saveFoodRecords(newRecords);
     }
 
+    // TODO: 나중에 서버에도 DELETE /api/items, /api/records 추가
+
     if (selectedOptionId === id) setSelectedOptionId("");
 
     setDeleteModal(null);
     showToast("옵션 삭제 완료");
   };
 
-  /* ---------------- 품목 전체 삭제 ---------------- */
+  /* ---------------- 품목 전체 삭제 (현재는 IndexedDB만) ---------------- */
   const handleDeleteItem = async () => {
     if (!window.confirm("정말 이 품목을 전체 삭제할까요?")) return;
 
@@ -275,6 +304,8 @@ export default function ManageDetailPage() {
       await saveFoods(newList);
       await saveFoodRecords(newRecords);
     }
+
+    // TODO: 나중에 서버에도 일괄 삭제 API 추가
 
     showToast("품목 전체 삭제 완료");
     navigate("/manage");
@@ -456,7 +487,7 @@ export default function ManageDetailPage() {
                         padding: "4px 0",
                         fontSize: 12,
                         borderRadius: 6,
-                        border: "1px solidr #FF6C6C",
+                        border: "1px solid #FF6C6C",
                         background: "#fee2e2",
                         cursor: "pointer",
                         color: "black",
@@ -503,62 +534,66 @@ export default function ManageDetailPage() {
               >
                 <PurchaseForm
                   onAddRecord={async (info) => {
+                    if (!selectedOption) return;
+
+                    const dateValue =
+                      info.date ||
+                      new Date().toISOString().slice(0, 10);
+                    const countValue =
+                      info.count === "" || info.count == null
+                        ? 1
+                        : Number(info.count);
+
+                    // 1) 로컬(IndexedDB) 기록 추가
                     const newRecord = {
                       id: uuid(),
                       shoeId: selectedOptionId,
-                      date:
-                        info.date ||
-                        new Date().toISOString().slice(0, 10),
+                      date: dateValue,
                       price: Number(info.price),
-                      count:
-                        info.count === "" ? 1 : Number(info.count),
+                      count: countValue,
                     };
 
                     const updated = [...itemRecords, newRecord];
 
-                    // 1) IndexedDB 저장
                     if (isShoes) {
                       setRecords(updated);
-                      saveRecords(updated);
+                      await saveRecords(updated);
                     } else {
                       setFoodRecords(updated);
-                      saveFoodRecords(updated);
+                      await saveFoodRecords(updated);
                     }
 
-                    // 2) shoes일 경우 서버에도 저장
-                    if (isShoes) {
-                      try {
-                        const size = selectedOption?.size;
+                    // 2) 신발/음식 모두 서버에도 저장
+                    try {
+                      const sizeForServer = isShoes
+                        ? selectedOption.size
+                        : selectedOption.option;
 
-                        let serverItem =
-                          serverItems.find(
-                            (it) =>
-                              it.name === decodedName &&
-                              it.size === size
-                          ) || null;
+                      let serverItem =
+                        serverItems.find(
+                          (it) =>
+                            it.name === decodedName &&
+                            it.size === sizeForServer
+                        ) || null;
 
-                        if (!serverItem) {
-                          const created = await createItem({
-                            name: decodedName,
-                            size,
-                            imageUrl: selectedOption?.image || null,
-                          });
-                          serverItem = created;
-                          setServerItems((prev) => [...prev, created]);
-                        }
-
-                        await createRecord({
-                          itemId: serverItem.id,
-                          price: Number(info.price),
-                          count:
-                            info.count === "" ? 1 : Number(info.count),
-                          date:
-                            info.date ||
-                            new Date().toISOString().slice(0, 10),
+                      if (!serverItem) {
+                        const created = await createItem({
+                          name: decodedName,
+                          size: sizeForServer,
+                          imageUrl: selectedOption?.image || null,
                         });
-                      } catch (err) {
-                        console.error("백엔드 기록 저장 실패", err);
+                        serverItem = created;
+                        setServerItems((prev) => [...prev, created]);
                       }
+
+                      await createRecord({
+                        itemId: serverItem.id,
+                        price: Number(info.price),
+                        count: countValue,
+                        date: dateValue,
+                      });
+                    } catch (err) {
+                      console.error("백엔드 기록 저장 실패", err);
                     }
 
                     showToast("매입 기록 추가 완료");

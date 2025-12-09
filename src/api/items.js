@@ -8,8 +8,6 @@ const api = axios.create({
   baseURL: `${API_BASE}/api`,
 });
 
-// 아이템 타입 같은 건 JS에선 주석으로만 설명해 두자
-
 // 아이템 목록 가져오기
 export async function getItems() {
   const res = await api.get("/items");
