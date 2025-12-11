@@ -1,25 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { v4 as uuid } from "uuid";
 import StatsSection from "../components/StatsSection";
 import PurchaseForm from "../components/PurchaseForm";
 import PurchaseList from "../components/PurchaseList";
 import {
-  getAllShoes,
-  getAllFoods,
-  saveShoes,
-  saveFoods,
-  getAllRecords,
-  getAllFoodRecords,
-  saveRecords,
-  saveFoodRecords,
-} from "../db";
-import {
   getItems as fetchItems,
   createItem,
   createRecord,
-  updateRecord,
-  deleteRecord,
+  getRecords as fetchRecords,
+  deleteRecord as deleteServerRecord,
+  deleteItem as deleteServerItem,
 } from "../api/items";
 
 export default function ManageDetailPage() {
@@ -27,113 +17,19 @@ export default function ManageDetailPage() {
   const { name } = useParams();
   const decodedName = decodeURIComponent(name);
 
-  const [activeType, setActiveType] = useState("shoes");
-  const [shoes, setShoes] = useState([]);
-  const [foods, setFoods] = useState([]);
+  // 서버에서 가져온 전체 items (이름/옵션/이미지 등)
+  const [items, setItems] = useState([]);
+  // 현재 선택된 옵션(Item)에 대한 기록만 보관
   const [records, setRecords] = useState([]);
-  const [foodRecords, setFoodRecords] = useState([]);
 
-  const [selectedOptionId, setSelectedOptionId] = useState("");
+  const [selectedOptionId, setSelectedOptionId] = useState(null);
   const [toast, setToast] = useState("");
-  const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
-
+  const [editModal, setEditModal] = useState(null); // { id, value, image }
+  const [deleteModal, setDeleteModal] = useState(null); // 삭제할 option id
   const [memoText, setMemoText] = useState("");
 
-  // 서버에 이미 만들어진 Item 목록 (신발/음식 공통)
-  const [serverItems, setServerItems] = useState([]);
-
-  /* ---------------- 초기 데이터 로드 (IndexedDB + 서버 아이템) ---------------- */
-  useEffect(() => {
-    async function load() {
-      const [
-        loadedShoes,
-        loadedFoods,
-        loadedRecords,
-        loadedFoodRecords,
-      ] = await Promise.all([
-        getAllShoes(),
-        getAllFoods(),
-        getAllRecords(),
-        getAllFoodRecords(),
-      ]);
-
-      setShoes(loadedShoes || []);
-      setFoods(loadedFoods || []);
-      setRecords(loadedRecords || []);
-      setFoodRecords(loadedFoodRecords || []);
-
-      try {
-        const backendItems = await fetchItems();
-        setServerItems(backendItems || []);
-      } catch (err) {
-        console.error("백엔드 아이템 불러오기 실패", err);
-      }
-    }
-    load();
-  }, []);
-
-  /* ---------------- type 결정 ---------------- */
-  useEffect(() => {
-    if (shoes.some((i) => i.name === decodedName)) {
-      setActiveType("shoes");
-    } else if (foods.some((i) => i.name === decodedName)) {
-      setActiveType("foods");
-    }
-  }, [shoes, foods, decodedName]);
-
-  const isShoes = activeType === "shoes";
-  const items = isShoes ? shoes : foods;
-  const itemRecords = isShoes ? records : foodRecords;
-  const setItemRecords = isShoes ? setRecords : setFoodRecords;
-
-  /* ---------------- 옵션 리스트 ---------------- */
-  const options = useMemo(() => {
-    return items.filter((i) => i.name === decodedName);
-  }, [items, decodedName]);
-
-  /* ---------------- 옵션 중복 확인 ---------------- */
-  const isOptionExists = (value) => {
-    return options.some((opt) =>
-      (isShoes ? opt.size : opt.option) === value.trim()
-    );
-  };
-
-  /* ---------------- 선택된 옵션 ---------------- */
-  const selectedOption = options.find((o) => o.id === selectedOptionId);
-
-  useEffect(() => {
-    if (selectedOption) {
-      setMemoText(selectedOption.memo || "");
-    } else {
-      setMemoText("");
-    }
-  }, [selectedOption]);
-
-  /* ---------------- 메모 저장 (IndexedDB에만) ---------------- */
-  const handleSaveMemo = async () => {
-    if (!selectedOption) return;
-
-    const updatedItems = items.map((opt) =>
-      opt.id === selectedOption.id ? { ...opt, memo: memoText } : opt
-    );
-
-    if (isShoes) {
-      setShoes(updatedItems);
-      await saveShoes(updatedItems);
-    } else {
-      setFoods(updatedItems);
-      await saveFoods(updatedItems);
-    }
-
-    showToast("메모 저장 완료!");
-  };
-
-  /* ---------------- 매입기록 옵션별 필터 ---------------- */
-  const filteredRecords = useMemo(() => {
-    if (!selectedOptionId) return [];
-    return itemRecords.filter((r) => r.shoeId === selectedOptionId);
-  }, [itemRecords, selectedOptionId]);
+  // 아직 category 컬럼이 없으므로, 일단 모두 "신발처럼(size 사용)" 취급
+  const isShoes = true;
 
   /* ---------------- 토스트 ---------------- */
   const showToast = (msg) => {
@@ -141,7 +37,86 @@ export default function ManageDetailPage() {
     setTimeout(() => setToast(""), 2000);
   };
 
-  /* ---------------- 옵션 추가 (IndexedDB + 서버 Item 생성) ---------------- */
+  /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
+  useEffect(() => {
+    async function loadItems() {
+      try {
+        const data = await fetchItems();
+        setItems(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("아이템 불러오기 오류:", err);
+      }
+    }
+
+    loadItems();
+  }, []);
+
+  /* ---------------- 현재 품목 이름에 해당하는 옵션 리스트 ---------------- */
+  const options = useMemo(() => {
+    return items.filter((i) => i.name === decodedName);
+  }, [items, decodedName]);
+
+  /* ---------------- 선택된 옵션 객체 ---------------- */
+  const selectedOption =
+    options.find((opt) => opt.id === selectedOptionId) || null;
+
+  /* ---------------- 옵션 중복 확인 ---------------- */
+  const isOptionExists = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    return options.some((opt) => (opt.size || "").trim() === trimmed);
+  };
+
+  /* ---------------- 선택된 옵션이 바뀔 때 기록 로드 ---------------- */
+  useEffect(() => {
+    if (!selectedOptionId) {
+      setRecords([]);
+      return;
+    }
+
+    async function loadRecords() {
+      try {
+        const data = await fetchRecords(selectedOptionId);
+        const normalized = Array.isArray(data)
+          ? data.map((rec) => ({
+              id: rec.id,
+              itemId: rec.itemId,
+              price: rec.price,
+              count: rec.count,
+              date: (rec.date || "").slice(0, 10),
+            }))
+          : [];
+        setRecords(normalized);
+      } catch (err) {
+        console.error("기록 불러오기 실패:", err);
+      }
+    }
+
+    loadRecords();
+  }, [selectedOptionId]);
+
+  /* ---------------- 메모: 현재는 프론트 상태에만 유지 ---------------- */
+  useEffect(() => {
+    if (selectedOption && typeof selectedOption.memo === "string") {
+      setMemoText(selectedOption.memo);
+    } else {
+      setMemoText("");
+    }
+  }, [selectedOption]);
+
+  const handleSaveMemo = () => {
+    if (!selectedOption) return;
+
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === selectedOption.id ? { ...it, memo: memoText } : it
+      )
+    );
+
+    showToast("메모 저장 완료! (현재는 이 기기에서만 유지됩니다)");
+  };
+
+  /* ---------------- 옵션 추가 (서버에 Item 생성) ---------------- */
   const handleAddOption = async ({ value, image }) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -151,169 +126,106 @@ export default function ManageDetailPage() {
       return;
     }
 
-    let finalImage = image || "";
-
-    // 같은 품목 이름의 다른 옵션이 있으면 그 이미지 재사용
-    if (!finalImage) {
-      const sameNameItems = items.filter(
-        (item) =>
-          item.name.trim().toLowerCase() ===
-          decodedName.trim().toLowerCase()
-      );
-
-      const representative =
-        sameNameItems.find((i) => i.image) || sameNameItems[0];
-
-      if (representative?.image) {
-        finalImage = representative.image;
-      }
-    }
-
-    const newOption = {
-      id: uuid(),
-      name: decodedName,
-      ...(isShoes ? { size: trimmed } : { option: trimmed }),
-      image: finalImage || undefined,
-      memo: "",
-    };
-
-    const newList = [...items, newOption];
-
-    // 1) IndexedDB에 옵션 저장
-    if (isShoes) {
-      setShoes(newList);
-      await saveShoes(newList);
-    } else {
-      setFoods(newList);
-      await saveFoods(newList);
-    }
-
-    // 2) 서버에도 Item 생성 (이미 있으면 생략)
     try {
-      const sizeForServer = isShoes ? newOption.size : newOption.option;
+      const created = await createItem({
+        name: decodedName,
+        size: trimmed,
+        imageUrl: image || null,
+      });
 
-      let serverItem =
-        serverItems.find(
-          (it) => it.name === decodedName && it.size === sizeForServer
-        ) || null;
+      const enriched = { ...created, memo: "" };
+      setItems((prev) => [...prev, enriched]);
+      setSelectedOptionId(created.id);
 
-      if (!serverItem) {
-        const created = await createItem({
-          name: decodedName,
-          size: sizeForServer,
-          imageUrl: newOption.image || null,
-        });
-        serverItem = created;
-        setServerItems((prev) => [...prev, created]);
-      }
+      showToast("옵션 추가 완료");
     } catch (err) {
       console.error("옵션 서버 저장 실패", err);
+      window.alert("서버에 옵션 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
     }
-
-    setSelectedOptionId(newOption.id);
-    showToast("옵션 추가 완료");
   };
 
-  /* ---------------- 옵션 수정 (현재는 IndexedDB만) ---------------- */
-  const handleSaveEditOption = async () => {
+  /* ---------------- 옵션 수정 (현재는 로컬 상태만) ---------------- */
+  const handleSaveEditOption = () => {
     if (!editModal) return;
 
     const { id, value, image } = editModal;
     const trimmed = value.trim();
     if (!trimmed) return;
 
+    // 중복 체크
     if (
       options.some(
-        (opt) =>
-          opt.id !== id &&
-          (isShoes ? opt.size : opt.option) === trimmed
+        (opt) => opt.id !== id && (opt.size || "").trim() === trimmed
       )
     ) {
       window.alert("이미 존재하는 옵션입니다.");
       return;
     }
 
-    const newList = items.map((i) =>
-      i.id === id
-        ? {
-            ...i,
-            ...(isShoes ? { size: trimmed } : { option: trimmed }),
-            image: image || i.image,
-          }
-        : i
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id
+          ? {
+              ...it,
+              size: trimmed,
+              imageUrl: image || it.imageUrl,
+            }
+          : it
+      )
     );
 
-    if (isShoes) {
-      setShoes(newList);
-      await saveShoes(newList);
-    } else {
-      setFoods(newList);
-      await saveFoods(newList);
-    }
-
-    // TODO: 나중에 서버에도 PATCH /api/items 추가해서 동기화
     setEditModal(null);
-    showToast("옵션 수정 완료");
+    showToast("옵션 수정 완료 (서버 동기화는 추후 추가 예정)");
   };
 
-  /* ---------------- 옵션 삭제 (현재는 IndexedDB만) ---------------- */
+  /* ---------------- 옵션 삭제 ---------------- */
   const handleDeleteOption = async () => {
     const id = deleteModal;
     if (!id) return;
 
-    const newList = items.filter((i) => i.id !== id);
-    const newRecords = itemRecords.filter((r) => r.shoeId !== id);
-
-    if (isShoes) {
-      setShoes(newList);
-      setRecords(newRecords);
-      await saveShoes(newList);
-      await saveRecords(newRecords);
-    } else {
-      setFoods(newList);
-      setFoodRecords(newRecords);
-      await saveFoods(newList);
-      await saveFoodRecords(newRecords);
+    try {
+      // 서버에서 이 item 및 연결된 기록 삭제
+      await deleteServerItem(id);
+    } catch (err) {
+      console.error("옵션 서버 삭제 실패", err);
+      window.alert("서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다.");
     }
 
-    // TODO: 나중에 서버에도 DELETE /api/items, /api/records 추가
-
-    if (selectedOptionId === id) setSelectedOptionId("");
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    setRecords([]);
+    if (selectedOptionId === id) setSelectedOptionId(null);
 
     setDeleteModal(null);
     showToast("옵션 삭제 완료");
   };
 
-  /* ---------------- 품목 전체 삭제 (현재는 IndexedDB만) ---------------- */
+  /* ---------------- 품목 전체 삭제 (이 이름의 모든 옵션 삭제) ---------------- */
   const handleDeleteItem = async () => {
     if (!window.confirm("정말 이 품목을 전체 삭제할까요?")) return;
 
-    const optionIds = options.map((o) => o.id);
+    const targetOptions = options;
+    const ids = targetOptions.map((it) => it.id);
 
-    const newList = items.filter((i) => i.name !== decodedName);
-    const newRecords = itemRecords.filter(
-      (r) => !optionIds.includes(r.shoeId)
-    );
-
-    if (isShoes) {
-      setShoes(newList);
-      setRecords(newRecords);
-      await saveShoes(newList);
-      await saveRecords(newRecords);
-    } else {
-      setFoods(newList);
-      setFoodRecords(newRecords);
-      await saveFoods(newList);
-      await saveFoodRecords(newRecords);
+    try {
+      await Promise.all(ids.map((id) => deleteServerItem(id)));
+    } catch (err) {
+      console.error("품목 전체 삭제 실패", err);
+      window.alert(
+        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
+      );
     }
 
-    // TODO: 나중에 서버에도 일괄 삭제 API 추가
+    setItems((prev) => prev.filter((it) => it.name !== decodedName));
+    setRecords([]);
+    setSelectedOptionId(null);
 
     showToast("품목 전체 삭제 완료");
     navigate("/manage");
   };
 
   /* ---------------- 렌더링 ---------------- */
+  const filteredRecords = records; // 이미 선택된 옵션의 기록만 불러오므로 그대로 사용
+
   return (
     <div style={{ padding: 24, width: "100%" }}>
       {toast && (
@@ -384,7 +296,7 @@ export default function ManageDetailPage() {
           gap: 24,
         }}
       >
-        {/* ---------------------------------- 좌측 ---------------------------------- */}
+        {/* ---------------------------------- 좌측: 옵션 목록 ---------------------------------- */}
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
             옵션 목록
@@ -398,7 +310,8 @@ export default function ManageDetailPage() {
             }}
           >
             {options.map((opt) => {
-              const value = isShoes ? opt.size : opt.option;
+              const value = opt.size; // 서버에서는 size 컬럼을 사용
+
               return (
                 <div
                   key={opt.id}
@@ -417,9 +330,9 @@ export default function ManageDetailPage() {
                     onClick={() => setSelectedOptionId(opt.id)}
                     style={{ marginBottom: 6 }}
                   >
-                    {opt.image ? (
+                    {opt.imageUrl ? (
                       <img
-                        src={opt.image}
+                        src={opt.imageUrl}
                         alt=""
                         style={{
                           width: "100%",
@@ -464,8 +377,8 @@ export default function ManageDetailPage() {
                       onClick={() =>
                         setEditModal({
                           id: opt.id,
-                          value,
-                          image: opt.image || "",
+                          value: value || "",
+                          image: opt.imageUrl || "",
                         })
                       }
                       style={{
@@ -506,7 +419,7 @@ export default function ManageDetailPage() {
           <OptionAddBox isShoes={isShoes} onAdd={handleAddOption} />
         </div>
 
-        {/* ---------------------------------- 우측 ---------------------------------- */}
+        {/* ---------------------------------- 우측: 그래프 + 기록 + 메모 ---------------------------------- */}
         <div>
           {!selectedOptionId ? (
             <div
@@ -519,9 +432,7 @@ export default function ManageDetailPage() {
               <StatsSection
                 records={filteredRecords}
                 itemName={
-                  isShoes
-                    ? `${decodedName} (${selectedOption?.size})`
-                    : `${decodedName} (${selectedOption?.option})`
+                  `${decodedName} (${selectedOption?.size ?? ""})`
                 }
               />
 
@@ -535,161 +446,85 @@ export default function ManageDetailPage() {
                 }}
               >
                 <PurchaseForm
-                 onAddRecord={async (info) => {
-                  if (!selectedOption) return;
-                
-                  const dateValue =
-                    info.date || new Date().toISOString().slice(0, 10);
-                  const countValue =
-                    info.count === "" || info.count == null
-                      ? 1
-                      : Number(info.count);
-                
-                  // 1) 먼저 로컬(IndexedDB)에 기록 추가 (serverId는 아직 null)
-                  const localRecordId = uuid();
-                
-                  const newRecord = {
-                    id: localRecordId,
-                    shoeId: selectedOptionId,
-                    date: dateValue,
-                    price: Number(info.price),
-                    count: countValue,
-                    serverId: null,
-                  };
-                
-                  const updated = [...itemRecords, newRecord];
-                
-                  if (isShoes) {
-                    setRecords(updated);
-                    await saveRecords(updated);
-                  } else {
-                    setFoodRecords(updated);
-                    await saveFoodRecords(updated);
-                  }
-                
-                  // 2) 서버에도 Item/Record 생성
-                  try {
-                    const sizeForServer = isShoes
-                      ? selectedOption.size
-                      : selectedOption.option;
-                
-                    let serverItem =
-                      serverItems.find(
-                        (it) =>
-                          it.name === decodedName && it.size === sizeForServer
-                      ) || null;
-                
-                    if (!serverItem) {
-                      const createdItem = await createItem({
-                        name: decodedName,
-                        size: sizeForServer,
-                        imageUrl: selectedOption?.image || null,
-                      });
-                      serverItem = createdItem;
-                      setServerItems((prev) => [...prev, createdItem]);
-                    }
-                
-                    // 서버에 기록 생성 → 여기서 서버의 record.id를 받음
-                    const createdRecord = await createRecord({
-                      itemId: serverItem.id,
-                      price: Number(info.price),
-                      count: countValue,
-                      date: dateValue,
-                    });
-                
-                    const serverRecordId = createdRecord.id;
-                
-                    // 3) 방금 추가한 로컬 기록에 serverId 채워넣기
-                    const withServerId = updated.map((r) =>
-                      r.id === localRecordId ? { ...r, serverId: serverRecordId } : r
-                    );
-                
-                    if (isShoes) {
-                      setRecords(withServerId);
-                      await saveRecords(withServerId);
-                    } else {
-                      setFoodRecords(withServerId);
-                      await saveFoodRecords(withServerId);
-                    }
-                  } catch (err) {
-                    console.error("백엔드 기록 저장 실패", err);
-                    // 서버가 실패해도 로컬 기록은 남겨둔다
-                  }
-                
-                  showToast("매입 기록 추가 완료");
-                }}
-                />
+  onAddRecord={async (info) => {
+    if (!selectedOptionId) return;
+
+    const dateValue =
+      info.date || new Date().toISOString().slice(0, 10);
+    const countValue =
+      info.count === "" || info.count == null
+        ? 1
+        : Number(info.count);
+
+    try {
+      const created = await createRecord({
+        itemId: selectedOptionId,
+        price: Number(info.price),
+        count: countValue,
+        date: dateValue,
+      });
+
+      const newRecord = {
+        id: created.id,
+        itemId: created.itemId,
+        price: created.price,
+        count: created.count,
+        date: (created.date || "").slice(0, 10),
+      };
+
+      setRecords((prev) => [...prev, newRecord]);
+      showToast("매입 기록 추가 완료");
+    } catch (err) {
+      console.error("백엔드 기록 저장 실패", err);
+      window.alert(
+        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
+      );
+    }
+  }}
+/>
               </div>
 
               <PurchaseList
                 records={filteredRecords}
                 onDeleteRecord={async (id) => {
-                  const target = itemRecords.find((r) => r.id === id);
-                
-                  const newList = itemRecords.filter((r) => r.id !== id);
-                  setItemRecords(newList);
-                
-                  if (isShoes) {
-                    await saveRecords(newList);
-                  } else {
-                    await saveFoodRecords(newList);
+                  // 화면에서 먼저 제거
+                  setRecords((prev) => prev.filter((r) => r.id !== id));
+
+                  try {
+                    await deleteServerRecord(id);
+                  } catch (err) {
+                    console.error("백엔드 기록 삭제 실패", err);
+                    window.alert(
+                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
+                    );
                   }
-                
-                  // 서버에도 삭제 시도 (serverId가 있을 때만)
-                  if (target?.serverId) {
-                    try {
-                      await deleteRecord(target.serverId);
-                    } catch (err) {
-                      console.error("백엔드 기록 삭제 실패", err);
-                      // 굳이 롤백하지는 않고 콘솔만 찍자
-                    }
-                  }
-                
+
                   showToast("기록 삭제 완료");
                 }}
-                onUpdateRecord={async (id, info) => {
-                  const newList = itemRecords.map((r) =>
-                    r.id === id
-                      ? {
-                          ...r,
-                          date: info.date || r.date,
-                          price:
-                            info.price === "" || info.price == null
-                              ? r.price
-                              : Number(info.price),
-                          count:
-                            info.count === "" || info.count == null
-                              ? r.count
-                              : Number(info.count),
-                        }
-                      : r
+                onUpdateRecord={(id, info) => {
+                  // 현재는 서버에 수정 API가 없어서, 우선 로컬 상태만 수정
+                  setRecords((prev) =>
+                    prev.map((r) =>
+                      r.id === id
+                        ? {
+                            ...r,
+                            date: info.date || r.date,
+                            price:
+                              info.price === "" || info.price == null
+                                ? r.price
+                                : Number(info.price),
+                            count:
+                              info.count === "" || info.count == null
+                                ? r.count
+                                : Number(info.count),
+                          }
+                        : r
+                    )
                   );
-                
-                  setItemRecords(newList);
-                
-                  if (isShoes) {
-                    await saveRecords(newList);
-                  } else {
-                    await saveFoodRecords(newList);
-                  }
-                
-                  // 서버에도 수정 시도
-                  const target = newList.find((r) => r.id === id);
-                  if (target?.serverId) {
-                    try {
-                      await updateRecord({
-                        id: target.serverId,
-                        price: target.price,
-                        count: target.count,
-                        date: target.date,
-                      });
-                    } catch (err) {
-                      console.error("백엔드 기록 수정 실패", err);
-                      // 여기서도 로컬 롤백까진 하지 않고, 일단 콘솔에만 남겨두자
-                    }
-                  }
-                
-                  showToast("기록 수정 완료");
+
+                  showToast(
+                    "기록 수정 완료 (서버 동기화는 추후 추가 예정입니다)"
+                  );
                 }}
               />
 

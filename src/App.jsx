@@ -5,6 +5,8 @@ import AddItemPage from "./pages/AddItemPage";
 import ManageListPage from "./pages/ManageListPage";
 import ManageDetailPage from "./pages/ManageDetailPage";
 import SyncToServerPage from "./pages/SyncToServerPage";
+import LoginPage from "./pages/LoginPage";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 // 상단 네비게이션 바
 function TopNav() {
@@ -89,33 +91,70 @@ function TopNav() {
 function App() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
-      {/* 상단 바 */}
-      <TopNav />
-
-      {/* 페이지 영역 */}
-      <main style={{ maxWidth: "none", margin: "0 auto", padding: "24px 16px" }}>
-        <Routes>
-          {/* 메인 */}
-          <Route path="/" element={<HomePage />} />
-
-          {/* 품목 관리 리스트 */}
-          <Route path="/manage" element={<ManageListPage />} />
-
-          {/* 품목 상세 → item/:name */}
-        <Route path="/manage/item/:name" element={<ManageDetailPage />} />
-
-          {/* 품목 등록 */}
-          <Route path="/add" element={<AddItemPage />} />
-
-          {/* 이상한 주소 → 메인으로 */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-
-          {/* 일회용*/ }
-          <Route path="/sync" element={<SyncToServerPage />} />
-
-        </Routes>
-      </main>
-    </div>
+    {/* 상단 바 */}
+    <TopNav />
+  
+    {/* 페이지 영역 */}
+    <main style={{ maxWidth: "none", margin: "0 auto", padding: "24px 16px" }}>
+      <Routes>
+        {/* 로그인 페이지는 보호 필요 없음 */}
+        <Route path="/login" element={<LoginPage />} />
+  
+        {/* 메인 */}
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+          }
+        />
+  
+        {/* 품목 관리 리스트 */}
+        <Route
+          path="/manage"
+          element={
+            <ProtectedRoute>
+              <ManageListPage />
+            </ProtectedRoute>
+          }
+        />
+  
+        {/* 품목 상세 → item/:name */}
+        <Route
+          path="/manage/item/:name"
+          element={
+            <ProtectedRoute>
+              <ManageDetailPage />
+            </ProtectedRoute>
+          }
+        />
+  
+        {/* 품목 등록 */}
+        <Route
+          path="/add"
+          element={
+            <ProtectedRoute>
+              <AddItemPage />
+            </ProtectedRoute>
+          }
+        />
+  
+        {/* 일회용 */}
+        <Route
+          path="/sync"
+          element={
+            <ProtectedRoute>
+              <SyncToServerPage />
+            </ProtectedRoute>
+          }
+        />
+  
+        {/* 이상한 주소 → 메인으로 */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </main>
+  </div>
   );
 }
 

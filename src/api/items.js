@@ -52,11 +52,14 @@ export async function updateRecord({ id, price, count, date }) {
     return res.data;
   }
   
-  // 기록 삭제
-  export async function deleteRecord(id) {
-    await api.delete("/records", {
-      params: { id },
-    });
+ // 기록 삭제
+export async function deleteRecord(id) {
+    await api.delete("/records", { params: { id } });
+  }
+  
+  // 아이템 삭제 (기록도 같이 삭제됨)
+  export async function deleteItem(id) {
+    await api.delete("/items", { params: { id } });
   }
 
 export default api;
