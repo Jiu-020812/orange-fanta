@@ -1,5 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
-
+const API_BASE = import.meta.env.VITE_API_BASE_URL 
+  ?? "https://orange-fanta-back.vercel.app";
+  
 async function request(path, options = {}) {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     credentials: "include", // 쿠키 포함!
