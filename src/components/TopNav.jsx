@@ -58,7 +58,7 @@ export default function TopNav() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        borderBottom: "1px solid #e5e7eb",
+        borderBottom: "1px solid black",
         backgroundColor: "#ffffff",
       }}
     >
@@ -97,7 +97,7 @@ export default function TopNav() {
               style={{
                 padding: "6px 12px",
                 borderRadius: 999,
-                border: "1px solid #d1d5db",
+                border: "1px solid black",
                 backgroundColor: "#f9fafb",
                 fontSize: 13,
                 cursor: "pointer",
@@ -113,7 +113,7 @@ export default function TopNav() {
             style={{
               padding: "6px 12px",
               borderRadius: 999,
-              border: "1px solid #d1d5db",
+              border: "1px solid blsck",
               backgroundColor: "#f9fafb",
               fontSize: 13,
               cursor: "pointer",
