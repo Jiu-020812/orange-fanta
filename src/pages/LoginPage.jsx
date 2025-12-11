@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { login, signup } from "../api/auth";  
+import api from "../api/items";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -17,35 +18,43 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ---------------------------------------------------
-  // 로그인 / 회원가입 처리
-  // ---------------------------------------------------
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      if (mode === "login") {
-        // ----------------------------
-        // 로그인
-        // ----------------------------
-        await login({ email, password });
-      } else {
-        // ----------------------------
-        // 회원가입 후 자동 로그인
-        // ----------------------------
-        await signup({ email, password, name });
+ 
+    // 로그인 / 회원가입 처리
+    async function handleSubmit(e) {
+        e.preventDefault();
+        setError("");
+        setLoading(true);
+    
+        try {
+          let result;
+    
+          if (mode === "login") {
+            // 로그인
+            result = await login({ email, password });
+          } else {
+            // 회원가입 후 자동 로그인
+            result = await signup({ email, password, name });
+          }
+    
+          // 서버가 돌려준 토큰 있으면 axios + localStorage에 세팅
+          if (result && result.token) {
+            const token = result.token;
+    
+            // 앞으로의 모든 api 요청에 Authorization 헤더 추가
+            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    
+            // 새로고침 후에도 유지되도록 저장
+            window.localStorage.setItem("authToken", token);
+          }
+    
+          // 성공 → 홈으로 이동
+          navigate("/");
+        } catch (err) {
+          setError(err.message || "오류가 발생했습니다.");
+        } finally {
+          setLoading(false);
+        }
       }
-
-      // 성공 → 홈으로 이동
-      navigate("/");
-    } catch (err) {
-      setError(err.message || "오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <div
