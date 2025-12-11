@@ -20,41 +20,41 @@ export default function LoginPage() {
 
  
     // 로그인 / 회원가입 처리
-    async function handleSubmit(e) {
-        e.preventDefault();
-        setError("");
-        setLoading(true);
-    
-        try {
-          let result;
-    
-          if (mode === "login") {
-            // 로그인
-            result = await login({ email, password });
-          } else {
-            // 회원가입 후 자동 로그인
-            result = await signup({ email, password, name });
-          }
-    
-          // 서버가 돌려준 토큰 있으면 axios + localStorage에 세팅
-          if (result && result.token) {
-            const token = result.token;
-    
-            // 앞으로의 모든 api 요청에 Authorization 헤더 추가
-            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-    
-            // 새로고침 후에도 유지되도록 저장
-            window.localStorage.setItem("authToken", token);
-          }
-    
-          // 성공 → 홈으로 이동
-          navigate("/");
-        } catch (err) {
-          setError(err.message || "오류가 발생했습니다.");
-        } finally {
-          setLoading(false);
-        }
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      let result;
+
+      if (mode === "login") {
+        // 로그인
+        result = await login({ email, password });
+      } else {
+        // 회원가입 후 자동 로그인
+        result = await signup({ email, password, name });
       }
+
+      // 🔑 서버에서 내려준 토큰 있으면 axios + localStorage에 저장
+      if (result && result.token) {
+        const token = result.token;
+
+        // 앞으로의 모든 api 요청에 Authorization 헤더 추가
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+        // 새로고침 후에도 유지되도록 저장
+        window.localStorage.setItem("authToken", token);
+      }
+
+      // 성공 → 홈으로 이동
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div
