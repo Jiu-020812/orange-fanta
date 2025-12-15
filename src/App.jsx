@@ -12,9 +12,9 @@ import HomePage from "./pages/HomePage";
 import AddItemPage from "./pages/AddItemPage";
 import ManageListPage from "./pages/ManageListPage";
 import ManageDetailPage from "./pages/ManageDetailPage";
-import SyncToServerPage from "./pages/SyncToServerPage";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import MigratePage from "./pages/MigratePage";
 
 import { getMe, logout } from "./api/auth";
 
@@ -241,15 +241,16 @@ function App() {
             }
           />
 
-          {/* (임시) sync 페이지 */}
+          {/* 마이그레이션*/ }
           <Route
-            path="/sync"
-            element={
-              <ProtectedRoute>
-                <SyncToServerPage />
-              </ProtectedRoute>
-            }
-          />
+  path="/migrate"
+  element={
+    <ProtectedRoute>
+      <MigratePage />
+    </ProtectedRoute>
+  }
+/>
+
 
           {/* 이상한 주소 → 메인 */}
           <Route path="*" element={<Navigate to="/" replace />} />

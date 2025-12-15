@@ -95,12 +95,15 @@ export default function TopNav() {
             <button
               onClick={handleLogout}
               style={{
-                padding: "6px 12px",
+                padding: "6px 14px",
                 borderRadius: 999,
-                border: "1px solid black",
-                backgroundColor: "#f9fafb",
                 fontSize: 13,
+                fontWeight: 600,
+                border: "none",
                 cursor: "pointer",
+                marginLeft: 12,
+                backgroundColor: "#ef4444", //  빨간 배경
+                color: "#ffffff", 
               }}
             >
               로그아웃
