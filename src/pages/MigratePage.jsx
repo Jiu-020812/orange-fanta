@@ -40,11 +40,19 @@ function sanitizeItem(it, userId) {
       ? null
       : imageUrl;
 
+  const category = it.category ?? it.type ?? "FOOD";
+
+  // ✅ FOOD는 size가 없는 경우가 많아서 기본값 넣어줌
+  const rawSize = it.size ?? it.option ?? it.unit ?? it.variant ?? "";
+  const size =
+    String(rawSize || "").trim() ||
+    (String(category).toUpperCase().includes("FOOD") ? "-" : "");
+
   return {
     userId,
-    name: it.name ?? "",
-    size: it.size ?? "",
-    category: it.category ?? it.type ?? "FOOD",
+    name: it.name ?? it.title ?? "",
+    size, // ✅ 여기 중요
+    category,
     legacyId: String(it.legacyId ?? it.id ?? ""),
     imageUrl: safeImageUrl,
     createdAt: it.createdAt ?? it.created_at ?? null,
@@ -54,6 +62,7 @@ function sanitizeItem(it, userId) {
 function sanitizeRecord(r, userId) {
   return {
     userId,
+    // recordsBatchHandler가 shoeId 또는 itemLegacyId를 legacy로 쓰고 있음
     shoeId: r.shoeId ?? r.itemId ?? r.itemLegacyId ?? r.legacyItemId,
     itemLegacyId: r.itemLegacyId ?? r.shoeId ?? r.itemId ?? r.legacyItemId,
     price: r.price,
@@ -72,57 +81,93 @@ export default function MigratePage() {
     setLog((prev) => [...prev, msg]);
   }
 
-  async function handleMigrate() {
+  async function getUserId() {
+    const meRes = await api.get("/auth/me");
+    const userId = meRes?.data?.user?.id;
+    if (!userId) {
+      throw new Error(
+        `현재 로그인 유저의 id를 못 가져왔어. /auth/me 응답: ${JSON.stringify(meRes?.data)}`
+      );
+    }
+    return userId;
+  }
+
+  async function readStores() {
+    if (!file) throw new Error("파일 선택해줘");
+    const text = await file.text();
+    const json = JSON.parse(text);
+    return json.stores || {};
+  }
+
+  async function uploadItems(items, userId, label) {
+    const sanitized = items
+      .map((it) => sanitizeItem(it, userId))
+      // ✅ name / legacyId만 필수, size는 FOOD에선 "-"로 채워짐
+      .filter((x) => x.name && x.legacyId && x.size);
+
+    pushLog(`📦 ${label} items raw=${items.length} → sanitized=${sanitized.length}`);
+
+    const chunks = chunkByBytes(sanitized, "items", MAX_BYTES);
+    for (let i = 0; i < chunks.length; i++) {
+      await api.post("/migrate/items-batch", { items: chunks[i] });
+      pushLog(`✅ ${label} items ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
+    }
+  }
+
+  async function uploadRecords(records, userId, label) {
+    const sanitized = records.map((r) => sanitizeRecord(r, userId));
+    pushLog(`📦 ${label} records raw=${records.length} → sanitized=${sanitized.length}`);
+
+    const chunks = chunkByBytes(sanitized, "records", MAX_BYTES);
+    for (let i = 0; i < chunks.length; i++) {
+      await api.post("/migrate/records-batch", { records: chunks[i] });
+      pushLog(`✅ ${label} records ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
+    }
+  }
+
+  async function run(type) {
     if (!file) return alert("파일 선택해줘");
 
     setLoading(true);
     setLog([]);
 
     try {
-      // ✅ 여기만 고치면 됨: 실제 존재하는 엔드포인트 사용
-      const meRes = await api.get("/auth/me");
-      const userId = meRes?.data?.user?.id;
-
-      if (!userId) {
-        throw new Error(
-          `현재 로그인 유저의 id를 못 가져왔어. /auth/me 응답: ${JSON.stringify(meRes?.data)}`
-        );
-      }
-
+      const userId = await getUserId();
       pushLog(`👤 로그인 유저 id=${userId}`);
 
-      const text = await file.text();
-      const json = JSON.parse(text);
+      const stores = await readStores();
 
-      const stores = json.stores || {};
+      // 🔎 진단 로그 (원인 파악용)
+      pushLog(
+        `🧩 stores: shoes=${(stores.shoes || []).length}, foods=${(stores.foods || []).length}, records=${(stores.records || []).length}, foodRecords=${(stores.foodRecords || []).length}`
+      );
 
-      // 1️⃣ items 먼저
-      const rawItems = [...(stores.shoes || []), ...(stores.foods || [])];
-      const items = rawItems
-        .map((it) => sanitizeItem(it, userId))
-        .filter((x) => x.name && x.size && x.legacyId);
-
-      pushLog(`📦 items ${items.length}개 업로드 시작 (MAX_BYTES=${MAX_BYTES})`);
-
-      const itemChunks = chunkByBytes(items, "items", MAX_BYTES);
-      for (let i = 0; i < itemChunks.length; i++) {
-        await api.post("/migrate/items-batch", { items: itemChunks[i] });
-        pushLog(`✅ items ${i + 1}/${itemChunks.length} 완료 (sent=${itemChunks[i].length})`);
+      if (type === "FOOD_ITEMS") {
+        await uploadItems(stores.foods || [], userId, "FOOD");
+        pushLog("🎉 FOOD items 완료");
+        return;
       }
 
-      // 2️⃣ records 나중
-      const rawRecords = [...(stores.records || []), ...(stores.foodRecords || [])];
-      const records = rawRecords.map((r) => sanitizeRecord(r, userId));
-
-      pushLog(`📦 records ${records.length}개 업로드 시작 (MAX_BYTES=${MAX_BYTES})`);
-
-      const recordChunks = chunkByBytes(records, "records", MAX_BYTES);
-      for (let i = 0; i < recordChunks.length; i++) {
-        await api.post("/migrate/records-batch", { records: recordChunks[i] });
-        pushLog(`✅ records ${i + 1}/${recordChunks.length} 완료 (sent=${recordChunks[i].length})`);
+      if (type === "SHOE_ITEMS") {
+        await uploadItems(stores.shoes || [], userId, "SHOE");
+        pushLog("🎉 SHOE items 완료");
+        return;
       }
 
-      pushLog("🎉 마이그레이션 완료");
+      if (type === "ALL_RECORDS") {
+        // records 전체(신발+식품 기록) — 필요하면 foodRecords만 따로 버튼도 만들 수 있음
+        const all = [...(stores.records || []), ...(stores.foodRecords || [])];
+        await uploadRecords(all, userId, "ALL");
+        pushLog("🎉 records 완료");
+        return;
+      }
+
+      // 기본: 전체(아이템+레코드) — 지금은 실수 방지로 권장 X
+      const allItems = [...(stores.shoes || []), ...(stores.foods || [])];
+      await uploadItems(allItems, userId, "ALL");
+      const allRecords = [...(stores.records || []), ...(stores.foodRecords || [])];
+      await uploadRecords(allRecords, userId, "ALL");
+      pushLog("🎉 전체 마이그레이션 완료");
     } catch (err) {
       console.error(err);
       alert(err?.response?.data?.message || err?.message || "마이그레이션 실패");
@@ -135,23 +180,23 @@ export default function MigratePage() {
     <div style={{ maxWidth: 520, margin: "40px auto" }}>
       <h2>📦 IndexedDB → 서버 마이그레이션</h2>
 
-      <input
-        type="file"
-        accept=".json"
-        onChange={(e) => setFile(e.target.files[0])}
-      />
+      <input type="file" accept=".json" onChange={(e) => setFile(e.target.files[0])} />
 
-      <button
-        onClick={handleMigrate}
-        disabled={loading}
-        style={{ marginTop: 16 }}
-      >
-        {loading ? "이동 중..." : "마이그레이션 시작"}
-      </button>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
+        <button onClick={() => run("FOOD_ITEMS")} disabled={loading}>
+          {loading ? "이동 중..." : "1) FOOD 아이템만 업로드"}
+        </button>
 
-      <pre style={{ marginTop: 20, fontSize: 12 }}>
-        {log.join("\n")}
-      </pre>
+        <button onClick={() => run("SHOE_ITEMS")} disabled={loading}>
+          {loading ? "이동 중..." : "2) SHOE 아이템만 업로드"}
+        </button>
+
+        <button onClick={() => run("ALL_RECORDS")} disabled={loading}>
+          {loading ? "이동 중..." : "3) 기록(records) 업로드"}
+        </button>
+      </div>
+
+      <pre style={{ marginTop: 20, fontSize: 12 }}>{log.join("\n")}</pre>
     </div>
   );
 }
