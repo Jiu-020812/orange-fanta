@@ -22,10 +22,6 @@ export default function ManageListPage() {
       try {
         const data = await fetchItems();
 
-        console.log("🟥 /manage items raw:", data);
-        console.log("🟥 is array:", Array.isArray(data));
-        console.log("🟥 length:", data?.length);
-
         // 서버가 배열을 주는 형태(지금 너 백엔드가 그럼)
         setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
       } catch (err) {

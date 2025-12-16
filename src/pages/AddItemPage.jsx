@@ -1,20 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { v4 as uuid } from "uuid";
-import { getAllShoes, saveShoes, getAllFoods, saveFoods } from "../db";
-import { getItems } from "../api/items";   // 서버에서 Item 목록 가져오기
-import { createItem } from "../api";       // 서버에 Item 하나 생성
+import { getItems, createItem } from "../api/items";
 import "./AddItemPage.css";
 
-function AddItemPage() {
-  const [activeType, setActiveType] = useState("shoes");
+const norm = (s) => String(s ?? "").trim();
+const lower = (s) => norm(s).toLowerCase();
 
-  // 로컬 IndexedDB 데이터
-  const [shoes, setShoes] = useState([]);
-  const [foods, setFoods] = useState([]);
+function AddItemPage() {
+  const [activeType, setActiveType] = useState("shoes"); // shoes | foods
 
   // 입력값
   const [name, setName] = useState("");
-  const [second, setSecond] = useState(""); // shoes = size, foods = option
+  const [second, setSecond] = useState(""); // shoes=size, foods=option(=size에 저장)
   const [imageDataUrl, setImageDataUrl] = useState("");
 
   // 자동완성 관련
@@ -25,51 +21,50 @@ function AddItemPage() {
   // 토스트
   const [toast, setToast] = useState("");
 
-  // 서버 Item 목록(중복 방지/디버깅용)
+  // 서버 Item 목록
   const [serverItems, setServerItems] = useState([]);
 
-  /* ---------------------------------------------
-     초기 로드: 로컬(shoes/foods) + 서버(items)
-  --------------------------------------------- */
+  /* ----------------------- 초기 로드: 서버 items ----------------------- */
   useEffect(() => {
     async function load() {
       try {
-        const [loadedShoes, loadedFoods] = await Promise.all([
-          getAllShoes(),
-          getAllFoods(),
-        ]);
-
-        setShoes(loadedShoes || []);
-        setFoods(loadedFoods || []);
-
         const backendItems = await getItems();
-        setServerItems(backendItems || []);
+        const list = Array.isArray(backendItems)
+          ? backendItems
+          : Array.isArray(backendItems?.items)
+          ? backendItems.items
+          : [];
+        setServerItems(list);
       } catch (e) {
-        console.error("AddItemPage 초기 로드 오류:", e);
+        console.error("AddItemPage 서버 items 로드 오류:", e);
+        setServerItems([]);
       }
     }
-
     load();
   }, []);
 
-  /* ---------------------------------------------
-     자동완성 후보 계산
-  --------------------------------------------- */
-  const nameSuggestions = useMemo(() => {
-    const list =
-      activeType === "shoes"
-        ? shoes.map((s) => s.name || "")
-        : foods.map((f) => f.name || "");
+  const isShoes = activeType === "shoes";
+  const targetCategory = isShoes ? "SHOE" : "FOOD";
 
-    const keyword = (name || "").trim().toLowerCase();
+  /* ----------------------- 자동완성 후보 (서버 기준) ----------------------- */
+  const nameSuggestions = useMemo(() => {
+    const keyword = lower(name);
     if (!keyword) return [];
 
-    const set = new Set(
-      list.filter(Boolean).filter((n) => n.toLowerCase().includes(keyword))
-    );
+    const set = new Set();
 
-    return Array.from(set);
-  }, [activeType, shoes, foods, name]);
+    for (const it of serverItems) {
+      const cat = it?.category ?? "SHOE";
+      if (cat !== targetCategory) continue;
+
+      const n = norm(it?.name);
+      if (!n) continue;
+
+      if (lower(n).includes(keyword)) set.add(n);
+    }
+
+    return Array.from(set).slice(0, 20);
+  }, [serverItems, name, targetCategory]);
 
   const hasNameSuggestions = nameFocused && nameSuggestions.length > 0;
 
@@ -79,9 +74,7 @@ function AddItemPage() {
     setNameFocused(false);
   };
 
-  /* ---------------------------------------------
-     자동완성 키보드 조작 (↑↓ + Enter)
-  --------------------------------------------- */
+  /* ----------------------- 자동완성 키보드 조작 ----------------------- */
   const handleNameKeyDown = (e) => {
     if (isComposing) return;
 
@@ -112,9 +105,7 @@ function AddItemPage() {
     }
   };
 
-  /* ---------------------------------------------
-     이미지 업로드
-  --------------------------------------------- */
+  /* ----------------------- 이미지 업로드 ----------------------- */
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -124,176 +115,90 @@ function AddItemPage() {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        setImageDataUrl(reader.result);
-      }
+      if (typeof reader.result === "string") setImageDataUrl(reader.result);
     };
     reader.readAsDataURL(file);
   };
 
-  /* ---------------------------------------------
-     토스트
-  --------------------------------------------- */
+  /* ----------------------- 토스트 ----------------------- */
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
   };
 
-  /* ---------------------------------------------
-     신규 등록 (신발 / 식품 공통)
-  --------------------------------------------- */
+  /* ----------------------- 대표 이미지 상속 (서버 기준) ----------------------- */
+  function getInheritedImageUrl(trimmedName) {
+    const sameName = serverItems.filter(
+      (it) =>
+        (it?.category ?? "SHOE") === targetCategory &&
+        lower(it?.name) === lower(trimmedName)
+    );
+    const rep = sameName.find((it) => it?.imageUrl) || sameName[0];
+    return rep?.imageUrl || "";
+  }
+
+  /* ----------------------- 중복 체크 (서버 기준) ----------------------- */
+  function isDuplicated(trimmedName, trimmedSecond) {
+    const tn = lower(trimmedName);
+    const ts = norm(trimmedSecond);
+
+    return serverItems.some((it) => {
+      const cat = it?.category ?? "SHOE";
+      if (cat !== targetCategory) return false;
+
+      return lower(it?.name) === tn && norm(it?.size) === ts;
+    });
+  }
+
+  /* ----------------------- 신규 등록 (서버만) ----------------------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const trimmedName = name.trim();
-    const trimmedSecond = second.trim();
+    const trimmedName = norm(name);
+    const trimmedSecond = norm(second);
 
     if (!trimmedName) return;
 
+    // shoes는 size 필수, foods는 옵션 없어도 "-" 저장(기존 유지)
+    const finalSecond =
+      isShoes ? trimmedSecond : trimmedSecond || "-";
+
+    if (isShoes && !finalSecond) return;
+
+    // 서버 중복 체크
+    if (isDuplicated(trimmedName, finalSecond)) {
+      window.alert(
+        isShoes
+          ? "이미 등록된 신발입니다. (동일한 이름 + 사이즈)"
+          : "이미 등록된 식품입니다. (동일한 이름 + 옵션)"
+      );
+      return;
+    }
+
+    // 대표 이미지 상속(서버 기준)
+    let finalImage = imageDataUrl || "";
+    if (!finalImage) finalImage = getInheritedImageUrl(trimmedName);
+
     try {
-      /* ========================
-         1) 신발 등록
-      ======================== */
-      if (activeType === "shoes") {
-        if (!trimmedSecond) return;
+      const created = await createItem({
+        name: trimmedName,
+        size: finalSecond,
+        imageUrl: finalImage || null,
+        category: targetCategory, // ✅ 서버에 카테고리 저장
+      });
 
-        // 로컬 중복 체크
-        const duplicated = shoes.some((s) => {
-          return (
-            (s.name || "").trim().toLowerCase() ===
-              trimmedName.toLowerCase() &&
-            (s.size || "").trim() === trimmedSecond
-          );
-        });
-        if (duplicated) {
-          window.alert("이미 등록된 신발입니다. (동일한 이름 + 사이즈)");
-          return;
-        }
+      // 서버 목록 갱신(빠른 UX)
+      setServerItems((prev) => [...prev, created]);
 
-        // 대표 이미지 상속
-        let finalImage = imageDataUrl || "";
-        if (!finalImage) {
-          const sameName = shoes.filter(
-            (s) =>
-              (s.name || "").trim().toLowerCase() ===
-              trimmedName.toLowerCase()
-          );
-          const rep = sameName.find((s) => s.image) || sameName[0];
-          if (rep?.image) finalImage = rep.image;
-        }
-
-        const shoe = {
-          id: uuid(),
-          name: trimmedName,
-          size: trimmedSecond,
-          image: finalImage || undefined,
-        };
-
-        // 로컬 저장
-        const newShoes = [...shoes, shoe];
-        setShoes(newShoes);
-        await saveShoes(newShoes);
-
-        showToast(`"${trimmedName} (${trimmedSecond})" 신발 등록 완료`);
-
-        // ---- 서버 동기화 (Item 생성) ----
-        try {
-          console.log(
-            "🔥 [AddItemPage] (신발) createItem 실행됨! 서버로 저장합니다.",
-            { trimmedName, trimmedSecond }
-          );
-
-          const created = await createItem({
-            name: trimmedName,
-            size: trimmedSecond,
-            imageUrl: finalImage || null,
-          });
-
-          console.log(
-            "✅ [AddItemPage] (신발) 서버에서 돌아온 created:",
-            created
-          );
-
-          setServerItems((prev) => [...prev, created]);
-        } catch (err) {
-          console.error("❌ [AddItemPage] (신발) 서버 Item 동기화 실패:", err);
-        }
-
-        return; // shoes 끝
-      }
-
-      /* ========================
-         2) 식품 등록 (로컬 + 서버)
-      ======================== */
-      if (activeType === "foods") {
-        const duplicated = foods.some((f) => {
-          return (
-            (f.name || "").trim().toLowerCase() ===
-              trimmedName.toLowerCase() &&
-            (f.option || "").trim() === trimmedSecond
-          );
-        });
-        if (duplicated) {
-          window.alert("이미 등록된 식품입니다. (동일한 이름 + 옵션)");
-          return;
-        }
-
-        // 대표 이미지 상속
-        let finalImage = imageDataUrl || "";
-        if (!finalImage) {
-          const sameName = foods.filter(
-            (f) =>
-              (f.name || "").trim().toLowerCase() ===
-              trimmedName.toLowerCase()
-          );
-          const rep = sameName.find((f) => f.image) || sameName[0];
-          if (rep?.image) finalImage = rep.image;
-        }
-
-        const food = {
-          id: uuid(),
-          name: trimmedName,
-          option: trimmedSecond || undefined,
-          image: finalImage || undefined,
-        };
-
-        // 로컬 저장
-        const newFoods = [...foods, food];
-        setFoods(newFoods);
-        await saveFoods(newFoods);
-
-        showToast(`"${trimmedName}" 식품 등록 완료`);
-
-        // ---- 서버 동기화 (Item 생성) ----
-        try {
-          console.log(
-            "🔥 [AddItemPage] (식품) createItem 실행됨! 서버로 저장합니다.",
-            { trimmedName, trimmedSecond }
-          );
-
-          const created = await createItem({
-            name: trimmedName,
-            size: trimmedSecond || "-", // 식품은 옵션을 size에 저장
-            imageUrl: finalImage || null,
-          });
-
-          console.log(
-            "✅ [AddItemPage] (식품) 서버에서 돌아온 created:",
-            created
-          );
-
-          setServerItems((prev) => [...prev, created]);
-        } catch (err) {
-          console.error("❌ [AddItemPage] (식품) 서버 Item 동기화 실패:", err);
-        }
-
-        return; // foods 끝
-      }
+      showToast(
+        isShoes
+          ? `"${trimmedName} (${finalSecond})" 신발 등록 완료`
+          : `"${trimmedName} (${finalSecond})" 식품 등록 완료`
+      );
     } catch (err) {
-      console.error("물품 등록 오류:", err);
-      showToast("등록 중 오류가 발생했습니다.");
+      console.error("AddItemPage 서버 등록 실패:", err);
+      window.alert(err?.response?.data?.message || "서버 등록 실패 😢");
     } finally {
-      // 입력 초기화
       setName("");
       setSecond("");
       setImageDataUrl("");
@@ -301,9 +206,6 @@ function AddItemPage() {
     }
   };
 
-  /* ---------------------------------------------
-     렌더링
-  --------------------------------------------- */
   return (
     <div className="add-item-page">
       {toast && <div className="add-item-toast">{toast}</div>}
@@ -395,7 +297,7 @@ function AddItemPage() {
             placeholder={
               activeType === "shoes"
                 ? "사이즈 (ex: 260)"
-                : "옵션 (ex: 초코맛 / 500ml)"
+                : "옵션 (ex: 초코맛 / 500ml) — 비우면 '-'로 저장"
             }
             value={second}
             onChange={(e) => setSecond(e.target.value)}
