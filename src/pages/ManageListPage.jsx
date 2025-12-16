@@ -1,22 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getItems } from "../api/items";
-import {
-  getAllShoes,
-  getAllFoods,
-  getAllRecords,
-  getAllFoodRecords,
-} from "../db";
+import { getItems as fetchItems } from "../api/items";
+
+const norm = (s) => String(s ?? "").trim();
 
 export default function ManageListPage() {
   const navigate = useNavigate();
 
-  const [activeType, setActiveType] = useState("shoes");
-  const [shoes, setShoes] = useState([]);
-  const [foods, setFoods] = useState([]);
-  const [records, setRecords] = useState([]);
-  const [foodRecords, setFoodRecords] = useState([]);
-
+  const [activeType, setActiveType] = useState("shoes"); // shoes | foods
+  const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   // 정렬 상태
@@ -24,112 +16,72 @@ export default function ManageListPage() {
   const [sortOrder, setSortOrder] = useState("asc"); // asc | desc
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
-  /* ----------------------- 데이터 로드 ----------------------- */
-  useEffect(() => {
-    async function test() {
-      const serverItems = await getItems();
-      console.log("서버에서 받아온 items ↓↓↓");
-      console.log(serverItems);
-    }
-    test();
-  }, []);
-
+  /* ----------------------- 서버 데이터 로드 ----------------------- */
   useEffect(() => {
     async function load() {
-      const [loadedShoes, loadedFoods, loadedRecords, loadedFoodRecords] =
-        await Promise.all([
-          getAllShoes(),
-          getAllFoods(),
-          getAllRecords(),
-          getAllFoodRecords(),
-        ]);
+      try {
+        const data = await fetchItems();
 
-      setShoes(loadedShoes || []);
-      setFoods(loadedFoods || []);
-      setRecords(loadedRecords || []);
-      setFoodRecords(loadedFoodRecords || []);
+        console.log("🟥 /manage items raw:", data);
+        console.log("🟥 is array:", Array.isArray(data));
+        console.log("🟥 length:", data?.length);
+
+        // 서버가 배열을 주는 형태(지금 너 백엔드가 그럼)
+        setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
+      } catch (err) {
+        console.error("ManageListPage 아이템 불러오기 실패:", err);
+        setItems([]);
+      }
     }
     load();
   }, []);
 
   const isShoes = activeType === "shoes";
-  const items = isShoes ? shoes : foods;
-  const itemRecords = isShoes ? records : foodRecords;
+
+  // ✅ 카테고리로 분리 (서버 enum: SHOE | FOOD)
+  const filteredByCategory = useMemo(() => {
+    const cat = isShoes ? "SHOE" : "FOOD";
+    return items.filter((it) => (it?.category ?? "SHOE") === cat);
+  }, [items, isShoes]);
 
   /* ----------------------- name 기준 그룹핑 ----------------------- */
   const grouped = useMemo(() => {
     const map = {};
 
-    items.forEach((item) => {
-      const key = (item.name || "").trim();
+    filteredByCategory.forEach((item) => {
+      const key = norm(item.name);
       if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(item);
     });
 
     return map;
-  }, [items]);
+  }, [filteredByCategory]);
 
-  /* ----------------------- 검색 (이름 + 옵션) ----------------------- */
+  /* ----------------------- 검색 (이름 + 옵션(size)) ----------------------- */
   const filteredGroups = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
     if (!keyword) return grouped;
 
     const result = {};
     Object.entries(grouped).forEach(([name, list]) => {
-      const lowerName = name.toLowerCase();
-      const nameMatch = lowerName.includes(keyword);
+      const nameMatch = name.toLowerCase().includes(keyword);
 
-      // 옵션/사이즈/맛 등 텍스트를 모아서 검색 (item.option / item.size 등)
-      const optionMatch = list.some((item) => {
-        const optionText = [
-          item.option,
-          item.size,
-          item.flavor,
-          item.detail,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
+      // ✅ 서버는 option/flavor가 아니라 size를 씀
+      const optionMatch = list.some((item) => norm(item.size).toLowerCase().includes(keyword));
 
-        return optionText.includes(keyword);
-      });
-
-      if (nameMatch || optionMatch) {
-        result[name] = list;
-      }
+      if (nameMatch || optionMatch) result[name] = list;
     });
 
     return result;
   }, [grouped, searchQuery]);
 
-  /* ----------------------- 매입 요약 ----------------------- */
-  const getSummary = (groupName) => {
-    const optionIds = grouped[groupName]?.map((i) => i.id) ?? [];
-
-    let totalCount = 0;
-    let recordCount = 0;
-
-    itemRecords.forEach((r) => {
-      // TODO: 식품은 r.foodId 쓸 수도 있음. 지금은 기존 로직 유지.
-      if (optionIds.includes(r.shoeId)) {
-        totalCount += r.count ?? 1;
-        recordCount++;
-      }
-    });
-
-    return { totalCount, recordCount };
-  };
-
-  /* ----------------------- 그룹 최신 날짜 ----------------------- */
+  /* ----------------------- 그룹 최신 날짜(createdAt) ----------------------- */
   const getLatestTime = (list) => {
     let latest = 0;
     list.forEach((item) => {
-      if (!item.createdAt) return;
-      const t = new Date(item.createdAt).getTime();
-      if (!Number.isNaN(t) && t > latest) {
-        latest = t;
-      }
+      const t = item?.createdAt ? new Date(item.createdAt).getTime() : 0;
+      if (!Number.isNaN(t) && t > latest) latest = t;
     });
     return latest;
   };
@@ -142,56 +94,36 @@ export default function ManageListPage() {
       let base = 0;
 
       if (sortKey === "name") {
-        // 이름순
         base = nameA.localeCompare(nameB, "ko");
       } else if (sortKey === "count") {
-        // 물건 많은 순 (총 개수 기준)
-        const summaryA = getSummary(nameA);
-        const summaryB = getSummary(nameB);
-        base = (summaryA.totalCount ?? 0) - (summaryB.totalCount ?? 0);
+        // ✅ 옵션 개수(list.length) 기준
+        base = listA.length - listB.length;
       } else if (sortKey === "latest") {
-        // 최신순 (각 그룹 안에서 createdAt 가장 큰 값)
-        const timeA = getLatestTime(listA);
-        const timeB = getLatestTime(listB);
-        base = timeA - timeB;
+        base = getLatestTime(listA) - getLatestTime(listB);
       }
 
       return sortOrder === "asc" ? base : -base;
     });
-  }, [filteredGroups, sortKey, sortOrder, itemRecords]);
+  }, [filteredGroups, sortKey, sortOrder]);
 
   const sortLabel =
-    sortKey === "name"
-      ? "이름순"
-      : sortKey === "latest"
-      ? "최신순"
-      : "물건 많은 순";
+    sortKey === "name" ? "이름순" : sortKey === "latest" ? "최신순" : "옵션 많은 순";
+  const sortIcon = sortOrder === "asc" ? "▲" : "▼";
 
-      const sortIcon = sortOrder === "asc" ? "▲" : "▼";
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
-  };
+  const toggleSortOrder = () => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 
   const handleSelectSortKey = (key) => {
     setSortKey(key);
-    // 기준 바꾸면 기본 방향 세팅: 이름=오름, 나머지=내림
-    if (key === "name") {
-      setSortOrder("asc");
-    } else {
-      setSortOrder("desc");
-    }
+    if (key === "name") setSortOrder("asc");
+    else setSortOrder("desc");
     setIsSortMenuOpen(false);
   };
 
-  /* ----------------------- 렌더링 ----------------------- */
   return (
     <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
-        물품 관리
-      </h2>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>물품 관리</h2>
 
-      {/* 타입 선택: 신발 / 식품 */}
+      {/* 타입 선택 */}
       <div
         style={{
           display: "inline-flex",
@@ -232,17 +164,10 @@ export default function ManageListPage() {
       </div>
 
       {/* 검색 + 정렬 */}
-      <div
-        style={{
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
         <input
           type="text"
-          placeholder="품명 / 옵션 검색"
+          placeholder="품명 / 옵션(size) 검색"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
@@ -254,21 +179,20 @@ export default function ManageListPage() {
           }}
         />
 
-        {/* 정렬 기준 버튼 + 팝업 */}
         <div style={{ position: "relative" }}>
           <button
             type="button"
             onClick={() => setIsSortMenuOpen((prev) => !prev)}
             style={{
-                padding: "7px 12px",
-                borderRadius: 999,
-                border: "1px solid #2563eb",
-                backgroundColor: "#eff6ff",
-                color: "#1d4ed8",
-                fontSize: 12,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                fontWeight: 600,
+              padding: "7px 12px",
+              borderRadius: 999,
+              border: "1px solid #2563eb",
+              backgroundColor: "#eff6ff",
+              color: "#1d4ed8",
+              fontSize: 12,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              fontWeight: 600,
             }}
           >
             정렬: {sortLabel} ▾
@@ -290,15 +214,8 @@ export default function ManageListPage() {
                 minWidth: 130,
               }}
             >
-              <div
-                style={{
-                  marginBottom: 6,
-                  fontSize: 11,
-                  color: "#6b7280",
-                }}
-              >
-                정렬 기준 선택
-              </div>
+              <div style={{ marginBottom: 6, fontSize: 11, color: "#6b7280" }}>정렬 기준 선택</div>
+
               <button
                 type="button"
                 onClick={() => handleSelectSortKey("name")}
@@ -309,8 +226,7 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "name" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "name" ? "#eff6ff" : "transparent",
                   color: sortKey === "name" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -318,6 +234,7 @@ export default function ManageListPage() {
               >
                 이름 순
               </button>
+
               <button
                 type="button"
                 onClick={() => handleSelectSortKey("latest")}
@@ -328,8 +245,7 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "latest" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "latest" ? "#eff6ff" : "transparent",
                   color: sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -337,6 +253,7 @@ export default function ManageListPage() {
               >
                 최신 순
               </button>
+
               <button
                 type="button"
                 onClick={() => handleSelectSortKey("count")}
@@ -347,42 +264,38 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "count" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "count" ? "#eff6ff" : "transparent",
                   color: sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
               >
-                물건 많은 순
+                옵션 많은 순
               </button>
             </div>
           )}
         </div>
 
-        {/* 오름/내림 토글 버튼 */}
         <button
-         type="button"
-         onClick={toggleSortOrder}
-         style={{
-         padding: "7px 10px",
-         borderRadius: 999,
-         border: "1px solid #2563eb",
-         backgroundColor: "#eff6ff",
-         color: "#1d4ed8",
-         fontSize: 13,
-         fontWeight: 700,
-         cursor: "pointer",
-         }}
->
-  {sortIcon}
-</button>
+          type="button"
+          onClick={toggleSortOrder}
+          style={{
+            padding: "7px 10px",
+            borderRadius: 999,
+            border: "1px solid #2563eb",
+            backgroundColor: "#eff6ff",
+            color: "#1d4ed8",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {sortIcon}
+        </button>
       </div>
 
       {/* 그룹 목록 */}
       {Object.keys(filteredGroups).length === 0 ? (
-        <div style={{ fontSize: 14, color: "#9ca3af" }}>
-          등록된 물품이 없습니다.
-        </div>
+        <div style={{ fontSize: 14, color: "#9ca3af" }}>등록된 물품이 없습니다.</div>
       ) : (
         <div
           style={{
@@ -392,8 +305,8 @@ export default function ManageListPage() {
           }}
         >
           {sortedGroupEntries.map(([name, list]) => {
-            const summary = getSummary(name);
-            const representative = list.find((i) => i.image) || list[0];
+            // ✅ 대표 이미지: 서버는 imageUrl
+            const representative = list.find((i) => i.imageUrl) || list[0];
 
             return (
               <div
@@ -406,10 +319,9 @@ export default function ManageListPage() {
                   boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
                 }}
               >
-                {/* 대표 이미지 */}
-                {representative && representative.image ? (
+                {representative?.imageUrl ? (
                   <img
-                    src={representative.image}
+                    src={representative.imageUrl}
                     alt=""
                     style={{
                       width: "100%",
@@ -440,8 +352,7 @@ export default function ManageListPage() {
 
                 <div style={{ fontSize: 16, fontWeight: 600 }}>{name}</div>
                 <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-                  옵션 {list.length}개 · 기록 {summary.recordCount}회 · 총{" "}
-                  {summary.totalCount}개
+                  옵션 {list.length}개
                 </div>
 
                 <button
@@ -455,9 +366,7 @@ export default function ManageListPage() {
                     border: "none",
                     cursor: "pointer",
                   }}
-                  onClick={() =>
-                    navigate(`/manage/item/${encodeURIComponent(name)}`)
-                  }
+                  onClick={() => navigate(`/manage/item/${encodeURIComponent(name)}`)}
                 >
                   관리하기
                 </button>

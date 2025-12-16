@@ -47,12 +47,9 @@ export default function ManageDetailPage() {
       try {
         const data = await fetchItems();
 
-        console.log(
-          "🟡 items response",
-          data,
-          Array.isArray(data),
-          data?.length
-        );
+        console.log("🟥 manage items raw:", data);
+console.log("🟥 is array:", Array.isArray(data));
+console.log("🟥 length:", data?.length);
 
         setItems(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -66,15 +63,14 @@ export default function ManageDetailPage() {
   /* ---------------- 현재 품목 이름에 해당하는 옵션 리스트 ---------------- */
   const options = useMemo(() => {
     const target = norm(decodedName);
-
-    // dfddfdf
+    const filtered = items.filter((i) => norm(i.name) === target);
+  
     console.log("🟢 decodedName:", decodedName);
     console.log("🟢 items count:", items.length);
     console.log("🟢 first item name:", items[0]?.name);
     console.log("🟢 options count:", filtered.length);
-
-    
-    return items.filter((i) => norm(i.name) === target);
+  
+    return filtered;
   }, [items, decodedName]);
 
   /* ---------------- 선택된 옵션 객체 ---------------- */
