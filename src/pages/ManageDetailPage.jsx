@@ -6,11 +6,15 @@ import PurchaseList from "../components/PurchaseList";
 import {
   getItems as fetchItems,
   createItem,
+  updateItem as updateServerItem,
   createRecord,
+  updateRecord as updateServerRecord,
   getRecords as fetchRecords,
   deleteRecord as deleteServerRecord,
   deleteItem as deleteServerItem,
 } from "../api/items";
+
+const norm = (s) => String(s ?? "").trim();
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
@@ -28,7 +32,7 @@ export default function ManageDetailPage() {
   const [deleteModal, setDeleteModal] = useState(null); // 삭제할 option id
   const [memoText, setMemoText] = useState("");
 
-  // 아직 category 컬럼이 없으므로, 일단 모두 "신발처럼(size 사용)" 취급
+  // 아직 category 컬럼이 있더라도, UI는 일단 "신발처럼(size 사용)" 취급 유지
   const isShoes = true;
 
   /* ---------------- 토스트 ---------------- */
@@ -53,18 +57,18 @@ export default function ManageDetailPage() {
 
   /* ---------------- 현재 품목 이름에 해당하는 옵션 리스트 ---------------- */
   const options = useMemo(() => {
-    return items.filter((i) => i.name === decodedName);
+    const target = norm(decodedName);
+    return items.filter((i) => norm(i.name) === target);
   }, [items, decodedName]);
 
   /* ---------------- 선택된 옵션 객체 ---------------- */
-  const selectedOption =
-    options.find((opt) => opt.id === selectedOptionId) || null;
+  const selectedOption = options.find((opt) => opt.id === selectedOptionId) || null;
 
   /* ---------------- 옵션 중복 확인 ---------------- */
   const isOptionExists = (value) => {
     const trimmed = value.trim();
     if (!trimmed) return false;
-    return options.some((opt) => (opt.size || "").trim() === trimmed);
+    return options.some((opt) => norm(opt.size) === trimmed);
   };
 
   /* ---------------- 선택된 옵션이 바뀔 때 기록 로드 ---------------- */
@@ -95,7 +99,7 @@ export default function ManageDetailPage() {
     loadRecords();
   }, [selectedOptionId]);
 
-  /* ---------------- 메모: 현재는 프론트 상태에만 유지 ---------------- */
+  /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
     if (selectedOption && typeof selectedOption.memo === "string") {
       setMemoText(selectedOption.memo);
@@ -104,16 +108,21 @@ export default function ManageDetailPage() {
     }
   }, [selectedOption]);
 
-  const handleSaveMemo = () => {
+  const handleSaveMemo = async () => {
     if (!selectedOption) return;
 
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === selectedOption.id ? { ...it, memo: memoText } : it
-      )
-    );
+    try {
+      // ✅ 서버에 memo 저장
+      const updated = await updateServerItem(selectedOption.id, { memo: memoText });
 
-    showToast("메모 저장 완료! (현재는 이 기기에서만 유지됩니다)");
+      // 서버가 updated item을 돌려준다는 가정
+      setItems((prev) => prev.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it)));
+
+      showToast("메모 저장 완료!");
+    } catch (err) {
+      console.error("메모 서버 저장 실패", err);
+      window.alert("메모 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
   };
 
   /* ---------------- 옵션 추가 (서버에 Item 생성) ---------------- */
@@ -133,8 +142,7 @@ export default function ManageDetailPage() {
         imageUrl: image || null,
       });
 
-      const enriched = { ...created, memo: "" };
-      setItems((prev) => [...prev, enriched]);
+      setItems((prev) => [...prev, created]);
       setSelectedOptionId(created.id);
 
       showToast("옵션 추가 완료");
@@ -144,8 +152,8 @@ export default function ManageDetailPage() {
     }
   };
 
-  /* ---------------- 옵션 수정 (현재는 로컬 상태만) ---------------- */
-  const handleSaveEditOption = () => {
+  /* ---------------- 옵션 수정 (서버 기반) ---------------- */
+  const handleSaveEditOption = async () => {
     if (!editModal) return;
 
     const { id, value, image } = editModal;
@@ -153,29 +161,25 @@ export default function ManageDetailPage() {
     if (!trimmed) return;
 
     // 중복 체크
-    if (
-      options.some(
-        (opt) => opt.id !== id && (opt.size || "").trim() === trimmed
-      )
-    ) {
+    if (options.some((opt) => opt.id !== id && norm(opt.size) === trimmed)) {
       window.alert("이미 존재하는 옵션입니다.");
       return;
     }
 
-    setItems((prev) =>
-      prev.map((it) =>
-        it.id === id
-          ? {
-              ...it,
-              size: trimmed,
-              imageUrl: image || it.imageUrl,
-            }
-          : it
-      )
-    );
+    try {
+      const updated = await updateServerItem(id, {
+        size: trimmed,
+        imageUrl: image || null,
+      });
 
-    setEditModal(null);
-    showToast("옵션 수정 완료 (서버 동기화는 추후 추가 예정)");
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
+
+      setEditModal(null);
+      showToast("옵션 수정 완료");
+    } catch (err) {
+      console.error("옵션 서버 수정 실패", err);
+      window.alert("서버에 옵션 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
   };
 
   /* ---------------- 옵션 삭제 ---------------- */
@@ -203,19 +207,16 @@ export default function ManageDetailPage() {
   const handleDeleteItem = async () => {
     if (!window.confirm("정말 이 품목을 전체 삭제할까요?")) return;
 
-    const targetOptions = options;
-    const ids = targetOptions.map((it) => it.id);
+    const ids = options.map((it) => it.id);
 
     try {
       await Promise.all(ids.map((id) => deleteServerItem(id)));
     } catch (err) {
       console.error("품목 전체 삭제 실패", err);
-      window.alert(
-        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
-      );
+      window.alert("서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요.");
     }
 
-    setItems((prev) => prev.filter((it) => it.name !== decodedName));
+    setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
     setRecords([]);
     setSelectedOptionId(null);
 
@@ -224,7 +225,7 @@ export default function ManageDetailPage() {
   };
 
   /* ---------------- 렌더링 ---------------- */
-  const filteredRecords = records; // 이미 선택된 옵션의 기록만 불러오므로 그대로 사용
+  const filteredRecords = records;
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -269,9 +270,7 @@ export default function ManageDetailPage() {
           ← 뒤로
         </button>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          {decodedName}
-        </h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName}</h2>
 
         <button
           onClick={handleDeleteItem}
@@ -298,9 +297,13 @@ export default function ManageDetailPage() {
       >
         {/* ---------------------------------- 좌측: 옵션 목록 ---------------------------------- */}
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-            옵션 목록
-          </h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>
+
+          {options.length === 0 && (
+            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
+              옵션이 없습니다. (데이터는 있는데 안 보이면 name 매칭/라우팅을 확인해줘!)
+            </div>
+          )}
 
           <div
             style={{
@@ -310,26 +313,20 @@ export default function ManageDetailPage() {
             }}
           >
             {options.map((opt) => {
-              const value = opt.size; // 서버에서는 size 컬럼을 사용
+              const value = opt.size;
 
               return (
                 <div
                   key={opt.id}
                   style={{
-                    border:
-                      selectedOptionId === opt.id
-                        ? "2px solid #2563eb"
-                        : "1px solid #e5e7eb",
+                    border: selectedOptionId === opt.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
                     borderRadius: 12,
                     padding: 10,
                     cursor: "pointer",
                     backgroundColor: "white",
                   }}
                 >
-                  <div
-                    onClick={() => setSelectedOptionId(opt.id)}
-                    style={{ marginBottom: 6 }}
-                  >
+                  <div onClick={() => setSelectedOptionId(opt.id)} style={{ marginBottom: 6 }}>
                     {opt.imageUrl ? (
                       <img
                         src={opt.imageUrl}
@@ -361,15 +358,7 @@ export default function ManageDetailPage() {
                       </div>
                     )}
 
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
-                      {value}
-                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{value}</div>
                   </div>
 
                   <div style={{ display: "flex", gap: 6 }}>
@@ -422,19 +411,12 @@ export default function ManageDetailPage() {
         {/* ---------------------------------- 우측: 그래프 + 기록 + 메모 ---------------------------------- */}
         <div>
           {!selectedOptionId ? (
-            <div
-              style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}
-            >
+            <div style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}>
               왼쪽에서 옵션을 선택하면 매입 그래프와 기록이 표시됩니다.
             </div>
           ) : (
             <>
-              <StatsSection
-                records={filteredRecords}
-                itemName={
-                  `${decodedName} (${selectedOption?.size ?? ""})`
-                }
-              />
+              <StatsSection records={filteredRecords} itemName={`${decodedName} (${selectedOption?.size ?? ""})`} />
 
               <div
                 style={{
@@ -446,42 +428,37 @@ export default function ManageDetailPage() {
                 }}
               >
                 <PurchaseForm
-  onAddRecord={async (info) => {
-    if (!selectedOptionId) return;
+                  onAddRecord={async (info) => {
+                    if (!selectedOptionId) return;
 
-    const dateValue =
-      info.date || new Date().toISOString().slice(0, 10);
-    const countValue =
-      info.count === "" || info.count == null
-        ? 1
-        : Number(info.count);
+                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+                    const countValue =
+                      info.count === "" || info.count == null ? 1 : Number(info.count);
 
-    try {
-      const created = await createRecord({
-        itemId: selectedOptionId,
-        price: Number(info.price),
-        count: countValue,
-        date: dateValue,
-      });
+                    try {
+                      const created = await createRecord({
+                        itemId: selectedOptionId,
+                        price: Number(info.price),
+                        count: countValue,
+                        date: dateValue,
+                      });
 
-      const newRecord = {
-        id: created.id,
-        itemId: created.itemId,
-        price: created.price,
-        count: created.count,
-        date: (created.date || "").slice(0, 10),
-      };
+                      const newRecord = {
+                        id: created.id,
+                        itemId: created.itemId,
+                        price: created.price,
+                        count: created.count,
+                        date: (created.date || "").slice(0, 10),
+                      };
 
-      setRecords((prev) => [...prev, newRecord]);
-      showToast("매입 기록 추가 완료");
-    } catch (err) {
-      console.error("백엔드 기록 저장 실패", err);
-      window.alert(
-        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
-      );
-    }
-  }}
-/>
+                      setRecords((prev) => [...prev, newRecord]);
+                      showToast("매입 기록 추가 완료");
+                    } catch (err) {
+                      console.error("백엔드 기록 저장 실패", err);
+                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+                    }
+                  }}
+                />
               </div>
 
               <PurchaseList
@@ -491,40 +468,51 @@ export default function ManageDetailPage() {
                   setRecords((prev) => prev.filter((r) => r.id !== id));
 
                   try {
-                    await deleteServerRecord(id);
+                    // ✅ deleteRecord는 { itemId, id } 형태
+                    await deleteServerRecord({ itemId: selectedOptionId, id });
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
-                    window.alert(
-                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
-                    );
+                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
                   }
 
                   showToast("기록 삭제 완료");
                 }}
-                onUpdateRecord={(id, info) => {
-                  // 현재는 서버에 수정 API가 없어서, 우선 로컬 상태만 수정
-                  setRecords((prev) =>
-                    prev.map((r) =>
-                      r.id === id
-                        ? {
-                            ...r,
-                            date: info.date || r.date,
-                            price:
-                              info.price === "" || info.price == null
-                                ? r.price
-                                : Number(info.price),
-                            count:
-                              info.count === "" || info.count == null
-                                ? r.count
-                                : Number(info.count),
-                          }
-                        : r
-                    )
-                  );
+                onUpdateRecord={async (id, info) => {
+                  if (!selectedOptionId) return;
 
-                  showToast(
-                    "기록 수정 완료 (서버 동기화는 추후 추가 예정입니다)"
-                  );
+                  const dateValue = info.date || undefined;
+                  const priceValue =
+                    info.price === "" || info.price == null ? undefined : Number(info.price);
+                  const countValue =
+                    info.count === "" || info.count == null ? undefined : Number(info.count);
+
+                  try {
+                    const updated = await updateServerRecord({
+                      itemId: selectedOptionId,
+                      id,
+                      price: priceValue ?? null,
+                      count: countValue ?? null,
+                      date: dateValue ?? null,
+                    });
+
+                    setRecords((prev) =>
+                      prev.map((r) =>
+                        r.id === id
+                          ? {
+                              ...r,
+                              price: updated?.price ?? (priceValue ?? r.price),
+                              count: updated?.count ?? (countValue ?? r.count),
+                              date: ((updated?.date ?? dateValue ?? r.date) || "").slice(0, 10),
+                            }
+                          : r
+                      )
+                    );
+
+                    showToast("기록 수정 완료");
+                  } catch (err) {
+                    console.error("백엔드 기록 수정 실패", err);
+                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
+                  }
                 }}
               />
 
@@ -538,15 +526,7 @@ export default function ManageDetailPage() {
                   boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                 }}
               >
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    marginBottom: 8,
-                  }}
-                >
-                  옵션 메모
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 메모</div>
 
                 <textarea
                   value={memoText}
@@ -574,6 +554,7 @@ export default function ManageDetailPage() {
                     border: "none",
                     fontSize: 13,
                     float: "right",
+                    cursor: "pointer",
                   }}
                 >
                   메모 저장
@@ -637,9 +618,7 @@ function OptionAddBox({ isShoes, onAdd }) {
         backgroundColor: "#fafafa",
       }}
     >
-      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
-        옵션 추가
-      </h4>
+      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>옵션 추가</h4>
 
       <input
         type="text"
@@ -700,8 +679,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 
     const reader = new FileReader();
     reader.onloadend = () => {
-      if (typeof reader.result === "string")
-        setEditModal({ id, value, image: reader.result });
+      if (typeof reader.result === "string") setEditModal({ id, value, image: reader.result });
     };
     reader.readAsDataURL(file);
   };
@@ -717,16 +695,12 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           padding: 20,
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-          옵션 수정
-        </h3>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>옵션 수정</h3>
 
         <input
           type="text"
           value={value}
-          onChange={(e) =>
-            setEditModal({ id, value: e.target.value, image })
-          }
+          onChange={(e) => setEditModal({ id, value: e.target.value, image })}
           style={{
             width: "100%",
             marginTop: 14,
@@ -736,12 +710,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           }}
         />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImage}
-          style={{ marginTop: 8 }}
-        />
+        <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />
 
         {image && (
           <img
@@ -757,14 +726,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           />
         )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={() => setEditModal(null)}
             style={{
@@ -772,6 +734,8 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
               borderRadius: 8,
               backgroundColor: "#f3f4f6",
               color: "black",
+              border: "none",
+              cursor: "pointer",
             }}
           >
             취소
@@ -783,6 +747,8 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
               borderRadius: 8,
               backgroundColor: "#2563eb",
               color: "white",
+              border: "none",
+              cursor: "pointer",
             }}
           >
             저장
@@ -809,14 +775,7 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
       >
         <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={onCancel}
             style={{
@@ -824,6 +783,8 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
               borderRadius: 8,
               backgroundColor: "#f3f4f6",
               color: "black",
+              border: "none",
+              cursor: "pointer",
             }}
           >
             취소
@@ -835,6 +796,8 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
               borderRadius: 8,
               backgroundColor: "#dc2626",
               color: "white",
+              border: "none",
+              cursor: "pointer",
             }}
           >
             삭제
