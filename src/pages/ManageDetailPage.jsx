@@ -16,6 +16,39 @@ import {
 
 const norm = (s) => String(s ?? "").trim();
 
+/* ======================= 이미지 자동 압축 유틸 ======================= */
+/**
+ * - base64(DataURL)로 서버에 보내면 413이 자주 나서,
+ *   업로드 전에 자동으로 리사이즈+압축해서 DataURL 크기를 줄여줌.
+ * - 품질: 일반 웹서비스 수준(카드 썸네일에선 티 거의 안 남)
+ */
+async function compressImage(file, maxW = 900, maxH = 900, quality = 0.75) {
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+
+  await new Promise((res, rej) => {
+    img.onload = res;
+    img.onerror = rej;
+  });
+
+  let { width, height } = img;
+  const ratio = Math.min(maxW / width, maxH / height, 1);
+  width = Math.round(width * ratio);
+  height = Math.round(height * ratio);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, width, height);
+
+  URL.revokeObjectURL(img.src);
+
+  // jpeg로 압축된 dataURL 반환
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
 export default function ManageDetailPage() {
   const navigate = useNavigate();
   const { name } = useParams();
@@ -236,7 +269,6 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
-  /* ---------------- 렌더링 ---------------- */
   const filteredRecords = records;
 
   return (
@@ -348,7 +380,6 @@ export default function ManageDetailPage() {
                     backgroundColor: "white",
                   }}
                 >
-                  {/* 이미지 */}
                   {displayImageUrl ? (
                     <img
                       src={displayImageUrl}
@@ -380,7 +411,6 @@ export default function ManageDetailPage() {
                     </div>
                   )}
 
-                  {/* 옵션 텍스트 */}
                   <div style={{ fontSize: 14, fontWeight: 700 }}>
                     {opt.size || "(옵션)"}
                   </div>
@@ -400,8 +430,8 @@ export default function ManageDetailPage() {
                         flex: 1,
                         padding: "6px 10px",
                         borderRadius: 8,
-                        border: "1px solid #e5e7eb",
-                        background: "#f8fafc",
+                        border: "1px solid #1F51B7",
+                        background: "#8BBDFF",
                         cursor: "pointer",
                         fontSize: 12,
                       }}
@@ -433,7 +463,7 @@ export default function ManageDetailPage() {
             })}
           </div>
 
-          {/* 옵션 추가 박스는 map 밖으로 */}
+          {/* 옵션 추가 박스 */}
           <OptionAddBox isShoes={isShoes} onAdd={handleAddOption} />
         </div>
 
@@ -503,11 +533,9 @@ export default function ManageDetailPage() {
               <PurchaseList
                 records={filteredRecords}
                 onDeleteRecord={async (id) => {
-                  // 화면에서 먼저 제거
                   setRecords((prev) => prev.filter((r) => r.id !== id));
 
                   try {
-                    // deleteRecord는 { itemId, id } 형태
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
@@ -645,15 +673,18 @@ function OptionAddBox({ isShoes, onAdd }) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState("");
 
-  const handleImage = (e) => {
+  const handleImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") setImage(reader.result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 자동 리사이즈+압축 (413 방지)
+      const compressed = await compressImage(file, 900, 900, 0.75);
+      setImage(compressed);
+    } catch (err) {
+      console.error("이미지 압축 실패", err);
+      alert("이미지 처리 중 오류가 발생했어요 😢");
+    }
   };
 
   const submit = () => {
@@ -726,16 +757,18 @@ function OptionAddBox({ isShoes, onAdd }) {
 function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
   const { id, value, image } = editModal;
 
-  const handleImage = (e) => {
+  const handleImage = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string")
-        setEditModal({ id, value, image: reader.result });
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 자동 리사이즈+압축 (413 방지)
+      const compressed = await compressImage(file, 900, 900, 0.75);
+      setEditModal({ id, value, image: compressed });
+    } catch (err) {
+      console.error("이미지 압축 실패", err);
+      alert("이미지 처리 중 오류가 발생했어요 😢");
+    }
   };
 
   return (
