@@ -21,15 +21,20 @@ export default function ManageDetailPage() {
   const { name } = useParams();
   const decodedName = decodeURIComponent(name);
 
+  // 서버에서 가져온 전체 items (이름/옵션/이미지 등)
   const [items, setItems] = useState([]);
-  const [records, setRecords] = useState([]);
 
+  // 현재 선택된 옵션(Item)에 대한 기록만 보관
+  const [records, setRecords] = useState([]);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
+
   const [toast, setToast] = useState("");
-  const [editModal, setEditModal] = useState(null);
-  const [deleteModal, setDeleteModal] = useState(null);
+  const [editModal, setEditModal] = useState(null); // { id, value, image }
+  const [deleteModal, setDeleteModal] = useState(null); // 삭제할 option id
+
   const [memoText, setMemoText] = useState("");
 
+  // 아직 category 컬럼이 있더라도, UI는 일단 "신발처럼(size 사용)" 취급 유지
   const isShoes = true;
 
   /* ---------------- 토스트 ---------------- */
@@ -38,33 +43,42 @@ export default function ManageDetailPage() {
     setTimeout(() => setToast(""), 2000);
   };
 
-  /* ---------------- items 로드 ---------------- */
+  /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
   useEffect(() => {
     async function loadItems() {
       try {
         const data = await fetchItems();
         setItems(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("아이템 불러오기 실패", err);
+        console.error("아이템 불러오기 오류:", err);
       }
     }
     loadItems();
   }, []);
 
-  /* ---------------- 현재 name 옵션 ---------------- */
+  /* ---------------- 현재 품목 이름에 해당하는 옵션 리스트 ---------------- */
   const options = useMemo(() => {
-    return items.filter((i) => norm(i.name) === norm(decodedName));
+    const target = norm(decodedName);
+    return items.filter((i) => norm(i.name) === target);
   }, [items, decodedName]);
 
-  /* ✅ 대표 이미지 (같은 name 중 첫 imageUrl) */
+  /* ---------------- 같은 name 그룹에서 대표사진 하나 선택 ---------------- */
   const representativeImageUrl = useMemo(() => {
-    return options.find((o) => o.imageUrl)?.imageUrl || null;
+    return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
+  /* ---------------- 선택된 옵션 객체 ---------------- */
   const selectedOption =
-    options.find((o) => o.id === selectedOptionId) || null;
+    options.find((opt) => opt.id === selectedOptionId) || null;
 
-  /* ---------------- records 로드 ---------------- */
+  /* ---------------- 옵션 중복 확인 ---------------- */
+  const isOptionExists = (value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    return options.some((opt) => norm(opt.size) === trimmed);
+  };
+
+  /* ---------------- 선택된 옵션이 바뀔 때 기록 로드 ---------------- */
   useEffect(() => {
     if (!selectedOptionId) {
       setRecords([]);
@@ -74,25 +88,31 @@ export default function ManageDetailPage() {
     async function loadRecords() {
       try {
         const data = await fetchRecords(selectedOptionId);
-        setRecords(
-          Array.isArray(data)
-            ? data.map((r) => ({
-                ...r,
-                date: (r.date || "").slice(0, 10),
-              }))
-            : []
-        );
+        const normalized = Array.isArray(data)
+          ? data.map((rec) => ({
+              id: rec.id,
+              itemId: rec.itemId,
+              price: rec.price,
+              count: rec.count,
+              date: (rec.date || "").slice(0, 10),
+            }))
+          : [];
+        setRecords(normalized);
       } catch (err) {
-        console.error("기록 불러오기 실패", err);
+        console.error("기록 불러오기 실패:", err);
       }
     }
 
     loadRecords();
   }, [selectedOptionId]);
 
-  /* ---------------- 메모 ---------------- */
+  /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
-    setMemoText(selectedOption?.memo ?? "");
+    if (selectedOption && typeof selectedOption.memo === "string") {
+      setMemoText(selectedOption.memo);
+    } else {
+      setMemoText("");
+    }
   }, [selectedOption]);
 
   const handleSaveMemo = async () => {
@@ -101,19 +121,29 @@ export default function ManageDetailPage() {
       const updated = await updateServerItem(selectedOption.id, {
         memo: memoText,
       });
+
       setItems((prev) =>
-        prev.map((i) => (i.id === updated.id ? updated : i))
+        prev.map((it) =>
+          it.id === selectedOption.id ? { ...it, ...updated } : it
+        )
       );
-      showToast("메모 저장 완료");
-    } catch {
-      alert("메모 저장 실패");
+
+      showToast("메모 저장 완료!");
+    } catch (err) {
+      console.error("메모 서버 저장 실패", err);
+      window.alert("메모 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
     }
   };
 
-  /* ---------------- 옵션 추가 ---------------- */
+  /* ---------------- 옵션 추가 (서버에 Item 생성) ---------------- */
   const handleAddOption = async ({ value, image }) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+
+    if (isOptionExists(trimmed)) {
+      window.alert("이미 등록된 옵션입니다.");
+      return;
+    }
 
     try {
       const created = await createItem({
@@ -121,190 +151,478 @@ export default function ManageDetailPage() {
         size: trimmed,
         imageUrl: image || null,
       });
+
       setItems((prev) => [...prev, created]);
       setSelectedOptionId(created.id);
       showToast("옵션 추가 완료");
-    } catch {
-      alert("옵션 추가 실패");
+    } catch (err) {
+      console.error("옵션 서버 저장 실패", err);
+      window.alert("서버에 옵션 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
     }
   };
 
-  /* ---------------- 옵션 수정 ---------------- */
+  /* ---------------- 옵션 수정 (서버 기반) ---------------- */
   const handleSaveEditOption = async () => {
+    if (!editModal) return;
+
     const { id, value, image } = editModal;
+    const trimmed = value.trim();
+    if (!trimmed) return;
+
+    // 중복 체크
+    if (options.some((opt) => opt.id !== id && norm(opt.size) === trimmed)) {
+      window.alert("이미 존재하는 옵션입니다.");
+      return;
+    }
+
     try {
       const updated = await updateServerItem(id, {
-        size: value.trim(),
+        size: trimmed,
         imageUrl: image || null,
       });
+
       setItems((prev) =>
-        prev.map((i) => (i.id === updated.id ? updated : i))
+        prev.map((it) => (it.id === id ? { ...it, ...updated } : it))
       );
+
       setEditModal(null);
       showToast("옵션 수정 완료");
-    } catch {
-      alert("옵션 수정 실패");
+    } catch (err) {
+      console.error("옵션 서버 수정 실패", err);
+      window.alert("서버에 옵션 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
     }
   };
 
   /* ---------------- 옵션 삭제 ---------------- */
   const handleDeleteOption = async () => {
     const id = deleteModal;
+    if (!id) return;
+
     try {
       await deleteServerItem(id);
-    } catch {}
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      console.error("옵션 서버 삭제 실패", err);
+      window.alert(
+        "서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다."
+      );
+    }
+
+    setItems((prev) => prev.filter((it) => it.id !== id));
+    setRecords([]);
+    if (selectedOptionId === id) setSelectedOptionId(null);
     setDeleteModal(null);
-    setSelectedOptionId(null);
     showToast("옵션 삭제 완료");
   };
 
-  /* ---------------- 렌더 ---------------- */
+  /* ---------------- 품목 전체 삭제 (이 이름의 모든 옵션 삭제) ---------------- */
+  const handleDeleteItem = async () => {
+    if (!window.confirm("정말 이 품목을 전체 삭제할까요?")) return;
+
+    const ids = options.map((it) => it.id);
+
+    try {
+      await Promise.all(ids.map((id) => deleteServerItem(id)));
+    } catch (err) {
+      console.error("품목 전체 삭제 실패", err);
+      window.alert(
+        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
+      );
+    }
+
+    setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
+    setRecords([]);
+    setSelectedOptionId(null);
+    showToast("품목 전체 삭제 완료");
+    navigate("/manage");
+  };
+
+  /* ---------------- 렌더링 ---------------- */
+  const filteredRecords = records;
+
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 24, width: "100%" }}>
       {toast && (
-        <div style={{ position: "fixed", top: 20, left: "50%" }}>
+        <div
+          style={{
+            position: "fixed",
+            top: 20,
+            left: "50%",
+            transform: "translateX(-50%)",
+            padding: "8px 14px",
+            borderRadius: 999,
+            backgroundColor: "rgba(59,130,246,0.95)",
+            color: "white",
+            fontSize: 13,
+            zIndex: 200,
+          }}
+        >
           {toast}
         </div>
       )}
 
-      <button onClick={() => navigate("/manage")}>← 뒤로</button>
-      <h2>{decodedName}</h2>
+      {/* 상단 헤더 */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          gap: 12,
+        }}
+      >
+        <button
+          onClick={() => navigate("/manage")}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: "1px solid #cbd5e1",
+            background: "#e2e8f0",
+            color: "#1e293b",
+            cursor: "pointer",
+          }}
+        >
+          ← 뒤로
+        </button>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-        {/* 좌측 옵션 */}
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+          {decodedName}
+        </h2>
+
+        <button
+          onClick={handleDeleteItem}
+          style={{
+            marginLeft: "auto",
+            padding: "6px 12px",
+            backgroundColor: "#dc2626",
+            borderRadius: 8,
+            border: "none",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          품목 전체 삭제
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)",
+          gap: 24,
+        }}
+      >
+        {/* ---------------------------------- 좌측: 옵션 목록 ---------------------------------- */}
         <div>
-          <h3>옵션 목록</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+            옵션 목록
+          </h3>
+
+          {options.length === 0 && (
+            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
+              옵션이 없습니다. (데이터는 있는데 안 보이면 name 매칭/라우팅을
+              확인해줘!)
+            </div>
+          )}
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
               gap: 12,
             }}
           >
             {options.map((opt) => {
-              const displayImage =
-                opt.imageUrl || representativeImageUrl;
+              const displayImageUrl = opt.imageUrl || representativeImageUrl;
 
               return (
                 <div
                   key={opt.id}
+                  onClick={() => setSelectedOptionId(opt.id)}
                   style={{
                     border:
                       selectedOptionId === opt.id
-                        ? "2px solid blue"
-                        : "1px solid #ddd",
-                    padding: 10,
+                        ? "2px solid #2563eb"
+                        : "1px solid #e5e7eb",
                     borderRadius: 12,
+                    padding: 10,
+                    cursor: "pointer",
+                    backgroundColor: "white",
                   }}
                 >
-                  <div onClick={() => setSelectedOptionId(opt.id)}>
-                    {displayImage ? (
-                      <img
-                        src={displayImage}
-                        alt=""
-                        style={{
-                          width: "100%",
-                          height: 110,
-                          objectFit: "cover",
-                          borderRadius: 10,
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          height: 110,
-                          background: "#eee",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        이미지 없음
-                      </div>
-                    )}
-                    <div>{opt.size}</div>
+                  {/* 이미지 */}
+                  {displayImageUrl ? (
+                    <img
+                      src={displayImageUrl}
+                      alt=""
+                      style={{
+                        width: "100%",
+                        height: 110,
+                        objectFit: "cover",
+                        borderRadius: 10,
+                        marginBottom: 8,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        height: 110,
+                        borderRadius: 10,
+                        backgroundColor: "#f3f4f6",
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#6b7280",
+                        fontSize: 12,
+                      }}
+                    >
+                      이미지 없음
+                    </div>
+                  )}
+
+                  {/* 옵션 텍스트 */}
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {opt.size || "(옵션)"}
                   </div>
 
-                  <button
-                    onClick={() =>
-                      setEditModal({
-                        id: opt.id,
-                        value: opt.size,
-                        image: opt.imageUrl,
-                      })
-                    }
-                  >
-                    수정
-                  </button>
-                  <button onClick={() => setDeleteModal(opt.id)}>
-                    삭제
-                  </button>
+                  {/* 수정/삭제 버튼 */}
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditModal({
+                          id: opt.id,
+                          value: opt.size ?? "",
+                          image: opt.imageUrl ?? "",
+                        });
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        background: "#f8fafc",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      수정
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteModal(opt.id);
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #fecaca",
+                        background: "#fee2e2",
+                        color: "#991b1b",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      삭제
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
 
+          {/* 옵션 추가 박스는 map 밖으로 */}
           <OptionAddBox isShoes={isShoes} onAdd={handleAddOption} />
         </div>
 
-        {/* 우측 기록 */}
+        {/* ---------------------------------- 우측: 그래프 + 기록 + 메모 ---------------------------------- */}
         <div>
           {!selectedOptionId ? (
-            <div>옵션을 선택하세요</div>
+            <div style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}>
+              왼쪽에서 옵션을 선택하면 매입 그래프와 기록이 표시됩니다.
+            </div>
           ) : (
             <>
               <StatsSection
-                records={records}
-                itemName={`${decodedName} (${selectedOption?.size})`}
+                records={filteredRecords}
+                itemName={`${decodedName} (${selectedOption?.size ?? ""})`}
               />
 
-              <PurchaseForm
-                onAddRecord={async (info) => {
-                  const created = await createRecord({
-                    itemId: selectedOptionId,
-                    price: info.price,
-                    count: info.count || 1,
-                    date: info.date,
-                  });
-                  setRecords((p) => [...p, created]);
+              {/* 기록 추가 */}
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
                 }}
-              />
+              >
+                <PurchaseForm
+                  onAddRecord={async (info) => {
+                    if (!selectedOptionId) return;
 
+                    const dateValue =
+                      info.date || new Date().toISOString().slice(0, 10);
+                    const countValue =
+                      info.count === "" || info.count == null
+                        ? 1
+                        : Number(info.count);
+
+                    try {
+                      const created = await createRecord({
+                        itemId: selectedOptionId,
+                        price: Number(info.price),
+                        count: countValue,
+                        date: dateValue,
+                      });
+
+                      const newRecord = {
+                        id: created.id,
+                        itemId: created.itemId,
+                        price: created.price,
+                        count: created.count,
+                        date: (created.date || "").slice(0, 10),
+                      };
+
+                      setRecords((prev) => [...prev, newRecord]);
+                      showToast("매입 기록 추가 완료");
+                    } catch (err) {
+                      console.error("백엔드 기록 저장 실패", err);
+                      window.alert(
+                        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
+                      );
+                    }
+                  }}
+                />
+              </div>
+
+              {/* 기록 리스트 */}
               <PurchaseList
-                records={records}
+                records={filteredRecords}
                 onDeleteRecord={async (id) => {
-                  await deleteServerRecord({
-                    itemId: selectedOptionId,
-                    id,
-                  });
-                  setRecords((p) => p.filter((r) => r.id !== id));
+                  // 화면에서 먼저 제거
+                  setRecords((prev) => prev.filter((r) => r.id !== id));
+
+                  try {
+                    // deleteRecord는 { itemId, id } 형태
+                    await deleteServerRecord({ itemId: selectedOptionId, id });
+                  } catch (err) {
+                    console.error("백엔드 기록 삭제 실패", err);
+                    window.alert(
+                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
+                    );
+                  }
+
+                  showToast("기록 삭제 완료");
                 }}
                 onUpdateRecord={async (id, info) => {
-                  const updated = await updateServerRecord({
-                    itemId: selectedOptionId,
-                    id,
-                    ...info,
-                  });
-                  setRecords((p) =>
-                    p.map((r) => (r.id === id ? updated : r))
-                  );
+                  if (!selectedOptionId) return;
+
+                  const dateValue = info.date || undefined;
+                  const priceValue =
+                    info.price === "" || info.price == null
+                      ? undefined
+                      : Number(info.price);
+                  const countValue =
+                    info.count === "" || info.count == null
+                      ? undefined
+                      : Number(info.count);
+
+                  try {
+                    const updated = await updateServerRecord({
+                      itemId: selectedOptionId,
+                      id,
+                      price: priceValue ?? null,
+                      count: countValue ?? null,
+                      date: dateValue ?? null,
+                    });
+
+                    setRecords((prev) =>
+                      prev.map((r) =>
+                        r.id === id
+                          ? {
+                              ...r,
+                              price: updated?.price ?? (priceValue ?? r.price),
+                              count: updated?.count ?? (countValue ?? r.count),
+                              date: (
+                                (updated?.date ?? dateValue ?? r.date) ||
+                                ""
+                              ).slice(0, 10),
+                            }
+                          : r
+                      )
+                    );
+
+                    showToast("기록 수정 완료");
+                  } catch (err) {
+                    console.error("백엔드 기록 수정 실패", err);
+                    window.alert(
+                      "서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요."
+                    );
+                  }
                 }}
               />
 
-              <textarea
-                value={memoText}
-                onChange={(e) => setMemoText(e.target.value)}
-              />
-              <button onClick={handleSaveMemo}>메모 저장</button>
+              {/* 메모 */}
+              <div
+                style={{
+                  marginTop: 20,
+                  padding: 14,
+                  backgroundColor: "#ffffff",
+                  borderRadius: 10,
+                  border: "1px solid #e5e7eb",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                  옵션 메모
+                </div>
+
+                <textarea
+                  value={memoText}
+                  onChange={(e) => setMemoText(e.target.value)}
+                  placeholder="이 옵션에 대한 메모를 적어주세요."
+                  style={{
+                    width: "100%",
+                    minHeight: 80,
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    fontSize: 13,
+                    resize: "vertical",
+                  }}
+                />
+
+                <button
+                  onClick={handleSaveMemo}
+                  style={{
+                    marginTop: 8,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    fontSize: 13,
+                    float: "right",
+                    cursor: "pointer",
+                  }}
+                >
+                  메모 저장
+                </button>
+                <div style={{ clear: "both" }} />
+              </div>
             </>
           )}
         </div>
       </div>
 
+      {/* 모달들 */}
       {editModal && (
         <EditOptionModal
+          isShoes={isShoes}
           editModal={editModal}
           setEditModal={setEditModal}
           onSave={handleSaveEditOption}
@@ -313,7 +631,7 @@ export default function ManageDetailPage() {
 
       {deleteModal && (
         <ConfirmModal
-          message="정말 삭제?"
+          message="정말 이 옵션을 삭제할까요?"
           onCancel={() => setDeleteModal(null)}
           onConfirm={handleDeleteOption}
         />
@@ -322,11 +640,21 @@ export default function ManageDetailPage() {
   );
 }
 
-/* ======================= 이하 컴포넌트 ======================= */
-
+/* ======================= 옵션 추가 박스 ======================= */
 function OptionAddBox({ isShoes, onAdd }) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState("");
+
+  const handleImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") setImage(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const submit = () => {
     onAdd({ value, image });
@@ -335,39 +663,240 @@ function OptionAddBox({ isShoes, onAdd }) {
   };
 
   return (
-    <div>
-      <input value={value} onChange={(e) => setValue(e.target.value)} />
-      <input type="file" onChange={(e) => {
-        const r = new FileReader();
-        r.onload = () => setImage(r.result);
-        r.readAsDataURL(e.target.files[0]);
-      }} />
-      <button onClick={submit}>추가</button>
-    </div>
-  );
-}
+    <div
+      style={{
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        backgroundColor: "#fafafa",
+      }}
+    >
+      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>옵션 추가</h4>
 
-function EditOptionModal({ editModal, setEditModal, onSave }) {
-  return (
-    <div>
       <input
-        value={editModal.value}
-        onChange={(e) =>
-          setEditModal({ ...editModal, value: e.target.value })
-        }
+        type="text"
+        placeholder={isShoes ? "사이즈 (260)" : "옵션"}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        style={{
+          width: "100%",
+          marginTop: 8,
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #d1d5db",
+        }}
       />
-      <button onClick={onSave}>저장</button>
-      <button onClick={() => setEditModal(null)}>취소</button>
+
+      <div style={{ marginTop: 8 }}>
+        <input type="file" accept="image/*" onChange={handleImage} />
+        {image && (
+          <img
+            src={image}
+            alt=""
+            style={{
+              marginTop: 8,
+              width: "100%",
+              maxWidth: 180,
+              borderRadius: 8,
+            }}
+          />
+        )}
+      </div>
+
+      <button
+        onClick={submit}
+        style={{
+          marginTop: 10,
+          padding: "6px 14px",
+          borderRadius: 999,
+          backgroundColor: "#2563eb",
+          color: "white",
+          border: "none",
+          cursor: "pointer",
+        }}
+      >
+        추가
+      </button>
     </div>
   );
 }
 
+/* ======================= 옵션 수정 모달 ======================= */
+function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
+  const { id, value, image } = editModal;
+
+  const handleImage = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string")
+        setEditModal({ id, value, image: reader.result });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <ModalContainer>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          backgroundColor: "white",
+          borderRadius: 14,
+          padding: 20,
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>옵션 수정</h3>
+
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setEditModal({ id, value: e.target.value, image })}
+          style={{
+            width: "100%",
+            marginTop: 14,
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+          }}
+          placeholder={isShoes ? "사이즈" : "옵션"}
+        />
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImage}
+          style={{ marginTop: 8 }}
+        />
+
+        {image && (
+          <img
+            src={image}
+            alt=""
+            style={{
+              marginTop: 10,
+              width: "100%",
+              height: 140,
+              objectFit: "cover",
+              borderRadius: 10,
+            }}
+          />
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 18,
+          }}
+        >
+          <button
+            onClick={() => setEditModal(null)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#f3f4f6",
+              color: "black",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            취소
+          </button>
+
+          <button
+            onClick={onSave}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#2563eb",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </ModalContainer>
+  );
+}
+
+/* ======================= 삭제 확인 모달 ======================= */
 function ConfirmModal({ message, onCancel, onConfirm }) {
   return (
-    <div>
-      <div>{message}</div>
-      <button onClick={onCancel}>취소</button>
-      <button onClick={onConfirm}>삭제</button>
+    <ModalContainer>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          backgroundColor: "white",
+          borderRadius: 14,
+          padding: 20,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 18,
+          }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#f3f4f6",
+              color: "black",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            취소
+          </button>
+
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#dc2626",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </ModalContainer>
+  );
+}
+
+function ModalContainer({ children }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.4)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 200,
+      }}
+    >
+      {children}
     </div>
   );
 }
