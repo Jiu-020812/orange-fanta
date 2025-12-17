@@ -84,9 +84,10 @@ export default function TopNav() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {user ? (
           <>
-         <Link
+        <Link
   to="/mypage"
   title="마이페이지"
+  onClick={() => console.log("✅ mypage link clicked")}
   style={{
     fontSize: 13,
     color: "#4b5563",
@@ -99,22 +100,23 @@ export default function TopNav() {
 </Link>
 
          
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 600,
-                border: "none",
-                cursor: "pointer",
-                marginLeft: 12,
-                backgroundColor: "#ef4444", //  빨간 배경
-                color: "blackf", 
-              }}
-            >
-              로그아웃
-            </button>
+<button
+  onClick={handleLogout}
+  style={{
+    padding: "6px 14px",
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 600,
+    border: "1px solid #e5e7eb",
+    cursor: "pointer",
+    marginLeft: 12,
+
+    backgroundColor: "#fef2f2", 
+    color: "#dc2626",           
+  }}
+>
+  로그아웃
+</button>
           </>
         ) : (
           // 로그인 안 된 상태 → 로그인 페이지로 이동 버튼
