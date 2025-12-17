@@ -100,7 +100,7 @@ export default function OutPage() {
           새 출고
         </h3>
 
-        {/* ✅ 겹침 방지 레이아웃 */}
+        {/*  겹침 방지 레이아웃 */}
         <div
           style={{
             display: "flex",
@@ -110,7 +110,7 @@ export default function OutPage() {
           }}
         >
           {/* ItemPicker는 wrapper로 폭 제어 */}
-          <div style={{ flex: "2 1 320px", minWidth: 260 }}>
+          <div style={{ flex: "2 1 260px", minWidth: 240, maxWidth: 420 }}>
             <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
           </div>
 
@@ -144,7 +144,7 @@ export default function OutPage() {
         </div>
       </div>
 
-      {/* ✅ 출고 내역 카드 */}
+      {/*  출고 내역 카드 */}
       <div
         style={{
           padding: 16,
@@ -199,10 +199,13 @@ export default function OutPage() {
                   판매가 입력
                 </button>
               )}
-
-              <button onClick={() => goDetailByName(r)} style={linkBtn}>
+              <button
+              type="button"
+              onClick={() => navigate(`/manage-id/${r.itemId}`)}
+              style={linkBtn}
+            >
                 상세
-              </button>
+            </button>
             </div>
           ))
         )}

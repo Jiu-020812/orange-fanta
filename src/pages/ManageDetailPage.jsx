@@ -60,7 +60,8 @@ function parseRecordsResponse(data) {
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
-  const { name } = useParams();
+  const { name,itemId } = useParams();
+  const key = itemId ? Number(itemId) : decodeURIComponent(name);
   const decodedName = decodeURIComponent(name);
 
   const [items, setItems] = useState([]);

@@ -80,6 +80,11 @@ function App() {
           <Route path="/in" element={<InPage />} />
           <Route path="/out" element={<OutPage />} />
 
+          {/*  품목 상세 (둘 다 추가) */}
+          
+          <Route path="/manage/:name" element={<ManageDetailPage />} />
+          <Route path="/manage-id/:itemId" element={<ManageDetailPage />} />
+
           {/* 마이그레이션 */}
           <Route
             path="/migrate"
