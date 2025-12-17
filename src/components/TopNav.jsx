@@ -84,19 +84,21 @@ export default function TopNav() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {user ? (
           <>
-          <span
-          onClick={() => navigate("/mypage")}
-           title="마이페이지"
-           style={{
-           fontSize: 13,
-           color: "#4b5563",
-           cursor: "pointer",
-           textDecoration: "underline",
-           textUnderlineOffset: 3,
-           }}
-       >
-     {user.name ? `${user.name} 님` : user.email}
-          </span>
+         <Link
+  to="/mypage"
+  title="마이페이지"
+  style={{
+    fontSize: 13,
+    color: "#4b5563",
+    cursor: "pointer",
+    textDecoration: "underline",
+    textUnderlineOffset: 3,
+  }}
+>
+  {user.name ? `${user.name} 님` : user.email}
+</Link>
+
+         
             <button
               onClick={handleLogout}
               style={{
