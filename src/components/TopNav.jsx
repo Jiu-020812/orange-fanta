@@ -71,61 +71,68 @@ export default function TopNav() {
       </nav>
 
       {/* 오른쪽: 유저 정보 + 로그아웃 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {user ? (
-          <>
-            <Link
-              to="/mypage"
-              title="마이페이지"
-              onClick={() => console.log("✅ mypage link clicked")}
-              style={{
-                fontSize: 13,
-                color: "#4b5563",
-                cursor: "pointer",
-                textDecoration: "underline",
-                textUnderlineOffset: 3,
-                position: "relative",
-                zIndex: 9999,
-                pointerEvents: "auto",
-              }}
-            >
-              {user.name ? `${user.name} 님` : user.email}
-            </Link>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, position: "relative", zIndex: 99999 }}>
+  {user ? (
+    <>
+      <Link
+        to="/mypage"
+        title="마이페이지"
+        onClick={(e) => {
+          console.log("✅ mypage clicked");
+          // 혹시 부모가 클릭 막으면 강제로 막아버림
+          e.stopPropagation();
+        }}
+        style={{
+          fontSize: 13,
+          color: "#4b5563",
+          cursor: "pointer",
+          textDecoration: "underline",
+          textUnderlineOffset: 3,
 
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 700,
-                border: "none",
-                cursor: "pointer",
-                marginLeft: 8,
-                backgroundColor: "#ef4444", // 빨강
-                color: "#ffffff", // 흰 글씨
-              }}
-            >
-              로그아웃
-            </button>
-          </>
-        ) : (
-          <button
-            onClick={() => navigate("/login")}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 999,
-              border: "1px solid #111827",
-              backgroundColor: "#f9fafb",
-              fontSize: 13,
-              cursor: "pointer",
-              color: "#111827",
-            }}
-          >
-            로그인
-          </button>
-        )}
-      </div>
+          // 🔥 덮임/클릭 방지 강제 무시
+          position: "relative",
+          zIndex: 999999,
+          pointerEvents: "auto",
+          display: "inline-block",
+        }}
+      >
+        {user.name ? `${user.name} 님` : user.email}
+      </Link>
+
+      <button
+        onClick={handleLogout}
+        style={{
+          padding: "6px 14px",
+          borderRadius: 999,
+          fontSize: 13,
+          fontWeight: 700,
+          border: "none",
+          cursor: "pointer",
+          backgroundColor: "#ef4444",
+          color: "#ffffff",
+        }}
+      >
+        로그아웃
+      </button>
+    </>
+  ) : (
+    <button
+      onClick={() => navigate("/login")}
+      style={{
+        padding: "6px 12px",
+        borderRadius: 999,
+        border: "1px solid #111827",
+        backgroundColor: "#111827",
+        color: "#ffffff",
+        fontSize: 13,
+        cursor: "pointer",
+      }}
+    >
+      로그인
+    </button>
+  )}
+</div>
+
     </header>
   );
 }
