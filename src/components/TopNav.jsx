@@ -103,7 +103,7 @@ export default function TopNav() {
                 cursor: "pointer",
                 marginLeft: 12,
                 backgroundColor: "#ef4444", //  빨간 배경
-                color: "#ffffff", 
+                color: "blackf", 
               }}
             >
               로그아웃

@@ -15,6 +15,7 @@ import ManageDetailPage from "./pages/ManageDetailPage";
 import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MigratePage from "./pages/MigratePage";
+import MyPage from "./pages/mypages/MyPage";
 
 import { getMe, logout } from "./api/auth";
 
@@ -240,7 +241,15 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          {/* 마이페이지 */}
+          <Route
+  path="/mypage"
+  element={
+    <ProtectedRoute>
+      <MyPage />
+    </ProtectedRoute>
+  }
+/>
           {/* 마이그레이션*/ }
           <Route
   path="/migrate"
