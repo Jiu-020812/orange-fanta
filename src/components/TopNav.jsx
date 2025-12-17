@@ -7,7 +7,7 @@ export default function TopNav() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
 
-  // ✅ 드롭다운 상태
+  //  드롭다운 상태
   const [manageOpen, setManageOpen] = useState(false);
   const manageRef = useRef(null);
 
@@ -23,7 +23,7 @@ export default function TopNav() {
     fetchMe();
   }, []);
 
-  // ✅ 바깥 클릭 시 드롭다운 닫기
+  //  바깥 클릭 시 드롭다운 닫기
   useEffect(() => {
     function onDocDown(e) {
       if (!manageRef.current) return;
@@ -79,75 +79,70 @@ export default function TopNav() {
           메인
         </NavLink>
 
-        {/* ✅ 품목 관리 드롭다운 */}
+        {/* 품목 관리 드롭다운 */}
         <div
-          ref={manageRef}
-          style={{ position: "relative" }}
-          onMouseEnter={() => setManageOpen(true)}
-          onMouseLeave={() => setManageOpen(false)}
-        >
-          <button
-            type="button"
-            onClick={() => setManageOpen((v) => !v)} // 모바일/터치 대비
-            style={{
-              padding: "8px 12px",
-              borderRadius: 999,
-              fontSize: 14,
-              fontWeight: 500,
-              border: "none",
-              cursor: "pointer",
-              backgroundColor: isActive("/manage") || isActive("/in") || isActive("/out")
-                ? "#dbeafe"
-                : "transparent",
-              color: isActive("/manage") || isActive("/in") || isActive("/out")
-                ? "#1d4ed8"
-                : "#4b5563",
-            }}
-          >
-            품목 관리 ▾
-          </button>
+  ref={manageRef}
+  style={{ position: "relative" }}
+  onMouseEnter={() => setManageOpen(true)}
+  onMouseLeave={() => setManageOpen(false)}
+>
+  <button
+    type="button"
+    onClick={() => setManageOpen((v) => !v)}
+    style={{
+      padding: "8px 12px",
+      borderRadius: 999,
+      fontSize: 14,
+      fontWeight: 500,
+      border: "none",
+      cursor: "pointer",
+      backgroundColor:
+        isActive("/manage") || isActive("/in") || isActive("/out")
+          ? "#dbeafe"
+          : "transparent",
+      color:
+        isActive("/manage") || isActive("/in") || isActive("/out")
+          ? "#1d4ed8"
+          : "#4b5563",
+    }}
+  >
+    품목 관리 ▾
+  </button>
 
-          {manageOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 8px)",
-                left: 0,
-                minWidth: 160,
-                padding: 8,
-                borderRadius: 14,
-                backgroundColor: "#ffffff",
-                border: "1px solid #e5e7eb",
-                boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-                zIndex: 1000,
-              }}
-            >
-              <DropItem
-                to="/manage"
-                active={isActive("/manage")}
-                onClick={() => setManageOpen(false)}
-              >
-                품목 목록/상세
-              </DropItem>
-
-              <DropItem
-                to="/in"
-                active={isActive("/in")}
-                onClick={() => setManageOpen(false)}
-              >
-                입고 관리
-              </DropItem>
-
-              <DropItem
-                to="/out"
-                active={isActive("/out")}
-                onClick={() => setManageOpen(false)}
-              >
-                출고 관리
-              </DropItem>
-            </div>
-          )}
-        </div>
+  {manageOpen && (
+    // "hover 브릿지" 컨테이너 (공백 8px를 hover 영역으로 만듦)
+    <div
+      style={{
+        position: "absolute",
+        top: "100%",
+        left: 0,
+        paddingTop: 8,     
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 160,
+          padding: 8,
+          borderRadius: 14,
+          backgroundColor: "#ffffff",
+          border: "1px solid #e5e7eb",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+        }}
+      >
+        <DropItem to="/manage" active={isActive("/manage")} onClick={() => setManageOpen(false)}>
+          품목 목록/상세
+        </DropItem>
+        <DropItem to="/in" active={isActive("/in")} onClick={() => setManageOpen(false)}>
+          입고 관리
+        </DropItem>
+        <DropItem to="/out" active={isActive("/out")} onClick={() => setManageOpen(false)}>
+          출고 관리
+        </DropItem>
+      </div>
+    </div>
+  )}
+</div>
 
         <NavLink to="/add" active={isActive("/add")}>
           품목 등록

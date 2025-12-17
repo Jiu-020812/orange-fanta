@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PriceInputModal from "../components/PriceInputModal";
 import ItemPicker from "../components/ItemPicker";
-
-import {
-  createRecord,
-  updateRecord,
-  getAllRecords, 
-} from "../api/items";
+import { createRecord, updateRecord, getAllRecords } from "../api/items";
 
 export default function InPage() {
   const navigate = useNavigate();
@@ -39,24 +34,32 @@ export default function InPage() {
   }, []);
 
   async function handleCreateIn() {
-    if (!itemId || count <= 0) {
-      alert("itemId와 수량을 확인해주세요");
+    if (!selectedItem) {
+      alert("상품을 선택해주세요");
+      return;
+    }
+    if (!Number.isFinite(Number(count)) || Number(count) <= 0) {
+      alert("수량을 확인해주세요");
       return;
     }
 
     await createRecord({
-      itemId: Number(itemId),
+      itemId: selectedItem.id,
       count: Number(count),
       type: "IN",
       memo: memo || null,
     });
 
+    // 초기화
+    setSelectedItem(null);
     setCount(1);
     setMemo("");
     await loadRecords();
   }
 
   async function handlePriceSubmit(price) {
+    if (!selectedRecord) return;
+
     await updateRecord({
       itemId: selectedRecord.itemId,
       id: selectedRecord.id,
@@ -65,13 +68,22 @@ export default function InPage() {
     await loadRecords();
   }
 
+  function goDetailByName(r) {
+    const name = r?.item?.name;
+    if (!name) {
+      alert("이 기록에 item name이 없어서 상세로 이동할 수 없어요.");
+      return;
+    }
+    navigate(`/manage/${encodeURIComponent(name)}`);
+  }
+
   return (
     <div style={{ padding: 24, maxWidth: 960, margin: "0 auto" }}>
       <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
         📥 입고 관리
       </h2>
 
-      {/* 입고 추가 */}
+      {/*  입고 추가 카드 */}
       <div
         style={{
           padding: 16,
@@ -85,28 +97,41 @@ export default function InPage() {
           새 입고
         </h3>
 
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {/*  여기서 겹침 방지 레이아웃 */}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* ItemPicker는 wrapper로 폭 제어 */}
+          <div style={{ flex: "2 1 320px", minWidth: 260 }}>
+            <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
+          </div>
 
-        <ItemPicker
-           value={selectedItem}
-           onSelect={setSelectedItem}
-           style={inputStyle}
-          />
+          {/* 수량 고정폭 */}
           <input
             type="number"
             placeholder="수량"
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
-            style={inputStyle}
+            style={{ ...inputStyle, width: 120, flex: "0 0 120px" }}
           />
+
+          {/* 메모는 남는 폭 */}
           <input
             placeholder="메모 (선택)"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            style={{ ...inputStyle, flex: 1 }}
+            style={{ ...inputStyle, flex: "1 1 240px", minWidth: 200 }}
           />
 
-          <button onClick={handleCreateIn} style={primaryBtn}>
+          <button
+            onClick={handleCreateIn}
+            style={{ ...primaryBtn, flex: "0 0 auto" }}
+          >
             입고 추가
           </button>
         </div>
@@ -116,7 +141,7 @@ export default function InPage() {
         </div>
       </div>
 
-      {/* 입고 내역 */}
+      {/*  입고 내역 카드 */}
       <div
         style={{
           padding: 16,
@@ -158,7 +183,7 @@ export default function InPage() {
 
               {r.price != null ? (
                 <div style={{ fontWeight: 700 }}>
-                  {r.price.toLocaleString()}원
+                  {Number(r.price).toLocaleString()}원
                 </div>
               ) : (
                 <button
@@ -172,10 +197,7 @@ export default function InPage() {
                 </button>
               )}
 
-              <button
-                onClick={() => navigate(`/manage/${r.itemId}`)}
-                style={linkBtn}
-              >
+              <button onClick={() => goDetailByName(r)} style={linkBtn}>
                 상세
               </button>
             </div>
