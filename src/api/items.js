@@ -165,5 +165,20 @@ export async function getAllRecords({ type, priceMissing } = {}) {
   return res.data?.records ?? [];
 }
 
+//  상품 검색 (바코드 or 이름)
+export async function searchItems(keyword) {
+  if (!keyword) return [];
+
+  const res = await api.get("/api/items", {
+    params: { keyword },
+  });
+
+  // 백엔드 응답 형태 대응
+  const data = res.data;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
 
 export default api;
