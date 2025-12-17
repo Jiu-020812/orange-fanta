@@ -17,11 +17,6 @@ import {
 const norm = (s) => String(s ?? "").trim();
 
 /* ======================= 이미지 자동 압축 유틸 ======================= */
-/**
- * - base64(DataURL)로 서버에 보내면 413이 자주 나서,
- *   업로드 전에 자동으로 리사이즈+압축해서 DataURL 크기를 줄여줌.
- * - 품질: 일반 웹서비스 수준(카드 썸네일에선 티 거의 안 남)
- */
 async function compressImage(file, maxW = 900, maxH = 900, quality = 0.75) {
   const img = new Image();
   img.src = URL.createObjectURL(file);
@@ -45,8 +40,22 @@ async function compressImage(file, maxW = 900, maxH = 900, quality = 0.75) {
 
   URL.revokeObjectURL(img.src);
 
-  // jpeg로 압축된 dataURL 반환
   return canvas.toDataURL("image/jpeg", quality);
+}
+
+function toYmd(d) {
+  try {
+    return new Date(d).toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
+
+function parseRecordsResponse(data) {
+  // 백엔드가 배열로 줄 수도 있고 { ok, records, stock }로 줄 수도 있어서 둘 다 대응
+  if (Array.isArray(data)) return { records: data, stock: null };
+  if (data && Array.isArray(data.records)) return { records: data.records, stock: data.stock ?? null };
+  return { records: [], stock: null };
 }
 
 export default function ManageDetailPage() {
@@ -54,23 +63,33 @@ export default function ManageDetailPage() {
   const { name } = useParams();
   const decodedName = decodeURIComponent(name);
 
-  // 서버에서 가져온 전체 items (이름/옵션/이미지 등)
   const [items, setItems] = useState([]);
-
-  // 현재 선택된 옵션(Item)에 대한 기록만 보관
   const [records, setRecords] = useState([]);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
 
   const [toast, setToast] = useState("");
-  const [editModal, setEditModal] = useState(null); // { id, value, image }
-  const [deleteModal, setDeleteModal] = useState(null); // 삭제할 option id
+  const [editModal, setEditModal] = useState(null);
+  const [deleteModal, setDeleteModal] = useState(null);
 
   const [memoText, setMemoText] = useState("");
 
-  // 아직 category 컬럼이 있더라도, UI는 일단 "신발처럼(size 사용)" 취급 유지
+  //  기간 필터
+  const [rangeMode, setRangeMode] = useState("ALL"); // ALL | 7 | 30 | 90 | CUSTOM
+  const [fromDate, setFromDate] = useState(() => "");
+  const [toDate, setToDate] = useState(() => toYmd(new Date()));
+
+  //  검색/정렬
+  const [searchText, setSearchText] = useState("");
+  const [sortMode, setSortMode] = useState("ASC"); // ASC(oldest) | DESC(latest)
+
+  //  출고 폼
+  const [outPrice, setOutPrice] = useState("");
+  const [outCount, setOutCount] = useState(1);
+  const [outDate, setOutDate] = useState(() => toYmd(new Date()));
+  const [outMemo, setOutMemo] = useState("");
+
   const isShoes = true;
 
-  /* ---------------- 토스트 ---------------- */
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
@@ -81,7 +100,7 @@ export default function ManageDetailPage() {
     async function loadItems() {
       try {
         const data = await fetchItems();
-        setItems(Array.isArray(data) ? data : []);
+        setItems(Array.isArray(data) ? data : (data?.items ?? []));
       } catch (err) {
         console.error("아이템 불러오기 오류:", err);
       }
@@ -89,29 +108,25 @@ export default function ManageDetailPage() {
     loadItems();
   }, []);
 
-  /* ---------------- 현재 품목 이름에 해당하는 옵션 리스트 ---------------- */
+  /* ---------------- 옵션 리스트 ---------------- */
   const options = useMemo(() => {
     const target = norm(decodedName);
     return items.filter((i) => norm(i.name) === target);
   }, [items, decodedName]);
 
-  /* ---------------- 같은 name 그룹에서 대표사진 하나 선택 ---------------- */
   const representativeImageUrl = useMemo(() => {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  /* ---------------- 선택된 옵션 객체 ---------------- */
-  const selectedOption =
-    options.find((opt) => opt.id === selectedOptionId) || null;
+  const selectedOption = options.find((opt) => opt.id === selectedOptionId) || null;
 
-  /* ---------------- 옵션 중복 확인 ---------------- */
   const isOptionExists = (value) => {
     const trimmed = value.trim();
     if (!trimmed) return false;
     return options.some((opt) => norm(opt.size) === trimmed);
   };
 
-  /* ---------------- 선택된 옵션이 바뀔 때 기록 로드 ---------------- */
+  /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   useEffect(() => {
     if (!selectedOptionId) {
       setRecords([]);
@@ -121,15 +136,20 @@ export default function ManageDetailPage() {
     async function loadRecords() {
       try {
         const data = await fetchRecords(selectedOptionId);
-        const normalized = Array.isArray(data)
-          ? data.map((rec) => ({
+        const { records: raw } = parseRecordsResponse(data);
+
+        const normalized = Array.isArray(raw)
+          ? raw.map((rec) => ({
               id: rec.id,
               itemId: rec.itemId,
+              type: rec.type || "IN", //  type 없으면 IN으로
               price: rec.price,
               count: rec.count,
               date: (rec.date || "").slice(0, 10),
+              memo: rec.memo ?? "",
             }))
           : [];
+
         setRecords(normalized);
       } catch (err) {
         console.error("기록 불러오기 실패:", err);
@@ -141,26 +161,15 @@ export default function ManageDetailPage() {
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
-    if (selectedOption && typeof selectedOption.memo === "string") {
-      setMemoText(selectedOption.memo);
-    } else {
-      setMemoText("");
-    }
+    if (selectedOption && typeof selectedOption.memo === "string") setMemoText(selectedOption.memo);
+    else setMemoText("");
   }, [selectedOption]);
 
   const handleSaveMemo = async () => {
     if (!selectedOption) return;
     try {
-      const updated = await updateServerItem(selectedOption.id, {
-        memo: memoText,
-      });
-
-      setItems((prev) =>
-        prev.map((it) =>
-          it.id === selectedOption.id ? { ...it, ...updated } : it
-        )
-      );
-
+      const updated = await updateServerItem(selectedOption.id, { memo: memoText });
+      setItems((prev) => prev.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it)));
       showToast("메모 저장 완료!");
     } catch (err) {
       console.error("메모 서버 저장 실패", err);
@@ -168,7 +177,7 @@ export default function ManageDetailPage() {
     }
   };
 
-  /* ---------------- 옵션 추가 (서버에 Item 생성) ---------------- */
+  /* ---------------- 옵션 추가 ---------------- */
   const handleAddOption = async ({ value, image }) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -194,7 +203,7 @@ export default function ManageDetailPage() {
     }
   };
 
-  /* ---------------- 옵션 수정 (서버 기반) ---------------- */
+  /* ---------------- 옵션 수정 ---------------- */
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
@@ -202,22 +211,15 @@ export default function ManageDetailPage() {
     const trimmed = value.trim();
     if (!trimmed) return;
 
-    // 중복 체크
     if (options.some((opt) => opt.id !== id && norm(opt.size) === trimmed)) {
       window.alert("이미 존재하는 옵션입니다.");
       return;
     }
 
     try {
-      const updated = await updateServerItem(id, {
-        size: trimmed,
-        imageUrl: image || null,
-      });
+      const updated = await updateServerItem(id, { size: trimmed, imageUrl: image || null });
 
-      setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, ...updated } : it))
-      );
-
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
       setEditModal(null);
       showToast("옵션 수정 완료");
     } catch (err) {
@@ -235,9 +237,7 @@ export default function ManageDetailPage() {
       await deleteServerItem(id);
     } catch (err) {
       console.error("옵션 서버 삭제 실패", err);
-      window.alert(
-        "서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다."
-      );
+      window.alert("서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다.");
     }
 
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -247,7 +247,7 @@ export default function ManageDetailPage() {
     showToast("옵션 삭제 완료");
   };
 
-  /* ---------------- 품목 전체 삭제 (이 이름의 모든 옵션 삭제) ---------------- */
+  /* ---------------- 품목 전체 삭제 ---------------- */
   const handleDeleteItem = async () => {
     if (!window.confirm("정말 이 품목을 전체 삭제할까요?")) return;
 
@@ -257,9 +257,7 @@ export default function ManageDetailPage() {
       await Promise.all(ids.map((id) => deleteServerItem(id)));
     } catch (err) {
       console.error("품목 전체 삭제 실패", err);
-      window.alert(
-        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
-      );
+      window.alert("서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요.");
     }
 
     setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
@@ -269,7 +267,71 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
-  const filteredRecords = records;
+  /* ======================= (2) 재고 계산 ======================= */
+  const stock = useMemo(() => {
+    const inSum = records
+      .filter((r) => (r.type || "IN") !== "OUT")
+      .reduce((acc, r) => acc + Number(r.count || 0), 0);
+    const outSum = records
+      .filter((r) => (r.type || "IN") === "OUT")
+      .reduce((acc, r) => acc + Number(r.count || 0), 0);
+    return inSum - outSum;
+  }, [records]);
+
+  /* ======================= (3) 기간 필터 계산 ======================= */
+  const effectiveRange = useMemo(() => {
+    if (rangeMode === "CUSTOM") return { from: fromDate || null, to: toDate || null };
+    if (rangeMode === "ALL") return { from: null, to: null };
+
+    const days = Number(rangeMode);
+    const end = toDate || toYmd(new Date());
+    const endDate = new Date(end + "T00:00:00");
+    const startDate = new Date(endDate);
+    startDate.setDate(startDate.getDate() - (days - 1));
+    return { from: toYmd(startDate), to: end };
+  }, [rangeMode, fromDate, toDate]);
+
+  /* ======================= (5) 검색/정렬 + (3) 기간필터 적용 ======================= */
+  const filteredRecords = useMemo(() => {
+    let arr = Array.isArray(records) ? [...records] : [];
+
+    // 기간 필터
+    if (effectiveRange.from) arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
+    if (effectiveRange.to) arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
+
+    // 검색(메모/가격/수량/날짜/type)
+    const q = norm(searchText).toLowerCase();
+    if (q) {
+      arr = arr.filter((r) => {
+        const hay = [
+          r.date,
+          String(r.price ?? ""),
+          String(r.count ?? ""),
+          r.type || "IN",
+          r.memo || "",
+        ]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    // 정렬
+    arr.sort((a, b) => {
+      const da = (a.date || "");
+      const db = (b.date || "");
+      if (da !== db) return sortMode === "DESC" ? (db > da ? 1 : -1) : (da > db ? 1 : -1);
+      return sortMode === "DESC" ? (b.id - a.id) : (a.id - b.id);
+    });
+
+    return arr;
+  }, [records, effectiveRange, searchText, sortMode]);
+
+  // StatsSection은 “매입 평균”용이니까 IN만 보내는 게 안전
+  const recordsForStats = useMemo(
+    () => filteredRecords.filter((r) => (r.type || "IN") !== "OUT"),
+    [filteredRecords]
+  );
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -293,14 +355,7 @@ export default function ManageDetailPage() {
       )}
 
       {/* 상단 헤더 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: 16,
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
         <button
           onClick={() => navigate("/manage")}
           style={{
@@ -315,9 +370,7 @@ export default function ManageDetailPage() {
           ← 뒤로
         </button>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          {decodedName}
-        </h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName}</h2>
 
         <button
           onClick={handleDeleteItem}
@@ -335,33 +388,18 @@ export default function ManageDetailPage() {
         </button>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)",
-          gap: 24,
-        }}
-      >
-        {/* ---------------------------------- 좌측: 옵션 목록 ---------------------------------- */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 24 }}>
+        {/* 좌측: 옵션 목록 */}
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-            옵션 목록
-          </h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>
 
           {options.length === 0 && (
             <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
-              옵션이 없습니다. (데이터는 있는데 안 보이면 name 매칭/라우팅을
-              확인해줘!)
+              옵션이 없습니다. (데이터는 있는데 안 보이면 name 매칭/라우팅을 확인해줘!)
             </div>
           )}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
             {options.map((opt) => {
               const displayImageUrl = opt.imageUrl || representativeImageUrl;
 
@@ -370,10 +408,7 @@ export default function ManageDetailPage() {
                   key={opt.id}
                   onClick={() => setSelectedOptionId(opt.id)}
                   style={{
-                    border:
-                      selectedOptionId === opt.id
-                        ? "2px solid #2563eb"
-                        : "1px solid #e5e7eb",
+                    border: selectedOptionId === opt.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
                     borderRadius: 12,
                     padding: 10,
                     cursor: "pointer",
@@ -411,11 +446,8 @@ export default function ManageDetailPage() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>
-                    {opt.size || "(옵션)"}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{opt.size || "(옵션)"}</div>
 
-                  {/* 수정/삭제 버튼 */}
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button
                       onClick={(e) => {
@@ -463,11 +495,10 @@ export default function ManageDetailPage() {
             })}
           </div>
 
-          {/* 옵션 추가 박스 */}
           <OptionAddBox isShoes={isShoes} onAdd={handleAddOption} />
         </div>
 
-        {/* ---------------------------------- 우측: 그래프 + 기록 + 메모 ---------------------------------- */}
+        {/* 우측 */}
         <div>
           {!selectedOptionId ? (
             <div style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}>
@@ -475,12 +506,144 @@ export default function ManageDetailPage() {
             </div>
           ) : (
             <>
+              {/*  재고 표시 */}
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                  marginBottom: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 700 }}>
+                  현재 재고:{" "}
+                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>
+                    {stock}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  {decodedName} ({selectedOption?.size ?? ""})
+                </div>
+              </div>
+
+              {/*  기간/검색/정렬 컨트롤 */}
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 10 }}>
+                  <label style={{ fontSize: 12 }}>
+                    기간
+                    <select
+                      value={rangeMode}
+                      onChange={(e) => setRangeMode(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <option value="ALL">전체</option>
+                      <option value="7">최근 7일</option>
+                      <option value="30">최근 30일</option>
+                      <option value="90">최근 90일</option>
+                      <option value="CUSTOM">직접 선택</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: 12 }}>
+                    정렬
+                    <select
+                      value={sortMode}
+                      onChange={(e) => setSortMode(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <option value="ASC">오래된 순</option>
+                      <option value="DESC">최신 순</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: 12 }}>
+                    검색
+                    <input
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                      placeholder="메모/가격/수량/날짜"
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {rangeMode === "CUSTOM" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                    <label style={{ fontSize: 12 }}>
+                      시작일
+                      <input
+                        type="date"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        style={{
+                          width: "100%",
+                          height: 34,
+                          marginTop: 6,
+                          padding: "0 10px",
+                          borderRadius: 10,
+                          border: "1px solid #e5e7eb",
+                        }}
+                      />
+                    </label>
+                    <label style={{ fontSize: 12 }}>
+                      종료일
+                      <input
+                        type="date"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        style={{
+                          width: "100%",
+                          height: 34,
+                          marginTop: 6,
+                          padding: "0 10px",
+                          borderRadius: 10,
+                          border: "1px solid #e5e7eb",
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <StatsSection
-                records={filteredRecords}
+                records={recordsForStats}
                 itemName={`${decodedName} (${selectedOption?.size ?? ""})`}
               />
 
-              {/* 기록 추가 */}
+              {/* 매입 기록 추가 */}
               <div
                 style={{
                   marginTop: 14,
@@ -490,43 +653,195 @@ export default function ManageDetailPage() {
                   backgroundColor: "#ffffff",
                 }}
               >
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 매입 기록 추가</div>
+
                 <PurchaseForm
                   onAddRecord={async (info) => {
                     if (!selectedOptionId) return;
 
-                    const dateValue =
-                      info.date || new Date().toISOString().slice(0, 10);
-                    const countValue =
-                      info.count === "" || info.count == null
-                        ? 1
-                        : Number(info.count);
+                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
 
                     try {
                       const created = await createRecord({
                         itemId: selectedOptionId,
+                        type: "IN",
                         price: Number(info.price),
                         count: countValue,
                         date: dateValue,
                       });
 
                       const newRecord = {
-                        id: created.id,
-                        itemId: created.itemId,
-                        price: created.price,
-                        count: created.count,
-                        date: (created.date || "").slice(0, 10),
+                        id: created?.id ?? Math.random(),
+                        itemId: created?.itemId ?? selectedOptionId,
+                        type: created?.type || "IN",
+                        price: created?.price ?? Number(info.price),
+                        count: created?.count ?? countValue,
+                        date: ((created?.date ?? dateValue) || "").slice(0, 10),
+                        memo: created?.memo ?? "",
                       };
 
                       setRecords((prev) => [...prev, newRecord]);
                       showToast("매입 기록 추가 완료");
                     } catch (err) {
                       console.error("백엔드 기록 저장 실패", err);
-                      window.alert(
-                        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
-                      );
+                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
                     }
                   }}
                 />
+              </div>
+
+              {/*  (1) 출고 폼 */}
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                }}
+              >
+                <div style={{ fontWeight: 800, marginBottom: 10 }}>📦 (판매) 출고 추가</div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <label style={{ fontSize: 12 }}>
+                    판매 단가
+                    <input
+                      type="number"
+                      value={outPrice}
+                      onChange={(e) => setOutPrice(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 36,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: 12 }}>
+                    수량
+                    <input
+                      type="number"
+                      min={1}
+                      value={outCount}
+                      onChange={(e) => setOutCount(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 36,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    />
+                  </label>
+
+                  <label style={{ fontSize: 12 }}>
+                    날짜
+                    <input
+                      type="date"
+                      value={outDate}
+                      onChange={(e) => setOutDate(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 36,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <label style={{ display: "block", fontSize: 12, marginTop: 10 }}>
+                  메모(선택)
+                  <input
+                    value={outMemo}
+                    onChange={(e) => setOutMemo(e.target.value)}
+                    style={{
+                      width: "100%",
+                      height: 36,
+                      marginTop: 6,
+                      padding: "0 10px",
+                      borderRadius: 10,
+                      border: "1px solid #e5e7eb",
+                    }}
+                  />
+                </label>
+
+                <button
+                  onClick={async () => {
+                    if (!selectedOptionId) return;
+
+                    const price = Number(outPrice);
+                    const count = Number(outCount || 1);
+
+                    if (!outPrice || Number.isNaN(price)) {
+                      alert("판매 단가를 입력해줘!");
+                      return;
+                    }
+                    if (!Number.isFinite(count) || count <= 0) {
+                      alert("수량이 이상해!");
+                      return;
+                    }
+
+                    // ✅ 프론트 1차 방어
+                    if (count > stock) {
+                      alert(`재고 부족 😢\n현재 재고: ${stock}\n출고 수량: ${count}`);
+                      return;
+                    }
+
+                    try {
+                      const created = await createRecord({
+                        itemId: selectedOptionId,
+                        type: "OUT",
+                        price,
+                        count,
+                        date: outDate,
+                        memo: outMemo || null,
+                      });
+
+                      const newRecord = {
+                        id: created?.id ?? Math.random(),
+                        itemId: created?.itemId ?? selectedOptionId,
+                        type: created?.type || "OUT",
+                        price: created?.price ?? price,
+                        count: created?.count ?? count,
+                        date: ((created?.date ?? outDate) || "").slice(0, 10),
+                        memo: created?.memo ?? (outMemo || ""),
+                      };
+
+                      setRecords((prev) => [...prev, newRecord]);
+                      showToast("출고 처리 완료");
+
+                      setOutPrice("");
+                      setOutCount(1);
+                      setOutDate(toYmd(new Date()));
+                      setOutMemo("");
+                    } catch (err) {
+                      console.error("백엔드 출고 저장 실패", err);
+                      alert("서버에 출고 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+                    }
+                  }}
+                  style={{
+                    marginTop: 12,
+                    width: "100%",
+                    height: 40,
+                    borderRadius: 12,
+                    border: "1px solid #111827",
+                    background: stock <= 0 ? "#e5e7eb" : "#111827",
+                    color: stock <= 0 ? "#6b7280" : "#fff",
+                    fontWeight: 800,
+                    cursor: stock <= 0 ? "not-allowed" : "pointer",
+                  }}
+                  disabled={stock <= 0}
+                >
+                  출고 처리
+                </button>
               </div>
 
               {/* 기록 리스트 */}
@@ -539,9 +854,7 @@ export default function ManageDetailPage() {
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
-                    window.alert(
-                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
-                    );
+                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
                   }
 
                   showToast("기록 삭제 완료");
@@ -550,14 +863,8 @@ export default function ManageDetailPage() {
                   if (!selectedOptionId) return;
 
                   const dateValue = info.date || undefined;
-                  const priceValue =
-                    info.price === "" || info.price == null
-                      ? undefined
-                      : Number(info.price);
-                  const countValue =
-                    info.count === "" || info.count == null
-                      ? undefined
-                      : Number(info.count);
+                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
+                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
 
                   try {
                     const updated = await updateServerRecord({
@@ -566,6 +873,8 @@ export default function ManageDetailPage() {
                       price: priceValue ?? null,
                       count: countValue ?? null,
                       date: dateValue ?? null,
+                      type: info.type ?? null,
+                      memo: info.memo ?? null,
                     });
 
                     setRecords((prev) =>
@@ -575,10 +884,9 @@ export default function ManageDetailPage() {
                               ...r,
                               price: updated?.price ?? (priceValue ?? r.price),
                               count: updated?.count ?? (countValue ?? r.count),
-                              date: (
-                                (updated?.date ?? dateValue ?? r.date) ||
-                                ""
-                              ).slice(0, 10),
+                              date: (((updated?.date ?? dateValue ?? r.date) || "")).slice(0, 10),
+                              type: updated?.type ?? r.type ?? "IN",
+                              memo: updated?.memo ?? r.memo ?? "",
                             }
                           : r
                       )
@@ -587,9 +895,7 @@ export default function ManageDetailPage() {
                     showToast("기록 수정 완료");
                   } catch (err) {
                     console.error("백엔드 기록 수정 실패", err);
-                    window.alert(
-                      "서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요."
-                    );
+                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
               />
@@ -605,9 +911,7 @@ export default function ManageDetailPage() {
                   boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  옵션 메모
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 메모</div>
 
                 <textarea
                   value={memoText}
@@ -647,7 +951,6 @@ export default function ManageDetailPage() {
         </div>
       </div>
 
-      {/* 모달들 */}
       {editModal && (
         <EditOptionModal
           isShoes={isShoes}
@@ -678,7 +981,6 @@ function OptionAddBox({ isShoes, onAdd }) {
     if (!file) return;
 
     try {
-      // 자동 리사이즈+압축 (413 방지)
       const compressed = await compressImage(file, 900, 900, 0.75);
       setImage(compressed);
     } catch (err) {
@@ -694,15 +996,7 @@ function OptionAddBox({ isShoes, onAdd }) {
   };
 
   return (
-    <div
-      style={{
-        marginTop: 16,
-        padding: 14,
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        backgroundColor: "#fafafa",
-      }}
-    >
+    <div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: "1px solid #e5e7eb", backgroundColor: "#fafafa" }}>
       <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>옵션 추가</h4>
 
       <input
@@ -710,42 +1004,19 @@ function OptionAddBox({ isShoes, onAdd }) {
         placeholder={isShoes ? "사이즈 (260)" : "옵션"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        style={{
-          width: "100%",
-          marginTop: 8,
-          padding: "8px 10px",
-          borderRadius: 8,
-          border: "1px solid #d1d5db",
-        }}
+        style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}
       />
 
       <div style={{ marginTop: 8 }}>
         <input type="file" accept="image/*" onChange={handleImage} />
         {image && (
-          <img
-            src={image}
-            alt=""
-            style={{
-              marginTop: 8,
-              width: "100%",
-              maxWidth: 180,
-              borderRadius: 8,
-            }}
-          />
+          <img src={image} alt="" style={{ marginTop: 8, width: "100%", maxWidth: 180, borderRadius: 8 }} />
         )}
       </div>
 
       <button
         onClick={submit}
-        style={{
-          marginTop: 10,
-          padding: "6px 14px",
-          borderRadius: 999,
-          backgroundColor: "#2563eb",
-          color: "white",
-          border: "none",
-          cursor: "pointer",
-        }}
+        style={{ marginTop: 10, padding: "6px 14px", borderRadius: 999, backgroundColor: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
       >
         추가
       </button>
@@ -762,7 +1033,6 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
     if (!file) return;
 
     try {
-      // 자동 리사이즈+압축 (413 방지)
       const compressed = await compressImage(file, 900, 900, 0.75);
       setEditModal({ id, value, image: compressed });
     } catch (err) {
@@ -773,84 +1043,34 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 
   return (
     <ModalContainer>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          backgroundColor: "white",
-          borderRadius: 14,
-          padding: 20,
-        }}
-      >
+      <div style={{ width: "100%", maxWidth: 380, backgroundColor: "white", borderRadius: 14, padding: 20 }}>
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>옵션 수정</h3>
 
         <input
           type="text"
           value={value}
           onChange={(e) => setEditModal({ id, value: e.target.value, image })}
-          style={{
-            width: "100%",
-            marginTop: 14,
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-          }}
+          style={{ width: "100%", marginTop: 14, padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}
           placeholder={isShoes ? "사이즈" : "옵션"}
         />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImage}
-          style={{ marginTop: 8 }}
-        />
+        <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />
 
         {image && (
-          <img
-            src={image}
-            alt=""
-            style={{
-              marginTop: 10,
-              width: "100%",
-              height: 140,
-              objectFit: "cover",
-              borderRadius: 10,
-            }}
-          />
+          <img src={image} alt="" style={{ marginTop: 10, width: "100%", height: 140, objectFit: "cover", borderRadius: 10 }} />
         )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={() => setEditModal(null)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#f3f4f6",
-              color: "black",
-              border: "none",
-              cursor: "pointer",
-            }}
+            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#f3f4f6", color: "black", border: "none", cursor: "pointer" }}
           >
             취소
           </button>
 
           <button
             onClick={onSave}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#2563eb",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
+            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
           >
             저장
           </button>
@@ -864,49 +1084,20 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 function ConfirmModal({ message, onCancel, onConfirm }) {
   return (
     <ModalContainer>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 360,
-          backgroundColor: "white",
-          borderRadius: 14,
-          padding: 20,
-        }}
-      >
+      <div style={{ width: "100%", maxWidth: 360, backgroundColor: "white", borderRadius: 14, padding: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={onCancel}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#f3f4f6",
-              color: "black",
-              border: "none",
-              cursor: "pointer",
-            }}
+            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#f3f4f6", color: "black", border: "none", cursor: "pointer" }}
           >
             취소
           </button>
 
           <button
             onClick={onConfirm}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#dc2626",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
+            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#dc2626", color: "white", border: "none", cursor: "pointer" }}
           >
             삭제
           </button>

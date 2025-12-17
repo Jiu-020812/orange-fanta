@@ -3,32 +3,60 @@ import DeleteButton from "./DeleteButton";
 
 function formatNumber(num) {
   if (num == null) return "";
-  return num.toLocaleString("ko-KR");
+  const n = Number(num);
+  if (Number.isNaN(n)) return "";
+  return n.toLocaleString("ko-KR");
+}
+
+function normType(t) {
+  return t === "OUT" ? "OUT" : "IN";
+}
+
+function TypeBadge({ type }) {
+  const isOut = normType(type) === "OUT";
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        height: 22,
+        padding: "0 8px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 700,
+        border: "1px solid",
+        borderColor: isOut ? "#fecaca" : "#bfdbfe",
+        backgroundColor: isOut ? "#fee2e2" : "#eff6ff",
+        color: isOut ? "#991b1b" : "#1d4ed8",
+      }}
+    >
+      {isOut ? "출고" : "매입"}
+    </span>
+  );
 }
 
 function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
-  const count = records?.length || 0;
   const safeRecords = Array.isArray(records) ? records : [];
+  const count = safeRecords.length;
+
+  const inCount = safeRecords.filter((r) => normType(r.type) === "IN").length;
+  const outCount = safeRecords.filter((r) => normType(r.type) === "OUT").length;
 
   // 수정 중인 기록 정보
   const [editingId, setEditingId] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editCount, setEditCount] = useState("");
+  const [editType, setEditType] = useState("IN");
+  const [editMemo, setEditMemo] = useState("");
 
   const startEdit = (record) => {
     setEditingId(record.id);
     setEditDate(record.date || "");
-    setEditPrice(
-      record.price != null && record.price !== undefined
-        ? String(record.price)
-        : ""
-    );
-    setEditCount(
-      record.count != null && record.count !== undefined
-        ? String(record.count)
-        : ""
-    );
+    setEditPrice(record.price != null ? String(record.price) : "");
+    setEditCount(record.count != null ? String(record.count) : "");
+    setEditType(normType(record.type));
+    setEditMemo(record.memo != null ? String(record.memo) : "");
   };
 
   const cancelEdit = () => {
@@ -36,15 +64,21 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
     setEditDate("");
     setEditPrice("");
     setEditCount("");
+    setEditType("IN");
+    setEditMemo("");
   };
 
   const saveEdit = () => {
     if (!editingId || !onUpdateRecord) return;
+
     onUpdateRecord(editingId, {
       date: editDate,
       price: editPrice,
       count: editCount,
+      type: editType, //  IN/OUT 수정 가능
+      memo: editMemo, //  memo 수정 가능
     });
+
     cancelEdit();
   };
 
@@ -58,57 +92,64 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
         backgroundColor: "#ffffff",
       }}
     >
-      <div
-        style={{
-          marginBottom: 8,
-          fontWeight: 600,
-          color: "#111827",
-        }}
-      >
-        매입 기록 ({count}건)
+      <div style={{ marginBottom: 8, fontWeight: 600, color: "#111827" }}>
+        기록 ({count}건){" "}
+        <span style={{ color: "#6b7280", fontWeight: 500, fontSize: 13 }}>
+          · 매입 {inCount} · 출고 {outCount}
+        </span>
       </div>
 
       {count === 0 ? (
-        <div style={{ color: "#6b7280", fontSize: 14 }}>
-          아직 기록이 없습니다.
-        </div>
+        <div style={{ color: "#6b7280", fontSize: 14 }}>아직 기록이 없습니다.</div>
       ) : (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {safeRecords.map((r) => {
             const isEditing = r.id === editingId;
+            const type = normType(r.type);
+            const isOut = type === "OUT";
 
             return (
               <div
                 key={r.id}
                 style={{
                   padding: 10,
-                  borderRadius: 8,
+                  borderRadius: 10,
                   border: "1px solid #e5e7eb",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   backgroundColor: "#fafafa",
-                  gap: 8,
+                  gap: 10,
                 }}
               >
                 {/* 왼쪽: 내용 or 입력폼 */}
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   {isEditing ? (
                     <>
                       <div
                         style={{
                           display: "flex",
                           gap: 8,
-                          marginBottom: 4,
+                          marginBottom: 6,
                           flexWrap: "wrap",
+                          alignItems: "center",
                         }}
                       >
+                        <select
+                          value={editType}
+                          onChange={(e) => setEditType(normType(e.target.value))}
+                          style={{
+                            padding: "4px 6px",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            fontSize: 12,
+                            backgroundColor: "white",
+                          }}
+                        >
+                          <option value="IN">매입</option>
+                          <option value="OUT">출고</option>
+                        </select>
+
                         <input
                           type="date"
                           value={editDate}
@@ -120,26 +161,28 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
                             fontSize: 12,
                           }}
                         />
+
                         <input
                           type="number"
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
-                          placeholder="금액"
+                          placeholder={editType === "OUT" ? "판매가" : "매입가"}
                           style={{
-                            width: 100,
+                            width: 110,
                             padding: "4px 6px",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
                             fontSize: 12,
                           }}
                         />
+
                         <input
                           type="number"
                           value={editCount}
                           onChange={(e) => setEditCount(e.target.value)}
-                          placeholder="개수"
+                          placeholder="수량"
                           style={{
-                            width: 60,
+                            width: 70,
                             padding: "4px 6px",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
@@ -147,19 +190,53 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
                           }}
                         />
                       </div>
+
+                      <input
+                        value={editMemo}
+                        onChange={(e) => setEditMemo(e.target.value)}
+                        placeholder="메모(선택)"
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          borderRadius: 8,
+                          border: "1px solid #d1d5db",
+                          fontSize: 12,
+                          backgroundColor: "white",
+                        }}
+                      />
                     </>
                   ) : (
                     <>
-                      <div style={{ fontSize: 14, marginBottom: 2 }}>
-                        {r.date} {formatNumber(r.price)}원
-                      </div>
                       <div
                         style={{
-                          fontSize: 13,
-                          color: "#6b7280",
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "center",
+                          marginBottom: 2,
                         }}
                       >
-                        {r.count ?? 1}개
+                        <TypeBadge type={type} />
+
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            color: "#111827",
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {r.date} · {isOut ? "판매" : "매입"} {formatNumber(r.price)}원
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 13, color: "#6b7280" }}>
+                        수량 {r.count ?? 1}개
+                        {r.memo ? (
+                          <span style={{ color: "#374151" }}> · 메모: {r.memo}</span>
+                        ) : null}
                       </div>
                     </>
                   )}
