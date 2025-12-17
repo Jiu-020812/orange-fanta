@@ -5,47 +5,35 @@ import { getMe, logout } from "../api/auth";
 export default function TopNav() {
   const location = useLocation();
   const navigate = useNavigate();
-
-  // 현재 로그인한 사용자 정보
   const [user, setUser] = useState(null);
 
-  // 최초 로딩 시 /api/auth/me 호출해서 유저 정보 가져오기
   useEffect(() => {
     async function fetchMe() {
       try {
         const me = await getMe(); // { id, email, name }
         setUser(me);
       } catch (err) {
-        // 로그인 안 되어 있거나 토큰 만료된 경우 → 굳이 에러 띄우지 않음
-        console.warn("getMe 실패 (로그인 안 되어 있을 수 있음):", err.message);
+        console.warn("getMe 실패:", err?.message || err);
       }
     }
     fetchMe();
   }, []);
 
-  // 현재 path가 탭과 일치하는지 확인
   function isActive(pathPrefix) {
     return location.pathname.startsWith(pathPrefix);
   }
 
-  // 로그아웃 처리
   async function handleLogout() {
     try {
-      await logout(); // 서버 쿠키 삭제
+      await logout();
     } catch (err) {
       console.error("로그아웃 요청 실패:", err);
     } finally {
-      // 클라이언트 토큰 제거
       window.localStorage.removeItem("authToken");
-      // 혹시 axios 기본 헤더도 같이 제거
       try {
         const api = (await import("../api/items")).default;
         delete api.defaults.headers.common["Authorization"];
-      } catch (e) {
-        // import 실패해도 치명적이지 않음
-      }
-
-      // 로그인 페이지로 이동
+      } catch {}
       navigate("/login");
     }
   }
@@ -58,8 +46,10 @@ export default function TopNav() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        borderBottom: "1px solid black",
+        borderBottom: "1px solid #e5e7eb",
         backgroundColor: "#ffffff",
+        position: "relative",
+        zIndex: 10,
       }}
     >
       {/* 왼쪽: 제목 */}
@@ -84,51 +74,52 @@ export default function TopNav() {
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         {user ? (
           <>
-        <Link
-  to="/mypage"
-  title="마이페이지"
-  onClick={() => console.log("✅ mypage link clicked")}
-  style={{
-    fontSize: 13,
-    color: "#4b5563",
-    cursor: "pointer",
-    textDecoration: "underline",
-    textUnderlineOffset: 3,
-  }}
->
-  {user.name ? `${user.name} 님` : user.email}
-</Link>
+            <Link
+              to="/mypage"
+              title="마이페이지"
+              onClick={() => console.log("✅ mypage link clicked")}
+              style={{
+                fontSize: 13,
+                color: "#4b5563",
+                cursor: "pointer",
+                textDecoration: "underline",
+                textUnderlineOffset: 3,
+                position: "relative",
+                zIndex: 9999,
+                pointerEvents: "auto",
+              }}
+            >
+              {user.name ? `${user.name} 님` : user.email}
+            </Link>
 
-         
-<button
-  onClick={handleLogout}
-  style={{
-    padding: "6px 14px",
-    borderRadius: 999,
-    fontSize: 13,
-    fontWeight: 600,
-    border: "1px solid #e5e7eb",
-    cursor: "pointer",
-    marginLeft: 12,
-
-    backgroundColor: "#fef2f2", 
-    color: "#dc2626",           
-  }}
->
-  로그아웃
-</button>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 700,
+                border: "none",
+                cursor: "pointer",
+                marginLeft: 8,
+                backgroundColor: "#ef4444", // 빨강
+                color: "#ffffff", // 흰 글씨
+              }}
+            >
+              로그아웃
+            </button>
           </>
         ) : (
-          // 로그인 안 된 상태 → 로그인 페이지로 이동 버튼
           <button
             onClick={() => navigate("/login")}
             style={{
               padding: "6px 12px",
               borderRadius: 999,
-              border: "1px solid blsck",
+              border: "1px solid #111827",
               backgroundColor: "#f9fafb",
               fontSize: 13,
               cursor: "pointer",
+              color: "#111827",
             }}
           >
             로그인
@@ -139,7 +130,6 @@ export default function TopNav() {
   );
 }
 
-// 탭용 작은 컴포넌트 (선택 여부에 따라 스타일 변경)
 function NavLink({ to, active, children }) {
   return (
     <Link
