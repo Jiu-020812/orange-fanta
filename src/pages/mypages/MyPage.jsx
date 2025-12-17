@@ -307,7 +307,7 @@ export default function MyPage() {
           borderRadius: 10,
           border: "1px solidhsl(262, 13.50%, 52.00%)",
           background: "#f8fafc",
-          color : black ,
+          color : "black" ,
           cursor: "pointer",
           fontWeight: 700,
           fontSize: 13,
