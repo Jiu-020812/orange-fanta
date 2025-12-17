@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PriceInputModal from "../components/PriceInputModal";
+import ItemPicker from "../components/ItemPicker";
+
 import {
   createRecord,
   updateRecord,
@@ -84,7 +86,7 @@ export default function InPage() {
         </h3>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            
+
         <ItemPicker
            value={selectedItem}
            onSelect={setSelectedItem}
