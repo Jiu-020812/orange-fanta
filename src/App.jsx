@@ -8,6 +8,8 @@ import LoginPage from "./pages/LoginPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MigratePage from "./pages/MigratePage";
 import MyPage from "./pages/mypages/MyPage";
+import InPage from "./pages/InPage.jsx";
+import OutPage from "./pages/OutPage.jsx";
 
 import TopNav from "./components/TopNav.jsx";
 
