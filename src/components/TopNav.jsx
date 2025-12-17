@@ -54,7 +54,7 @@ export default function TopNav() {
     >
       {/* 왼쪽: 제목 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>🍊 평균값 계산 재고관리</span>
+        <span style={{ fontSize: 18, fontWeight: 700 }}>📦 평균값 계산 재고관리</span>
       </div>
 
       {/* 가운데: 탭 네비게이션 */}
@@ -78,8 +78,6 @@ export default function TopNav() {
         to="/mypage"
         title="마이페이지"
         onClick={(e) => {
-          console.log("✅ mypage clicked");
-          // 혹시 부모가 클릭 막으면 강제로 막아버림
           e.stopPropagation();
         }}
         style={{
@@ -89,7 +87,6 @@ export default function TopNav() {
           textDecoration: "underline",
           textUnderlineOffset: 3,
 
-          // 🔥 덮임/클릭 방지 강제 무시
           position: "relative",
           zIndex: 999999,
           pointerEvents: "auto",
@@ -148,7 +145,7 @@ function NavLink({ to, active, children }) {
         fontWeight: 500,
         textDecoration: "none",
         color: active ? "#ffffff" : "#4b5563",
-        backgroundColor: active ? "#111827" : "transparent",
+        backgroundColor: active ? "##8BBDFF" : "transparent",
       }}
     >
       {children}
