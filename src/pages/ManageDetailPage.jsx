@@ -690,7 +690,7 @@ export default function ManageDetailPage() {
                 />
               </div>
 
-              {/*  (1) 출고 폼 */}
+              {/*  출고 폼 */}
               <div
                 style={{
                   marginTop: 14,

@@ -154,4 +154,16 @@ export async function deleteRecord({ itemId, id }) {
   });
 }
 
+// 입출고 페이지용
+export async function getAllRecords({ type, priceMissing } = {}) {
+  const res = await api.get("/api/records", {
+    params: {
+      ...(type ? { type } : {}),
+      ...(priceMissing ? { priceMissing: 1 } : {}),
+    },
+  });
+  return res.data?.records ?? [];
+}
+
+
 export default api;

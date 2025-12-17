@@ -74,6 +74,10 @@ function App() {
             }
           />
 
+          {/* 입출고 페이지*/}
+          <Route path="/in" element={<InPage />} />
+          <Route path="/out" element={<OutPage />} />
+
           {/* 마이그레이션 */}
           <Route
             path="/migrate"
