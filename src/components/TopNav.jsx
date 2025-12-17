@@ -144,8 +144,8 @@ function NavLink({ to, active, children }) {
         fontSize: 14,
         fontWeight: 500,
         textDecoration: "none",
-        color: active ? "#ffffff" : "#4b5563",
-        backgroundColor: active ? "##8BBDFF" : "transparent",
+        backgroundColor: active ? "#dbeafe" : "transparent",
+        color: active ? "#1d4ed8" : "#4b5563",
       }}
     >
       {children}
