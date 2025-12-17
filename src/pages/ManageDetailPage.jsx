@@ -665,12 +665,11 @@ export default function ManageDetailPage() {
                     try {
                       const created = await createRecord({
                         itemId: selectedOptionId,
-                        type: "IN",
+                        type: info.type || "IN",
                         price: Number(info.price),
                         count: countValue,
                         date: dateValue,
                       });
-
                       const newRecord = {
                         id: created?.id ?? Math.random(),
                         itemId: created?.itemId ?? selectedOptionId,
