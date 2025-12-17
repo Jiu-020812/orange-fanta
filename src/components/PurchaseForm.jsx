@@ -3,7 +3,7 @@ import { useState } from "react";
 function PurchaseForm({ onAddRecord }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [type, setType] = useState("IN"); // ✅ IN=매입, OUT=출고
+  const [type, setType] = useState("IN"); //  IN=매입, OUT=출고
   const [date, setDate] = useState(today);
   const [price, setPrice] = useState("");
   const [count, setCount] = useState("");
@@ -13,7 +13,7 @@ function PurchaseForm({ onAddRecord }) {
     if (!price) return;
 
     onAddRecord({
-      type, // ✅ 추가
+      type, //  추가
       date,
       price,
       count,

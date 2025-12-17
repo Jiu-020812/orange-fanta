@@ -788,7 +788,7 @@ export default function ManageDetailPage() {
                       return;
                     }
 
-                    // ✅ 프론트 1차 방어
+                    // 프론트 1차 방어
                     if (count > stock) {
                       alert(`재고 부족 😢\n현재 재고: ${stock}\n출고 수량: ${count}`);
                       return;
