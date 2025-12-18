@@ -1,31 +1,52 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { getMe } from "../api/auth";  //  경로는 수정
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
-export default function ProtectedRoute({ children }) {
-  const [checking, setChecking] = useState(true);
-  const [loggedIn, setLoggedIn] = useState(false);
+const API_BASE =
+  (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+const join = (base, path) => `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+
+export default function ProtectedRoute() {
+  const location = useLocation();
+  const [ok, setOk] = useState(null); // null=확인중, true/false
 
   useEffect(() => {
-    async function checkLogin() {
-      try {
-        await getMe();      //  로그인하면 성공
-        setLoggedIn(true);  // 로그인됨
-      } catch {
-        setLoggedIn(false); // 로그인 안 됨
-      } finally {
-        setChecking(false); // 로딩 종료
-      }
-    }
+    let alive = true;
 
-    checkLogin();
+    (async () => {
+      try {
+        const url = API_BASE
+          ? join(API_BASE, "/api/auth/me")
+          : "/api/auth/me";
+
+        const res = await fetch(url, {
+          method: "GET",
+          credentials: "include", // 
+        });
+
+        if (!res.ok) throw new Error("not authenticated");
+
+        if (alive) setOk(true);
+      } catch (err) {
+        if (alive) setOk(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  if (checking) return <div>Loading...</div>;
-
-  if (!loggedIn) {
-    return <Navigate to="/login" replace />;
+  if (ok === null) {
+    return (
+      <div style={{ padding: 24, fontSize: 14, color: "#6b7280" }}>
+        인증 확인 중...
+      </div>
+    );
   }
 
-  return children;
+  if (ok === false) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  return <Outlet />;
 }
