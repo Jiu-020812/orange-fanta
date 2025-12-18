@@ -15,8 +15,8 @@ export default function ProtectedRoute() {
     (async () => {
       try {
         const url = API_BASE
-          ? join(API_BASE, "/api/auth/me")
-          : "/api/auth/me";
+          ? join(API_BASE, "/api//me")
+          : "/api/me";
 
         const res = await fetch(url, {
           method: "GET",
