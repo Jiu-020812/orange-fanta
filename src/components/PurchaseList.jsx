@@ -9,7 +9,14 @@ function formatNumber(num) {
 }
 
 function normType(t) {
-  return t === "OUT" ? "OUT" : "IN";
+  return String(t).toUpperCase() === "OUT" ? "OUT" : "IN";
+}
+
+function calcUnit(price, count) {
+  const p = Number(price);
+  const c = Number(count);
+  if (!Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return null;
+  return Math.round(p / c); // price는 총액, 단가는 price/count
 }
 
 function TypeBadge({ type }) {
@@ -33,14 +40,6 @@ function TypeBadge({ type }) {
       {isOut ? "출고" : "매입"}
     </span>
   );
-}
-
-//  (추가) 입고 단가 계산: 총액(price) ÷ 수량(count)
-function calcUnitPrice(price, count) {
-  const p = Number(price);
-  const c = Number(count);
-  if (!Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return null;
-  return Math.round(p / c);
 }
 
 function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
@@ -83,8 +82,8 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
       date: editDate,
       price: editPrice,
       count: editCount,
-      type: editType, // IN/OUT 수정 가능
-      memo: editMemo, // memo 수정 가능
+      type: editType,
+      memo: editMemo,
     });
 
     cancelEdit();
@@ -116,14 +115,9 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
             const type = normType(r.type);
             const isOut = type === "OUT";
 
-            //  (추가) “입고(IN)만” 단가 계산해서 표시
-            // - price가 null/""이면 단가 없음
-            // - count가 없으면 1로 취급(원래 UI가 수량 기본 1이라)
-            const qty = r.count ?? 1;
+            // 입고(IN)만 단가 표시
             const unit =
-              !isOut && r.price != null && r.price !== ""
-                ? calcUnitPrice(r.price, qty)
-                : null;
+              !isOut && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
 
             return (
               <div
@@ -183,9 +177,9 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
                           type="number"
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
-                          placeholder={editType === "OUT" ? "판매가" : "매입가"}
+                          placeholder={editType === "OUT" ? "판매 금액(총액)" : "매입 금액(총액)"}
                           style={{
-                            width: 110,
+                            width: 140,
                             padding: "4px 6px",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
@@ -250,14 +244,14 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
                       </div>
 
                       <div style={{ fontSize: 13, color: "#6b7280" }}>
-                        수량 {qty}개
+                        수량 {r.count ?? 1}개
+                      
                         {!isOut && unit != null ? (
                           <span style={{ color: "#111827", fontWeight: 700 }}>
                             {" "}
-                            · 단가 {formatNumber(unit)}원/개
+                            · 단가 {formatNumber(unit)}원
                           </span>
                         ) : null}
-
                         {r.memo ? (
                           <span style={{ color: "#374151" }}> · 메모: {r.memo}</span>
                         ) : null}
