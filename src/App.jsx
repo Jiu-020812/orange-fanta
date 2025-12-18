@@ -23,83 +23,43 @@ function App() {
 
       <main style={{ maxWidth: "none", margin: "0 auto", padding: "24px 16px" }}>
         <Routes>
-          {/* 로그인 (보호 안 함) */}
+          {/* ================= 공개 ================= */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* 메인 */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
+          {/* ================= 보호 ================= */}
+          <Route element={<ProtectedRoute />}>
+            {/* 메인 */}
+            <Route path="/" element={<HomePage />} />
 
-          {/* 품목 관리 리스트 */}
-          <Route
-            path="/manage"
-            element={
-              <ProtectedRoute>
-                <ManageListPage />
-              </ProtectedRoute>
-            }
-          />
+            {/* 품목 관리 */}
+            <Route path="/manage" element={<ManageListPage />} />
+            <Route path="/manage/:itemId" element={<ManageDetailPage />} />
 
-          {/* 품목 상세 */}
+            {/* 품목 등록 */}
+            <Route path="/add" element={<AddItemPage />} />
+
+            {/* 마이페이지 */}
+            <Route path="/mypage" element={<MyPage />} />
+
+            {/* 입출고 */}
+            <Route path="/in" element={<InPage />} />
+            <Route path="/out" element={<OutPage />} />
+
+            {/* 마이그레이션 */}
+            <Route path="/migrate" element={<MigratePage />} />
+          </Route>
+
+          {/* ================= 예전/잘못된 주소 처리 ================= */}
           <Route
             path="/manage/item/:name"
-            element={
-              <ProtectedRoute>
-                <ManageDetailPage />
-              </ProtectedRoute>
-            }
+            element={<Navigate to="/manage" replace />}
           />
-
-          {/* 품목 등록 */}
           <Route
-            path="/add"
-            element={
-              <ProtectedRoute>
-                <AddItemPage />
-              </ProtectedRoute>
-            }
+            path="/manage-id/:itemId"
+            element={<Navigate to="/manage" replace />}
           />
 
-          {/* 마이페이지 */}
-          <Route
-            path="/mypage"
-            element={
-              <ProtectedRoute>
-                <MyPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 입출고 페이지 */}
-          <Route path="/in" element={<InPage />} />
-          <Route path="/out" element={<OutPage />} />
-
-          <Route element={<ProtectedRoute />}>
-          <Route path="/manage" element={<ManageListPage />} />
-          <Route path="/manage/:itemId" element={<ManageDetailPage />} />
-
-         {/* 예전 주소로 들어오면 manage로 보내버리기 (일단 안전하게) */}
-          <Route path="/manage/item/:name" element={<Navigate to="/manage" replace />} />
-          <Route path="/manage-id/:itemId" element={<Navigate to="/manage" replace />} />
-       </Route>
-
-          {/* 마이그레이션 */}
-          <Route
-            path="/migrate"
-            element={
-              <ProtectedRoute>
-                <MigratePage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* 이상한 주소 → 메인 */}
+          {/* ================= fallback ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
