@@ -1,7 +1,7 @@
 import { useState } from "react";
 import api from "../api/items";
 
-// ✅ Vercel 413 피하려고 넉넉하게 낮게 잡기 (0.8MB)
+// Vercel 413 피하려고 넉넉하게 낮게 잡기 (0.8MB)
 const MAX_BYTES = 800_000;
 
 // 바이트 기준 청크
@@ -42,7 +42,7 @@ function sanitizeItem(it, userId) {
 
   const category = it.category ?? it.type ?? "FOOD";
 
-  // ✅ FOOD는 size가 없는 경우가 많아서 기본값 넣어줌
+  //  FOOD는 size가 없는 경우가 많아서 기본값 넣어줌
   const rawSize = it.size ?? it.option ?? it.unit ?? it.variant ?? "";
   const size =
     String(rawSize || "").trim() ||
@@ -51,7 +51,7 @@ function sanitizeItem(it, userId) {
   return {
     userId,
     name: it.name ?? it.title ?? "",
-    size, // ✅ 여기 중요
+    size, 
     category,
     legacyId: String(it.legacyId ?? it.id ?? ""),
     imageUrl: safeImageUrl,
@@ -102,7 +102,7 @@ export default function MigratePage() {
   async function uploadItems(items, userId, label) {
     const sanitized = items
       .map((it) => sanitizeItem(it, userId))
-      // ✅ name / legacyId만 필수, size는 FOOD에선 "-"로 채워짐
+      // name / legacyId만 필수, size는 FOOD에선 "-"로 채워짐
       .filter((x) => x.name && x.legacyId && x.size);
 
     pushLog(`📦 ${label} items raw=${items.length} → sanitized=${sanitized.length}`);
@@ -110,7 +110,7 @@ export default function MigratePage() {
     const chunks = chunkByBytes(sanitized, "items", MAX_BYTES);
     for (let i = 0; i < chunks.length; i++) {
       await api.post("/migrate/items-batch", { items: chunks[i] });
-      pushLog(`✅ ${label} items ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
+      pushLog(` ${label} items ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
     }
   }
 
@@ -121,7 +121,7 @@ export default function MigratePage() {
     const chunks = chunkByBytes(sanitized, "records", MAX_BYTES);
     for (let i = 0; i < chunks.length; i++) {
       await api.post("/migrate/records-batch", { records: chunks[i] });
-      pushLog(`✅ ${label} records ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
+      pushLog(` ${label} records ${i + 1}/${chunks.length} 완료 (sent=${chunks[i].length})`);
     }
   }
 

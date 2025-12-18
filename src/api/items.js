@@ -4,8 +4,8 @@ const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "https://orange-fanta-back.vercel.app";
 
 const api = axios.create({
-  baseURL: API_BASE,        // 백엔드가 /api/... 라우트 이미 보유
-  withCredentials: true,    //  쿠키(token) 인증
+  baseURL: API_BASE,
+  withCredentials: true, // 쿠키(token) 인증
 });
 
 // ---------------------- 유틸 ----------------------
@@ -50,18 +50,25 @@ export async function getItems() {
   return unwrapArray(res.data);
 }
 
-// POST /api/items
-export async function createItem({ name, size, imageUrl, category }) {
+// POST /api/items  
+export async function createItem({
+  name,
+  size,
+  barcode,
+  imageUrl,
+  category,
+}) {
   const res = await api.post("/api/items", {
     name,
     size,
+    barcode: barcode ?? null,  
     imageUrl: imageUrl ?? null,
     category: category ?? undefined,
   });
   return unwrapObject(res.data);
 }
 
-// PUT /api/items/:id
+// PUT /api/items/:id  (barcode 수정 가능)
 export async function updateItem(id, patch) {
   const numericId = safeNumber(id);
   if (!numericId) throw new Error("updateItem: invalid id");
@@ -78,6 +85,20 @@ export async function deleteItem(id) {
   await api.delete(`/api/items/${numericId}`);
 }
 
+// ======================= 🔫 Barcode =======================
+
+// GET /api/items/lookup?barcode=xxxx
+export async function lookupItemByBarcode(barcode) {
+  if (!barcode) return { ok: false };
+
+  const res = await api.get("/api/items/lookup", {
+    params: { barcode },
+  });
+
+  // 응답: { ok:true, item } | { ok:false }
+  return res.data;
+}
+
 // ======================= Records =======================
 
 // GET /api/items/:itemId/records
@@ -90,13 +111,12 @@ export async function getRecords(itemId) {
 }
 
 // POST /api/items/:itemId/records
-// body: { price, count, date, type?, memo? }
 export async function createRecord({
   itemId,
   price,
   count,
   date,
-  type = "IN",   //  기본은 매입
+  type = "IN",
   memo = null,
 }) {
   const numericItemId = safeNumber(itemId);
@@ -106,7 +126,7 @@ export async function createRecord({
     price: safeNumber(price, null),
     count: safeNumber(count, 1) ?? 1,
     date: toISODateOnly(date) ?? undefined,
-    type: normType(type),                 //  "IN" | "OUT"
+    type: normType(type),
     ...(memo != null ? { memo: String(memo) } : {}),
   });
 
@@ -114,7 +134,6 @@ export async function createRecord({
 }
 
 // PUT /api/items/:itemId/records
-// body: { id, price?, count?, date?, type?, memo? }
 export async function updateRecord({
   itemId,
   id,
@@ -154,6 +173,28 @@ export async function deleteRecord({ itemId, id }) {
   });
 }
 
+// ======================= 📦 Batch IN / OUT =======================
+
+// POST /api/records/batch
+// payload: { type: "IN" | "OUT", items: [{ itemId, count }] }
+export async function createRecordsBatch({ type = "IN", items }) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("createRecordsBatch: items required");
+  }
+
+  const res = await api.post("/api/records/batch", {
+    type: normType(type),
+    items: items.map((x) => ({
+      itemId: safeNumber(x.itemId),
+      count: safeNumber(x.count, 1) ?? 1,
+    })),
+  });
+
+  return res.data;
+}
+
+// ======================= 전체 기록 =======================
+
 // 입출고 페이지용
 export async function getAllRecords({ type, priceMissing } = {}) {
   const res = await api.get("/api/records", {
@@ -164,21 +205,5 @@ export async function getAllRecords({ type, priceMissing } = {}) {
   });
   return res.data?.records ?? [];
 }
-
-//  상품 검색 (바코드 or 이름)
-export async function searchItems(keyword) {
-  if (!keyword) return [];
-
-  const res = await api.get("/api/items", {
-    params: { keyword },
-  });
-
-  // 백엔드 응답 형태 대응
-  const data = res.data;
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.items)) return data.items;
-  return [];
-}
-
 
 export default api;

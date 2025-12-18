@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getItems, createItem } from "../api/items";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import "./AddItemPage.css";
 
 const norm = (s) => String(s ?? "").trim();
@@ -8,11 +8,12 @@ const lower = (s) => norm(s).toLowerCase();
 
 function AddItemPage() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [activeType, setActiveType] = useState("shoes"); // shoes | foods
 
   // 입력값
-  const [barcode, setBarcode] = useState(""); // 🔫 바코드
+  const [barcode, setBarcode] = useState(""); //  바코드
   const [name, setName] = useState("");
   const [second, setSecond] = useState(""); // shoes=size, foods=option
   const [imageDataUrl, setImageDataUrl] = useState("");
@@ -35,7 +36,10 @@ function AddItemPage() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const bc = params.get("barcode");
-    if (bc) setBarcode(bc);
+    if (bc) {
+      setBarcode(String(bc));
+      // 원하면 자동으로 입력창 포커스/UX도 추가 가능
+    }
   }, [location.search]);
 
   /* ----------------------- 초기 로드: 서버 items ----------------------- */
@@ -93,6 +97,7 @@ function AddItemPage() {
       const idx = activeSuggestIndex >= 0 ? activeSuggestIndex : 0;
       const val = nameSuggestions[idx];
       if (val) handleSelectNameSuggestion(val);
+      return;
     }
 
     if (!hasNameSuggestions) return;
@@ -112,7 +117,10 @@ function AddItemPage() {
   /* ----------------------- 이미지 ----------------------- */
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
-    if (!file) return setImageDataUrl("");
+    if (!file) {
+      setImageDataUrl("");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -124,33 +132,55 @@ function AddItemPage() {
   /* ----------------------- 토스트 ----------------------- */
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 2000);
+    window.setTimeout(() => setToast(""), 2000);
   };
 
   /* ----------------------- 중복 체크 ----------------------- */
-  function isDuplicated(trimmedName, trimmedSecond) {
+  function isDuplicatedByNameSize(trimmedName, finalSecond) {
     return serverItems.some((it) => {
       const cat = it?.category ?? "SHOE";
       if (cat !== targetCategory) return false;
+
       return (
         lower(it?.name) === lower(trimmedName) &&
-        norm(it?.size) === norm(trimmedSecond)
+        norm(it?.size) === norm(finalSecond)
       );
     });
+  }
+
+  //  barcode 유니크 제약 대응 (userId+barcode)
+  function isDuplicatedByBarcode(trimmedBarcode) {
+    if (!trimmedBarcode) return false;
+    return serverItems.some((it) => norm(it?.barcode) === trimmedBarcode);
   }
 
   /* ----------------------- 등록 ----------------------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const trimmedBarcode = norm(barcode);
     const trimmedName = norm(name);
     const trimmedSecond = norm(second);
-    if (!trimmedName) return;
+
+    if (!trimmedName) {
+      alert("품명을 입력해주세요.");
+      return;
+    }
 
     const finalSecond = isShoes ? trimmedSecond : trimmedSecond || "-";
-    if (isShoes && !finalSecond) return;
+    if (isShoes && !finalSecond) {
+      alert("사이즈를 입력해주세요.");
+      return;
+    }
 
-    if (isDuplicated(trimmedName, finalSecond)) {
+    // (1) barcode 중복 방지 (유니크 제약 걸었으니까 필수)
+    if (trimmedBarcode && isDuplicatedByBarcode(trimmedBarcode)) {
+      alert("이미 등록된 바코드입니다.");
+      return;
+    }
+
+    // (2) 기존 name+size(옵션) 중복 방지
+    if (isDuplicatedByNameSize(trimmedName, finalSecond)) {
       alert("이미 등록된 상품입니다.");
       return;
     }
@@ -159,17 +189,30 @@ function AddItemPage() {
       const created = await createItem({
         name: trimmedName,
         size: finalSecond,
-        barcode: barcode || null, // 🔥 핵심
+        barcode: trimmedBarcode || null,
         imageUrl: imageDataUrl || null,
         category: targetCategory,
       });
 
-      setServerItems((prev) => [...prev, created]);
+      // createItem 응답이 {item: ...} 형태일 수도 있어서 안전하게 처리
+      const createdItem = created?.item ?? created;
+
+      setServerItems((prev) => [...prev, createdItem]);
       showToast(`"${trimmedName} (${finalSecond})" 등록 완료`);
+
+      // 등록 성공 후, URL에 barcode 쿼리 남아있으면 깔끔하게 제거(선택)
+      // navigate("/add", { replace: true });
 
     } catch (err) {
       console.error("등록 실패:", err);
-      alert("서버 등록 실패");
+
+      // 유니크 충돌이 서버에서 났을 때도 사용자에게 이해되게
+      const msg = String(err?.response?.data?.message || err?.message || "");
+      if (msg.toLowerCase().includes("unique") || msg.includes("barcode")) {
+        alert("이미 등록된 바코드입니다.");
+      } else {
+        alert("서버 등록 실패");
+      }
     } finally {
       setBarcode("");
       setName("");
@@ -190,14 +233,18 @@ function AddItemPage() {
         <div className="add-item-tabs">
           <button
             type="button"
-            className={`add-item-tab-button ${activeType === "shoes" ? "active" : ""}`}
+            className={`add-item-tab-button ${
+              activeType === "shoes" ? "active" : ""
+            }`}
             onClick={() => setActiveType("shoes")}
           >
             신발
           </button>
           <button
             type="button"
-            className={`add-item-tab-button ${activeType === "foods" ? "active" : ""}`}
+            className={`add-item-tab-button ${
+              activeType === "foods" ? "active" : ""
+            }`}
             onClick={() => setActiveType("foods")}
           >
             식품
@@ -205,13 +252,16 @@ function AddItemPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="add-item-form">
-          {/* 🔫 바코드 */}
+
+          {/*  바코드 */}
           <input
             type="text"
             placeholder="바코드 스캔 (선택)"
             value={barcode}
             onChange={(e) => setBarcode(e.target.value)}
             className="add-item-input"
+            autoComplete="off"
+            inputMode="numeric"
           />
 
           {/* 이름 */}
@@ -230,13 +280,14 @@ function AddItemPage() {
                 setName(e.target.value);
               }}
               className="add-item-input"
+              autoComplete="off"
             />
 
             {hasNameSuggestions && (
               <div className="add-item-suggestions">
                 {nameSuggestions.map((sg, idx) => (
                   <div
-                    key={sg}
+                    key={`${sg}-${idx}`}
                     className={`add-item-suggestion-item ${
                       idx === activeSuggestIndex ? "active" : ""
                     }`}
@@ -252,10 +303,11 @@ function AddItemPage() {
           {/* 옵션/사이즈 */}
           <input
             type="text"
-            placeholder={isShoes ? "사이즈" : "옵션 (ex: 초코맛)"}
+            placeholder={isShoes ? "사이즈" : "옵션 (ex: 갤럭시맛)"}
             value={second}
             onChange={(e) => setSecond(e.target.value)}
             className="add-item-input"
+            autoComplete="off"
           />
 
           {/* 이미지 */}

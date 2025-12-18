@@ -130,7 +130,7 @@ export default function TodoList() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
-                // ✅ 한글 조합 중일 때 Enter 무시 (마지막 글자 두 번 생기는 문제 방지)
+                // ✅한글 조합 중일 때 Enter 무시 (마지막 글자 두 번 생기는 문제 방지)
                 if (e.nativeEvent.isComposing) return;
                 if (e.key === "Enter") {
                   e.preventDefault();

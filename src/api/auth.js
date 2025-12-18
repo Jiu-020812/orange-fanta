@@ -19,7 +19,7 @@ function parseError(err) {
   return "요청에 실패했습니다.";
 }
 
-// ✅ 핵심: 백엔드가 /api/auth/* 라우트를 쓰므로 prefix 고정
+//  핵심: 백엔드가 /api/auth/* 라우트를 쓰므로 prefix 고정
 const AUTH_PREFIX = "/api/auth";
 
 // -------------------- 회원가입 --------------------

@@ -63,7 +63,7 @@ export default function ManageDetailPage() {
   const { itemId } = useParams();
   const numericItemId = Number(itemId);
 
-  // ✅ itemId가 이상하면 공백 대신 안내
+  //  itemId가 이상하면 공백 대신 안내
   if (!Number.isFinite(numericItemId) || numericItemId <= 0) {
     return (
       <div style={{ padding: 24 }}>
@@ -133,7 +133,7 @@ export default function ManageDetailPage() {
     return items.find((it) => it.id === selectedOptionId) || null;
   }, [items, selectedOptionId]);
 
-  /* ✅ 최종 품목명 (name 라우팅 제거) */
+  /*  최종 품목명 (name 라우팅 제거) */
   const decodedName = selectedOption?.name ?? "";
 
   /* ---------------- 옵션 리스트 (같은 name 묶음) ---------------- */
@@ -147,7 +147,7 @@ export default function ManageDetailPage() {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  /* ✅ 옵션 중복 체크 */
+  /*  옵션 중복 체크 */
   const isOptionExists = (value) => {
     const trimmed = String(value ?? "").trim();
     if (!trimmed) return false;

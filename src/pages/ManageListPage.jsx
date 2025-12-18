@@ -111,7 +111,7 @@ export default function ManageListPage() {
     setIsSortMenuOpen(false);
   };
 
-  /* ✅ name 그룹 → 대표 itemId로 상세 이동 */
+  /*  name 그룹 → 대표 itemId로 상세 이동 */
   const goDetailByGroupName = (groupName, list) => {
     // 대표 item: 이미지 있는 것 우선, 없으면 첫 번째
     const representative = list.find((i) => i.imageUrl) || list[0];

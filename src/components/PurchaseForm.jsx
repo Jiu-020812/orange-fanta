@@ -42,7 +42,7 @@ function PurchaseForm({ onAddRecord }) {
           alignItems: "center",
         }}
       >
-        {/* ✅ 매입/출고 선택 */}
+        {/*  매입/출고 선택 */}
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
