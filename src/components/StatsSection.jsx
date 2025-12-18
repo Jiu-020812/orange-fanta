@@ -30,20 +30,25 @@ export default function StatsSection({ records, itemName }) {
   // mode 바뀌면 from/to 자동 세팅(직접 선택은 유지)
   useEffect(() => {
     if (mode === "CUSTOM") return;
+
+    const today = toYmd(new Date()); //  항상 YYYY-MM-DD
+
     if (mode === "ALL") {
       setFrom("");
-      setTo(toYmd(new Date()));
+      setTo(today);
       return;
     }
+
     const days = Number(mode);
-    const end = toYmd(new Date());
-    const endDate = new Date(end + "T00:00:00");
+    const endDate = new Date(today + "T00:00:00");
     const startDate = new Date(endDate);
     startDate.setDate(startDate.getDate() - (days - 1));
+
     setFrom(toYmd(startDate));
-    setTo(end);
+    setTo(today);
   }, [mode]);
 
+  // 둘 다 꺼지면 빈 차트 방지: 둘 다 켜서 보여주기
   const effectiveShowPurchase = showPurchase || (!showPurchase && !showSale);
   const effectiveShowSale = showSale || (!showPurchase && !showSale);
 
@@ -58,26 +63,22 @@ export default function StatsSection({ records, itemName }) {
     const inRange = (d) => {
       const ymd = toYmd(d);
       if (!ymd) return false;
+
       if (mode === "ALL") return true;
-      if (mode === "CUSTOM") {
-        if (from && ymd < from) return false;
-        if (to && ymd > to) return false;
-        return true;
-      }
-      // quick 모드도 from/to가 세팅되어 있으니 동일 로직
+
+      // CUSTOM / quick 둘 다 from/to를 사용
       if (from && ymd < from) return false;
       if (to && ymd > to) return false;
       return true;
     };
 
-    // 일자별 집계
     const map = new Map();
 
     let missingInQty = 0;
     let missingOutQty = 0;
 
-    // 전체(기간 내) 평균/최저/최고 단가
-    let inTotalAmount = 0; // 총액 합(=price 합)
+    // 기간 내 평균/최저/최고 단가
+    let inTotalAmount = 0;
     let inTotalQty = 0;
     let outTotalAmount = 0;
     let outTotalQty = 0;
@@ -110,18 +111,19 @@ export default function StatsSection({ records, itemName }) {
       }
       const row = map.get(dateOnly);
 
-      //  price는 "총액"이다.
+      //  price는 "총액"으로 저장되어 있음 (단가 = 총액/수량)
       const rawPrice = r.price;
+
       if (type === "IN") {
         if (hasPrice(rawPrice)) {
-          const amount = toNum(rawPrice, 0); // 총액
+          const amount = toNum(rawPrice, 0);
           row.inAmount += amount;
           row.inQty += qty;
 
           inTotalAmount += amount;
           inTotalQty += qty;
 
-          const unit = amount / qty; 
+          const unit = amount / qty;
           if (Number.isFinite(unit)) {
             minInUnit = minInUnit == null ? unit : Math.min(minInUnit, unit);
             maxInUnit = maxInUnit == null ? unit : Math.max(maxInUnit, unit);
@@ -186,6 +188,7 @@ export default function StatsSection({ records, itemName }) {
     return `최근 ${mode}일`;
   }, [mode, from, to]);
 
+  //  Tooltip 한글 고정
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || payload.length === 0) return null;
     return (
@@ -254,13 +257,13 @@ export default function StatsSection({ records, itemName }) {
         </div>
       </div>
 
-      {/* 기간 컨트롤 */}
+      {/* 기간 컨트롤  */}
       <div
         style={{
           marginTop: 10,
           display: "flex",
           flexWrap: "wrap",
-          gap: 8,
+          gap: 6,
           alignItems: "center",
         }}
       >
@@ -284,7 +287,7 @@ export default function StatsSection({ records, itemName }) {
           value={from}
           onChange={(e) => {
             setMode("CUSTOM");
-            setFrom(e.target.value);
+            setFrom(e.target.value); 
           }}
           style={dateInput}
         />
@@ -294,15 +297,17 @@ export default function StatsSection({ records, itemName }) {
           value={to}
           onChange={(e) => {
             setMode("CUSTOM");
-            setTo(e.target.value);
+            setTo(e.target.value); 
           }}
           style={dateInput}
         />
       </div>
 
-      {/* 요약(기간 바뀌면 같이 바뀜) */}
+      {/* 요약( 기간 바뀌면 같이 바뀜: computed가 mode/from/to에 의존) */}
       <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>
-        <div>• 적용 기간: <b>{periodText}</b></div>
+        <div>
+          • 적용 기간: <b>{periodText}</b>
+        </div>
 
         <div>
           • 평균 매입 단가:{" "}
@@ -342,18 +347,18 @@ export default function StatsSection({ records, itemName }) {
         </div>
       </div>
 
-      {/* 차트 */}
+      {/* 차트  */}
       {!computed.hasChartValue ? (
         <div style={{ marginTop: 14, fontSize: 13, color: "#6b7280" }}>
           가격이 입력된 입·출고 기록이 없어요. (가격 입력된 기록만 그래프에 반영)
         </div>
       ) : (
-        <div style={{ width: "100%", height: 260, marginTop: 8 }}>
+        <div style={{ width: "100%", height: 240, marginTop: 8 }}>
           <ResponsiveContainer>
             <BarChart
               data={computed.data}
-              barSize={14}            
-              barCategoryGap={18}     
+              barSize={10}            
+              barCategoryGap={14}     
               margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
@@ -361,11 +366,8 @@ export default function StatsSection({ records, itemName }) {
               <YAxis />
 
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                formatter={(v) =>
-                  v === "purchaseUnit" ? "매입 단가" : v === "saleUnit" ? "판매 단가" : v
-                }
-              />
+              {/*  Bar에 name을 넣어서 Legend 영어 방지 */}
+              <Legend />
 
               {effectiveShowPurchase && (
                 <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
@@ -383,14 +385,21 @@ export default function StatsSection({ records, itemName }) {
 
 /* -------- utils / styles -------- */
 
-function toYmd(d) {
-  try {
-    const s = String(d ?? "");
-    if (s.length >= 10) return s.slice(0, 10);
-    return new Date(d).toISOString().slice(0, 10);
-  } catch {
-    return "";
-  }
+//  핵심: date input value는 "" 또는 YYYY-MM-DD만
+function toYmd(v) {
+  if (!v) return "";
+  const s = String(v);
+
+  // 이미 YYYY-MM-DD면 그대로
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // ISO 문자열이면 앞 10자리 사용 가능하지만, 숫자형식인지 확인
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+
+  // 그 외(Thu Dec 18 등)는 Date 파싱 시도
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
 }
 
 const chipBtn = (active) => ({
@@ -405,7 +414,7 @@ const chipBtn = (active) => ({
 });
 
 const pill = (active) => ({
-  padding: "6px 10px",       
+  padding: "5px 9px", //  줄임
   borderRadius: 10,
   border: "1px solid " + (active ? "#2563eb" : "#e5e7eb"),
   background: active ? "#2563eb" : "#ffffff",
@@ -416,7 +425,7 @@ const pill = (active) => ({
 });
 
 const dateInput = {
-  height: 30,                
+  height: 28, // 
   padding: "0 8px",
   borderRadius: 10,
   border: "1px solid #e5e7eb",
