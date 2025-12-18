@@ -23,7 +23,7 @@ export default function InPage() {
     setLoading(true);
     try {
       const list = await getAllRecords({ type: "IN" });
-      setRecords(list);
+      setRecords(Array.isArray(list) ? list : []);
     } finally {
       setLoading(false);
     }
@@ -50,7 +50,6 @@ export default function InPage() {
       memo: memo || null,
     });
 
-    // 초기화
     setSelectedItem(null);
     setCount(1);
     setMemo("");
@@ -65,16 +64,20 @@ export default function InPage() {
       id: selectedRecord.id,
       price,
     });
+
+    setPriceModalOpen(false);
+    setSelectedRecord(null);
     await loadRecords();
   }
 
-  function goDetailByName(r) {
+  function goDetail(r) {
     const name = r?.item?.name;
     if (!name) {
       alert("이 기록에 item name이 없어서 상세로 이동할 수 없어요.");
       return;
     }
-    navigate(`/manage/${encodeURIComponent(name)}`);
+    // 상세 라우트
+    navigate(`/manage/item/${encodeURIComponent(name)}`);
   }
 
   return (
@@ -83,7 +86,7 @@ export default function InPage() {
         📥 입고 관리
       </h2>
 
-      {/*  입고 추가 카드 */}
+      {/*  새 입고 카드 */}
       <div
         style={{
           padding: 16,
@@ -97,21 +100,13 @@ export default function InPage() {
           새 입고
         </h3>
 
-        {/*  여기서 겹침 방지 레이아웃 */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          {/* ItemPicker는 wrapper로 폭 제어 */}
-          <div style={{ flex: "2 1 260px", minWidth: 240, maxWidth: 420 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {/*  ItemPicker는 wrapper로 폭 제어 + minWidth:0(중요) */}
+          <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
             <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
           </div>
-
-          {/* 수량 고정폭 */}
+          
+           {/* 수량 고정폭 */}
           <input
             type="number"
             placeholder="수량"
@@ -120,18 +115,15 @@ export default function InPage() {
             style={{ ...inputStyle, width: 120, flex: "0 0 120px" }}
           />
 
-          {/* 메모는 남는 폭 */}
+           {/* 메모는 남는 폭 */}
           <input
             placeholder="메모 (선택)"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            style={{ ...inputStyle, flex: "1 1 240px", minWidth: 200 }}
+            style={{ ...inputStyle, flex: "1 1 220px", minWidth: 180 }}
           />
 
-          <button
-            onClick={handleCreateIn}
-            style={{ ...primaryBtn, flex: "0 0 auto" }}
-          >
+          <button onClick={handleCreateIn} style={{ ...primaryBtn, flex: "0 0 auto" }}>
             입고 추가
           </button>
         </div>
@@ -196,14 +188,10 @@ export default function InPage() {
                   원가 입력
                 </button>
               )}
-              
-              <button
-              type="button"
-              onClick={() => navigate(`/manage-id/${r.itemId}`)}
-              style={linkBtn}
-            >
+
+              <button type="button" onClick={() => goDetail(r)} style={linkBtn}>
                 상세
-            </button>
+              </button>
             </div>
           ))
         )}
@@ -212,7 +200,10 @@ export default function InPage() {
       <PriceInputModal
         open={priceModalOpen}
         record={selectedRecord}
-        onClose={() => setPriceModalOpen(false)}
+        onClose={() => {
+          setPriceModalOpen(false);
+          setSelectedRecord(null);
+        }}
         onSubmit={handlePriceSubmit}
       />
     </div>

@@ -77,7 +77,7 @@ export default function OutPage() {
       alert("이 기록에 item name이 없어서 상세로 이동할 수 없어요.");
       return;
     }
-    navigate(`/manage/${encodeURIComponent(name)}`);
+    navigate(`/manage/item/${encodeURIComponent(name)}`);
   }
 
   return (
@@ -86,7 +86,7 @@ export default function OutPage() {
         📤 출고 관리
       </h2>
 
-      {/* ✅ 출고 추가 카드 */}
+      {/*  출고 추가 카드 */}
       <div
         style={{
           padding: 16,
@@ -101,14 +101,12 @@ export default function OutPage() {
         </h3>
 
         {/*  겹침 방지 레이아웃 */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            flexWrap: "wrap",
-          }}
-        >
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {/*  ItemPicker는 wrapper로 폭 제어 + minWidth:0(중요) */}
+                  <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
+                    <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
+                  </div>
+                  
           {/* ItemPicker는 wrapper로 폭 제어 */}
           <div style={{ flex: "2 1 260px", minWidth: 240, maxWidth: 420 }}>
             <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
