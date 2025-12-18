@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
 import PurchaseForm from "../components/PurchaseForm";
 import PurchaseList from "../components/PurchaseList";
@@ -54,15 +54,26 @@ function toYmd(d) {
 function parseRecordsResponse(data) {
   // 백엔드가 배열로 줄 수도 있고 { ok, records, stock }로 줄 수도 있어서 둘 다 대응
   if (Array.isArray(data)) return { records: data, stock: null };
-  if (data && Array.isArray(data.records)) return { records: data.records, stock: data.stock ?? null };
+  if (data && Array.isArray(data.records))
+    return { records: data.records, stock: data.stock ?? null };
   return { records: [], stock: null };
 }
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
-  const { name,itemId } = useParams();
-  const key = itemId ? Number(itemId) : decodeURIComponent(name);
-  const decodedName = decodeURIComponent(name);
+  const { name, itemId } = useParams();
+
+  // ✅ /manage/:name 로 들어온 경우
+  const decodedNameFromRoute = name ? decodeURIComponent(name) : "";
+
+  // ✅ /manage-id/:itemId 로 들어온 경우 (이 itemId는 "옵션 item id"라고 보면 됨)
+  const numericItemId = itemId ? Number(itemId) : null;
+
+  // ✅ itemId로 들어와도 품목명을 items에서 찾아서 제목/옵션필터에 반영
+  const [resolvedName, setResolvedName] = useState(decodedNameFromRoute);
+
+  // ✅ 최종 품목명
+  const decodedName = resolvedName || decodedNameFromRoute;
 
   const [items, setItems] = useState([]);
   const [records, setRecords] = useState([]);
@@ -74,21 +85,22 @@ export default function ManageDetailPage() {
 
   const [memoText, setMemoText] = useState("");
 
-  //  기간 필터
+  // 기간 필터
   const [rangeMode, setRangeMode] = useState("ALL"); // ALL | 7 | 30 | 90 | CUSTOM
   const [fromDate, setFromDate] = useState(() => "");
   const [toDate, setToDate] = useState(() => toYmd(new Date()));
 
-  //  검색/정렬
+  // 검색/정렬
   const [searchText, setSearchText] = useState("");
   const [sortMode, setSortMode] = useState("ASC"); // ASC(oldest) | DESC(latest)
 
-  //  출고 폼
+  // 출고 폼
   const [outPrice, setOutPrice] = useState("");
   const [outCount, setOutCount] = useState(1);
   const [outDate, setOutDate] = useState(() => toYmd(new Date()));
   const [outMemo, setOutMemo] = useState("");
 
+  // shoes/foods 구분이 필요하면 여기서 바꿔
   const isShoes = true;
 
   const showToast = (msg) => {
@@ -101,7 +113,8 @@ export default function ManageDetailPage() {
     async function loadItems() {
       try {
         const data = await fetchItems();
-        setItems(Array.isArray(data) ? data : (data?.items ?? []));
+        const list = Array.isArray(data) ? data : data?.items ?? [];
+        setItems(list);
       } catch (err) {
         console.error("아이템 불러오기 오류:", err);
       }
@@ -109,9 +122,20 @@ export default function ManageDetailPage() {
     loadItems();
   }, []);
 
-  /* ---------------- 옵션 리스트 ---------------- */
+  /* ✅ itemId로 들어오면: items 로드된 뒤 자동으로 옵션 선택 + 이름 resolve */
+  useEffect(() => {
+    if (!numericItemId) return;
+    if (!items || items.length === 0) return;
+
+    const found = items.find((it) => it.id === numericItemId);
+    if (found?.name) setResolvedName(found.name);
+    setSelectedOptionId(numericItemId);
+  }, [numericItemId, items]);
+
+  /* ---------------- 옵션 리스트 (품목명 기준 그룹) ---------------- */
   const options = useMemo(() => {
     const target = norm(decodedName);
+    if (!target) return [];
     return items.filter((i) => norm(i.name) === target);
   }, [items, decodedName]);
 
@@ -119,13 +143,22 @@ export default function ManageDetailPage() {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  const selectedOption = options.find((opt) => opt.id === selectedOptionId) || null;
+  const selectedOption =
+    options.find((opt) => opt.id === selectedOptionId) || null;
 
   const isOptionExists = (value) => {
-    const trimmed = value.trim();
+    const trimmed = String(value ?? "").trim();
     if (!trimmed) return false;
     return options.some((opt) => norm(opt.size) === trimmed);
   };
+
+  /* ✅ name으로 들어왔는데 옵션 선택이 비어있으면, 첫 옵션 자동 선택(원하면 끄면 됨) */
+  useEffect(() => {
+    if (numericItemId) return; // itemId 진입이면 위에서 이미 선택함
+    if (!selectedOptionId && options.length > 0) {
+      setSelectedOptionId(options[0].id);
+    }
+  }, [numericItemId, options, selectedOptionId]);
 
   /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   useEffect(() => {
@@ -133,6 +166,8 @@ export default function ManageDetailPage() {
       setRecords([]);
       return;
     }
+
+    let alive = true;
 
     async function loadRecords() {
       try {
@@ -143,7 +178,7 @@ export default function ManageDetailPage() {
           ? raw.map((rec) => ({
               id: rec.id,
               itemId: rec.itemId,
-              type: rec.type || "IN", //  type 없으면 IN으로
+              type: (rec.type || "IN").toUpperCase(),
               price: rec.price,
               count: rec.count,
               date: (rec.date || "").slice(0, 10),
@@ -151,26 +186,37 @@ export default function ManageDetailPage() {
             }))
           : [];
 
-        setRecords(normalized);
+        if (alive) setRecords(normalized);
       } catch (err) {
         console.error("기록 불러오기 실패:", err);
+        if (alive) setRecords([]);
       }
     }
 
     loadRecords();
+    return () => {
+      alive = false;
+    };
   }, [selectedOptionId]);
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
-    if (selectedOption && typeof selectedOption.memo === "string") setMemoText(selectedOption.memo);
+    if (selectedOption && typeof selectedOption.memo === "string")
+      setMemoText(selectedOption.memo);
     else setMemoText("");
   }, [selectedOption]);
 
   const handleSaveMemo = async () => {
     if (!selectedOption) return;
     try {
-      const updated = await updateServerItem(selectedOption.id, { memo: memoText });
-      setItems((prev) => prev.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it)));
+      const updated = await updateServerItem(selectedOption.id, {
+        memo: memoText,
+      });
+      setItems((prev) =>
+        prev.map((it) =>
+          it.id === selectedOption.id ? { ...it, ...updated } : it
+        )
+      );
       showToast("메모 저장 완료!");
     } catch (err) {
       console.error("메모 서버 저장 실패", err);
@@ -180,7 +226,7 @@ export default function ManageDetailPage() {
 
   /* ---------------- 옵션 추가 ---------------- */
   const handleAddOption = async ({ value, image }) => {
-    const trimmed = value.trim();
+    const trimmed = String(value ?? "").trim();
     if (!trimmed) return;
 
     if (isOptionExists(trimmed)) {
@@ -209,7 +255,7 @@ export default function ManageDetailPage() {
     if (!editModal) return;
 
     const { id, value, image } = editModal;
-    const trimmed = value.trim();
+    const trimmed = String(value ?? "").trim();
     if (!trimmed) return;
 
     if (options.some((opt) => opt.id !== id && norm(opt.size) === trimmed)) {
@@ -218,9 +264,14 @@ export default function ManageDetailPage() {
     }
 
     try {
-      const updated = await updateServerItem(id, { size: trimmed, imageUrl: image || null });
+      const updated = await updateServerItem(id, {
+        size: trimmed,
+        imageUrl: image || null,
+      });
 
-      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
+      setItems((prev) =>
+        prev.map((it) => (it.id === id ? { ...it, ...updated } : it))
+      );
       setEditModal(null);
       showToast("옵션 수정 완료");
     } catch (err) {
@@ -238,7 +289,9 @@ export default function ManageDetailPage() {
       await deleteServerItem(id);
     } catch (err) {
       console.error("옵션 서버 삭제 실패", err);
-      window.alert("서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다.");
+      window.alert(
+        "서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다."
+      );
     }
 
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -258,7 +311,9 @@ export default function ManageDetailPage() {
       await Promise.all(ids.map((id) => deleteServerItem(id)));
     } catch (err) {
       console.error("품목 전체 삭제 실패", err);
-      window.alert("서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요.");
+      window.alert(
+        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
+      );
     }
 
     setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
@@ -268,7 +323,7 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
-  /* ======================= (2) 재고 계산 ======================= */
+  /* ======================= 재고 계산 ======================= */
   const stock = useMemo(() => {
     const inSum = records
       .filter((r) => (r.type || "IN") !== "OUT")
@@ -279,9 +334,10 @@ export default function ManageDetailPage() {
     return inSum - outSum;
   }, [records]);
 
-  /* ======================= (3) 기간 필터 계산 ======================= */
+  /* ======================= 기간 필터 계산 ======================= */
   const effectiveRange = useMemo(() => {
-    if (rangeMode === "CUSTOM") return { from: fromDate || null, to: toDate || null };
+    if (rangeMode === "CUSTOM")
+      return { from: fromDate || null, to: toDate || null };
     if (rangeMode === "ALL") return { from: null, to: null };
 
     const days = Number(rangeMode);
@@ -292,13 +348,15 @@ export default function ManageDetailPage() {
     return { from: toYmd(startDate), to: end };
   }, [rangeMode, fromDate, toDate]);
 
-  /* ======================= (5) 검색/정렬 + (3) 기간필터 적용 ======================= */
+  /* ======================= 검색/정렬 + 기간필터 적용 ======================= */
   const filteredRecords = useMemo(() => {
     let arr = Array.isArray(records) ? [...records] : [];
 
     // 기간 필터
-    if (effectiveRange.from) arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
-    if (effectiveRange.to) arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
+    if (effectiveRange.from)
+      arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
+    if (effectiveRange.to)
+      arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
 
     // 검색(메모/가격/수량/날짜/type)
     const q = norm(searchText).toLowerCase();
@@ -319,20 +377,24 @@ export default function ManageDetailPage() {
 
     // 정렬
     arr.sort((a, b) => {
-      const da = (a.date || "");
-      const db = (b.date || "");
-      if (da !== db) return sortMode === "DESC" ? (db > da ? 1 : -1) : (da > db ? 1 : -1);
-      return sortMode === "DESC" ? (b.id - a.id) : (a.id - b.id);
+      const da = a.date || "";
+      const db = b.date || "";
+      if (da !== db)
+        return sortMode === "DESC"
+          ? db > da
+            ? 1
+            : -1
+          : da > db
+          ? 1
+          : -1;
+      return sortMode === "DESC" ? b.id - a.id : a.id - b.id;
     });
 
     return arr;
   }, [records, effectiveRange, searchText, sortMode]);
 
-  // StatsSection??
-  const recordsForStats = useMemo(
-    () => filteredRecords,
-    [filteredRecords]
-  );
+  // ✅ 그래프는 IN/OUT 둘 다 필요하니까 전체를 넘긴다
+  const recordsForStats = useMemo(() => filteredRecords, [filteredRecords]);
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -356,7 +418,14 @@ export default function ManageDetailPage() {
       )}
 
       {/* 상단 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          marginBottom: 16,
+          gap: 12,
+        }}
+      >
         <button
           onClick={() => navigate("/manage")}
           style={{
@@ -371,7 +440,9 @@ export default function ManageDetailPage() {
           ← 뒤로
         </button>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName}</h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
+          {decodedName || "(품목)"}
+        </h2>
 
         <button
           onClick={handleDeleteItem}
@@ -389,18 +460,32 @@ export default function ManageDetailPage() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 24 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)",
+          gap: 24,
+        }}
+      >
         {/* 좌측: 옵션 목록 */}
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
+            옵션 목록
+          </h3>
 
           {options.length === 0 && (
             <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
-              옵션이 없습니다. (데이터는 있는데 안 보이면 name 매칭/라우팅을 확인해줘!)
+              옵션이 없습니다. (name 매칭/라우팅을 확인해줘!)
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 12,
+            }}
+          >
             {options.map((opt) => {
               const displayImageUrl = opt.imageUrl || representativeImageUrl;
 
@@ -409,7 +494,10 @@ export default function ManageDetailPage() {
                   key={opt.id}
                   onClick={() => setSelectedOptionId(opt.id)}
                   style={{
-                    border: selectedOptionId === opt.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
+                    border:
+                      selectedOptionId === opt.id
+                        ? "2px solid #2563eb"
+                        : "1px solid #e5e7eb",
                     borderRadius: 12,
                     padding: 10,
                     cursor: "pointer",
@@ -447,7 +535,9 @@ export default function ManageDetailPage() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{opt.size || "(옵션)"}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>
+                    {opt.size || "(옵션)"}
+                  </div>
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button
@@ -503,11 +593,11 @@ export default function ManageDetailPage() {
         <div>
           {!selectedOptionId ? (
             <div style={{ color: "#9ca3af", fontSize: 14, marginTop: 20 }}>
-              왼쪽에서 옵션을 선택하면 매입 그래프와 기록이 표시됩니다.
+              왼쪽에서 옵션을 선택하면 그래프와 기록이 표시됩니다.
             </div>
           ) : (
             <>
-              {/*  재고 표시 */}
+              {/* 재고 표시 */}
               <div
                 style={{
                   padding: 12,
@@ -531,7 +621,7 @@ export default function ManageDetailPage() {
                 </div>
               </div>
 
-              {/*  기간/검색/정렬 컨트롤 */}
+              {/* 기간/검색/정렬 컨트롤 */}
               <div
                 style={{
                   padding: 12,
@@ -541,7 +631,13 @@ export default function ManageDetailPage() {
                   marginBottom: 12,
                 }}
               >
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 10 }}>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr 1fr",
+                    gap: 10,
+                  }}
+                >
                   <label style={{ fontSize: 12 }}>
                     기간
                     <select
@@ -602,7 +698,14 @@ export default function ManageDetailPage() {
                 </div>
 
                 {rangeMode === "CUSTOM" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: 10,
+                      marginTop: 10,
+                    }}
+                  >
                     <label style={{ fontSize: 12 }}>
                       시작일
                       <input
@@ -644,7 +747,7 @@ export default function ManageDetailPage() {
                 itemName={`${decodedName} (${selectedOption?.size ?? ""})`}
               />
 
-              {/* 매입 기록 추가 */}
+              {/* 매입/출고 기록 추가/리스트 (너 기존 컴포넌트 유지) */}
               <div
                 style={{
                   marginTop: 14,
@@ -654,194 +757,54 @@ export default function ManageDetailPage() {
                   backgroundColor: "#ffffff",
                 }}
               >
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 매입 기록 추가</div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                  🧾 기록 추가
+                </div>
 
                 <PurchaseForm
                   onAddRecord={async (info) => {
                     if (!selectedOptionId) return;
 
-                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
-                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
+                    const dateValue =
+                      info.date || new Date().toISOString().slice(0, 10);
+                    const countValue =
+                      info.count === "" || info.count == null
+                        ? 1
+                        : Number(info.count);
 
                     try {
                       const created = await createRecord({
                         itemId: selectedOptionId,
-                        type: info.type || "IN",
-                        price: Number(info.price),
+                        type: (info.type || "IN").toUpperCase(),
+                        price:
+                          info.price === "" || info.price == null
+                            ? null
+                            : Number(info.price),
                         count: countValue,
                         date: dateValue,
+                        memo: info.memo ?? null,
                       });
+
                       const newRecord = {
                         id: created?.id ?? Math.random(),
                         itemId: created?.itemId ?? selectedOptionId,
-                        type: created?.type || "IN",
-                        price: created?.price ?? Number(info.price),
+                        type: (created?.type || info.type || "IN").toUpperCase(),
+                        price: created?.price ?? (info.price ?? null),
                         count: created?.count ?? countValue,
                         date: ((created?.date ?? dateValue) || "").slice(0, 10),
-                        memo: created?.memo ?? "",
+                        memo: created?.memo ?? (info.memo ?? ""),
                       };
 
                       setRecords((prev) => [...prev, newRecord]);
-                      showToast("매입 기록 추가 완료");
+                      showToast("기록 추가 완료");
                     } catch (err) {
                       console.error("백엔드 기록 저장 실패", err);
-                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+                      window.alert(
+                        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
+                      );
                     }
                   }}
                 />
-              </div>
-
-              {/*  출고 폼 */}
-              <div
-                style={{
-                  marginTop: 14,
-                  padding: 14,
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  backgroundColor: "#ffffff",
-                }}
-              >
-                <div style={{ fontWeight: 800, marginBottom: 10 }}>📦 (판매) 출고 추가</div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-                  <label style={{ fontSize: 12 }}>
-                    판매 단가
-                    <input
-                      type="number"
-                      value={outPrice}
-                      onChange={(e) => setOutPrice(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 36,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    />
-                  </label>
-
-                  <label style={{ fontSize: 12 }}>
-                    수량
-                    <input
-                      type="number"
-                      min={1}
-                      value={outCount}
-                      onChange={(e) => setOutCount(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 36,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    />
-                  </label>
-
-                  <label style={{ fontSize: 12 }}>
-                    날짜
-                    <input
-                      type="date"
-                      value={outDate}
-                      onChange={(e) => setOutDate(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 36,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    />
-                  </label>
-                </div>
-
-                <label style={{ display: "block", fontSize: 12, marginTop: 10 }}>
-                  메모(선택)
-                  <input
-                    value={outMemo}
-                    onChange={(e) => setOutMemo(e.target.value)}
-                    style={{
-                      width: "100%",
-                      height: 36,
-                      marginTop: 6,
-                      padding: "0 10px",
-                      borderRadius: 10,
-                      border: "1px solid #e5e7eb",
-                    }}
-                  />
-                </label>
-
-                <button
-                  onClick={async () => {
-                    if (!selectedOptionId) return;
-
-                    const price = Number(outPrice);
-                    const count = Number(outCount || 1);
-
-                    if (!outPrice || Number.isNaN(price)) {
-                      alert("판매 단가를 입력해줘!");
-                      return;
-                    }
-                    if (!Number.isFinite(count) || count <= 0) {
-                      alert("수량이 이상해!");
-                      return;
-                    }
-
-                    // 프론트 1차 방어
-                    if (count > stock) {
-                      alert(`재고 부족 😢\n현재 재고: ${stock}\n출고 수량: ${count}`);
-                      return;
-                    }
-
-                    try {
-                      const created = await createRecord({
-                        itemId: selectedOptionId,
-                        type: "OUT",
-                        price,
-                        count,
-                        date: outDate,
-                        memo: outMemo || null,
-                      });
-
-                      const newRecord = {
-                        id: created?.id ?? Math.random(),
-                        itemId: created?.itemId ?? selectedOptionId,
-                        type: created?.type || "OUT",
-                        price: created?.price ?? price,
-                        count: created?.count ?? count,
-                        date: ((created?.date ?? outDate) || "").slice(0, 10),
-                        memo: created?.memo ?? (outMemo || ""),
-                      };
-
-                      setRecords((prev) => [...prev, newRecord]);
-                      showToast("출고 처리 완료");
-
-                      setOutPrice("");
-                      setOutCount(1);
-                      setOutDate(toYmd(new Date()));
-                      setOutMemo("");
-                    } catch (err) {
-                      console.error("백엔드 출고 저장 실패", err);
-                      alert("서버에 출고 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
-                    }
-                  }}
-                  style={{
-                    marginTop: 12,
-                    width: "100%",
-                    height: 40,
-                    borderRadius: 12,
-                    border: "1px solid #111827",
-                    background: stock <= 0 ? "#e5e7eb" : "#111827",
-                    color: stock <= 0 ? "#6b7280" : "#fff",
-                    fontWeight: 800,
-                    cursor: stock <= 0 ? "not-allowed" : "pointer",
-                  }}
-                  disabled={stock <= 0}
-                >
-                  출고 처리
-                </button>
               </div>
 
               {/* 기록 리스트 */}
@@ -854,7 +817,9 @@ export default function ManageDetailPage() {
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
-                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
+                    window.alert(
+                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
+                    );
                   }
 
                   showToast("기록 삭제 완료");
@@ -863,8 +828,14 @@ export default function ManageDetailPage() {
                   if (!selectedOptionId) return;
 
                   const dateValue = info.date || undefined;
-                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
-                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
+                  const priceValue =
+                    info.price === "" || info.price == null
+                      ? undefined
+                      : Number(info.price);
+                  const countValue =
+                    info.count === "" || info.count == null
+                      ? undefined
+                      : Number(info.count);
 
                   try {
                     const updated = await updateServerRecord({
@@ -884,8 +855,10 @@ export default function ManageDetailPage() {
                               ...r,
                               price: updated?.price ?? (priceValue ?? r.price),
                               count: updated?.count ?? (countValue ?? r.count),
-                              date: (((updated?.date ?? dateValue ?? r.date) || "")).slice(0, 10),
-                              type: updated?.type ?? r.type ?? "IN",
+                              date: String(
+                                updated?.date ?? dateValue ?? r.date ?? ""
+                              ).slice(0, 10),
+                              type: (updated?.type ?? r.type ?? "IN").toUpperCase(),
                               memo: updated?.memo ?? r.memo ?? "",
                             }
                           : r
@@ -895,7 +868,9 @@ export default function ManageDetailPage() {
                     showToast("기록 수정 완료");
                   } catch (err) {
                     console.error("백엔드 기록 수정 실패", err);
-                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
+                    window.alert(
+                      "서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요."
+                    );
                   }
                 }}
               />
@@ -911,7 +886,9 @@ export default function ManageDetailPage() {
                   boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 메모</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                  옵션 메모
+                </div>
 
                 <textarea
                   value={memoText}
@@ -996,7 +973,15 @@ function OptionAddBox({ isShoes, onAdd }) {
   };
 
   return (
-    <div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: "1px solid #e5e7eb", backgroundColor: "#fafafa" }}>
+    <div
+      style={{
+        marginTop: 16,
+        padding: 14,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        backgroundColor: "#fafafa",
+      }}
+    >
       <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>옵션 추가</h4>
 
       <input
@@ -1004,19 +989,42 @@ function OptionAddBox({ isShoes, onAdd }) {
         placeholder={isShoes ? "사이즈 (260)" : "옵션"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        style={{ width: "100%", marginTop: 8, padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}
+        style={{
+          width: "100%",
+          marginTop: 8,
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #d1d5db",
+        }}
       />
 
       <div style={{ marginTop: 8 }}>
         <input type="file" accept="image/*" onChange={handleImage} />
         {image && (
-          <img src={image} alt="" style={{ marginTop: 8, width: "100%", maxWidth: 180, borderRadius: 8 }} />
+          <img
+            src={image}
+            alt=""
+            style={{
+              marginTop: 8,
+              width: "100%",
+              maxWidth: 180,
+              borderRadius: 8,
+            }}
+          />
         )}
       </div>
 
       <button
         onClick={submit}
-        style={{ marginTop: 10, padding: "6px 14px", borderRadius: 999, backgroundColor: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
+        style={{
+          marginTop: 10,
+          padding: "6px 14px",
+          borderRadius: 999,
+          backgroundColor: "#2563eb",
+          color: "white",
+          border: "none",
+          cursor: "pointer",
+        }}
       >
         추가
       </button>
@@ -1043,34 +1051,77 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 
   return (
     <ModalContainer>
-      <div style={{ width: "100%", maxWidth: 380, backgroundColor: "white", borderRadius: 14, padding: 20 }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          backgroundColor: "white",
+          borderRadius: 14,
+          padding: 20,
+        }}
+      >
         <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>옵션 수정</h3>
 
         <input
           type="text"
           value={value}
           onChange={(e) => setEditModal({ id, value: e.target.value, image })}
-          style={{ width: "100%", marginTop: 14, padding: "8px 10px", borderRadius: 8, border: "1px solid #d1d5db" }}
+          style={{
+            width: "100%",
+            marginTop: 14,
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+          }}
           placeholder={isShoes ? "사이즈" : "옵션"}
         />
 
-        <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImage}
+          style={{ marginTop: 8 }}
+        />
 
         {image && (
-          <img src={image} alt="" style={{ marginTop: 10, width: "100%", height: 140, objectFit: "cover", borderRadius: 10 }} />
+          <img
+            src={image}
+            alt=""
+            style={{
+              marginTop: 10,
+              width: "100%",
+              height: 140,
+              objectFit: "cover",
+              borderRadius: 10,
+            }}
+          />
         )}
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={() => setEditModal(null)}
-            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#f3f4f6", color: "black", border: "none", cursor: "pointer" }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#f3f4f6",
+              color: "black",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             취소
           </button>
 
           <button
             onClick={onSave}
-            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#2563eb", color: "white", border: "none", cursor: "pointer" }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#2563eb",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             저장
           </button>
@@ -1084,20 +1135,42 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 function ConfirmModal({ message, onCancel, onConfirm }) {
   return (
     <ModalContainer>
-      <div style={{ width: "100%", maxWidth: 360, backgroundColor: "white", borderRadius: 14, padding: 20 }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          backgroundColor: "white",
+          borderRadius: 14,
+          padding: 20,
+        }}
+      >
         <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={onCancel}
-            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#f3f4f6", color: "black", border: "none", cursor: "pointer" }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#f3f4f6",
+              color: "black",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             취소
           </button>
 
           <button
             onClick={onConfirm}
-            style={{ padding: "6px 14px", borderRadius: 8, backgroundColor: "#dc2626", color: "white", border: "none", cursor: "pointer" }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 8,
+              backgroundColor: "#dc2626",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+            }}
           >
             삭제
           </button>

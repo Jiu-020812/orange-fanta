@@ -195,7 +195,7 @@ export default function OutPage() {
               )}
              <button
                type="button"
-               onClick={() => navigate(`/manage/${encodeURIComponent(r.item?.name || "")}?itemId=${r.itemId}`)}
+               onClick={() => navigate(`/manage-id/${r.itemId}`)}
                style={linkBtn}
             >
                 상세
