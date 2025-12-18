@@ -82,8 +82,11 @@ function App() {
 
           {/*  품목 상세 (둘 다 추가) */}
           
-          <Route path="/manage-id/:itemId" element={<ManageDetailPage />} />
-          <Route path="/manage/item/:name" element={<ManageDetailPage />} />
+         <Route element={<ProtectedRoute />}>
+         <Route path="/manage" element={<ManageListPage />} />
+         <Route path="/manage/:name" element={<ManageDetailPage />} />
+         <Route path="/manage-id/:itemId" element={<ManageDetailPage />} />
+         </Route>
 
 
           {/* 마이그레이션 */}

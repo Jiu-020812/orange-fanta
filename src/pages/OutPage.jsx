@@ -111,6 +111,7 @@ export default function OutPage() {
           {/* 수량 고정폭 */}
           <input
             type="number"
+            inputMode="numeric"
             placeholder="수량"
             value={count}
             onChange={(e) => setCount(Number(e.target.value))}
@@ -172,6 +173,7 @@ export default function OutPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>
                   {r.item?.name ?? `itemId ${r.itemId}`}
+                  {r.item?.size ? ` (${r.item.size})` : ""}
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
                   {r.date?.slice(0, 10)} · {r.count}개

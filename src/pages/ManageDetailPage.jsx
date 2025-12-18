@@ -63,16 +63,16 @@ export default function ManageDetailPage() {
   const navigate = useNavigate();
   const { name, itemId } = useParams();
 
-  // ✅ /manage/:name 로 들어온 경우
+  //  /manage/:name 로 들어온 경우
   const decodedNameFromRoute = name ? decodeURIComponent(name) : "";
 
-  // ✅ /manage-id/:itemId 로 들어온 경우 (이 itemId는 "옵션 item id"라고 보면 됨)
+  //  /manage-id/:itemId 로 들어온 경우 (이 itemId는 "옵션 item id"라고 보면 됨)
   const numericItemId = itemId ? Number(itemId) : null;
 
-  // ✅ itemId로 들어와도 품목명을 items에서 찾아서 제목/옵션필터에 반영
+  //  itemId로 들어와도 품목명을 items에서 찾아서 제목/옵션필터에 반영
   const [resolvedName, setResolvedName] = useState(decodedNameFromRoute);
 
-  // ✅ 최종 품목명
+  //  최종 품목명
   const decodedName = resolvedName || decodedNameFromRoute;
 
   const [items, setItems] = useState([]);
@@ -122,7 +122,7 @@ export default function ManageDetailPage() {
     loadItems();
   }, []);
 
-  /* ✅ itemId로 들어오면: items 로드된 뒤 자동으로 옵션 선택 + 이름 resolve */
+  /*  itemId로 들어오면: items 로드된 뒤 자동으로 옵션 선택 + 이름 resolve */
   useEffect(() => {
     if (!numericItemId) return;
     if (!items || items.length === 0) return;
@@ -134,11 +134,13 @@ export default function ManageDetailPage() {
 
   /* ---------------- 옵션 리스트 (품목명 기준 그룹) ---------------- */
   const options = useMemo(() => {
+    if (numericItemId) {
+      return items.filter((i) => i.id === numericItemId);
+    }
     const target = norm(decodedName);
-    if (!target) return [];
     return items.filter((i) => norm(i.name) === target);
-  }, [items, decodedName]);
-
+  }, [items, decodedName, numericItemId]);
+  
   const representativeImageUrl = useMemo(() => {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
@@ -152,13 +154,20 @@ export default function ManageDetailPage() {
     return options.some((opt) => norm(opt.size) === trimmed);
   };
 
-  /* ✅ name으로 들어왔는데 옵션 선택이 비어있으면, 첫 옵션 자동 선택(원하면 끄면 됨) */
+  /*  name으로 들어왔는데 옵션 선택이 비어있으면, 첫 옵션 자동 선택 */
   useEffect(() => {
     if (numericItemId) return; // itemId 진입이면 위에서 이미 선택함
     if (!selectedOptionId && options.length > 0) {
       setSelectedOptionId(options[0].id);
     }
   }, [numericItemId, options, selectedOptionId]);
+
+// /manage-id/:itemId 로 들어오면 해당 옵션 자동 선택
+  useEffect(() => {
+    if (numericItemId && items.length > 0) {
+      setSelectedOptionId(numericItemId);
+    }
+  }, [numericItemId, items]);
 
   /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   useEffect(() => {
@@ -393,7 +402,7 @@ export default function ManageDetailPage() {
     return arr;
   }, [records, effectiveRange, searchText, sortMode]);
 
-  // ✅ 그래프는 IN/OUT 둘 다 필요하니까 전체를 넘긴다
+  //  그래프는 IN/OUT 둘 다
   const recordsForStats = useMemo(() => filteredRecords, [filteredRecords]);
 
   return (
