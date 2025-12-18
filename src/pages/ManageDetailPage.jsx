@@ -63,6 +63,15 @@ export default function ManageDetailPage() {
   const { itemId } = useParams();
   const numericItemId = Number(itemId);
 
+  // ✅ itemId가 이상하면 공백 대신 안내
+  if (!Number.isFinite(numericItemId) || numericItemId <= 0) {
+    return (
+      <div style={{ padding: 24 }}>
+        잘못된 접근입니다. (itemId가 없습니다)
+      </div>
+    );
+  }
+
   const [items, setItems] = useState([]);
   const [records, setRecords] = useState([]);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
@@ -81,12 +90,6 @@ export default function ManageDetailPage() {
   // 검색/정렬
   const [searchText, setSearchText] = useState("");
   const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
-
-  // 출고 폼
-  const [outPrice, setOutPrice] = useState("");
-  const [outCount, setOutCount] = useState(1);
-  const [outDate, setOutDate] = useState(() => toYmd(new Date()));
-  const [outMemo, setOutMemo] = useState("");
 
   const isShoes = true;
 
@@ -109,11 +112,29 @@ export default function ManageDetailPage() {
     loadItems();
   }, []);
 
+  /* ---------------- 초기 selectedOptionId 세팅 ---------------- */
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+
+    // URL itemId가 실제로 있으면 그걸 선택
+    const exists = items.some((it) => it.id === numericItemId);
+    if (exists) {
+      setSelectedOptionId(numericItemId);
+      return;
+    }
+
+    // 없으면 첫 아이템 선택 (혹은 /manage로 돌려도 됨)
+    setSelectedOptionId(items[0].id);
+  }, [items, numericItemId]);
+
   /* ---------------- 현재 선택 옵션(= item row) ---------------- */
   const selectedOption = useMemo(() => {
     if (!selectedOptionId) return null;
     return items.find((it) => it.id === selectedOptionId) || null;
   }, [items, selectedOptionId]);
+
+  /* ✅ 최종 품목명 (name 라우팅 제거) */
+  const decodedName = selectedOption?.name ?? "";
 
   /* ---------------- 옵션 리스트 (같은 name 묶음) ---------------- */
   const options = useMemo(() => {
@@ -126,29 +147,18 @@ export default function ManageDetailPage() {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  /* ---------------- 초기 selectedOptionId 세팅 ---------------- */
-  useEffect(() => {
-    if (!items || items.length === 0) return;
-
-    // 1) URL에 itemId가 있고, 그 id가 실제 items에 있으면 그걸 선택
-    if (Number.isFinite(numericItemId) && numericItemId > 0) {
-      const exists = items.some((it) => it.id === numericItemId);
-      if (exists) {
-        setSelectedOptionId(numericItemId);
-        return;
-      }
-    }
-
-    // 2) 아니면 첫 아이템을 기본 선택 (또는 네 정책대로)
-    setSelectedOptionId(items[0].id);
-  }, [items, numericItemId]);
-
-  /* ---------------- 옵션 바꾸면 URL도 같이 맞추기(선택) ---------------- */
-  const handleSelectOption = (nextId) => {
-    setSelectedOptionId(nextId);
-    navigate(`/manage/${nextId}`, { replace: true }); 
+  /* ✅ 옵션 중복 체크 */
+  const isOptionExists = (value) => {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) return false;
+    return options.some((opt) => norm(opt.size) === trimmed);
   };
 
+  /* ---------------- 옵션 바꾸면 URL도 같이 맞추기 ---------------- */
+  const handleSelectOption = (nextId) => {
+    setSelectedOptionId(nextId);
+    navigate(`/manage/${nextId}`, { replace: true });
+  };
 
   /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   useEffect(() => {
@@ -171,7 +181,7 @@ export default function ManageDetailPage() {
               type: (rec.type || "IN").toUpperCase(),
               price: rec.price,
               count: rec.count,
-              date: (rec.date || "").slice(0, 10),
+              date: String(rec.date || "").slice(0, 10),
               memo: rec.memo ?? "",
             }))
           : [];
@@ -219,6 +229,11 @@ export default function ManageDetailPage() {
     const trimmed = String(value ?? "").trim();
     if (!trimmed) return;
 
+    if (!decodedName) {
+      window.alert("품목명이 비어있어요. 옵션을 추가할 수 없습니다.");
+      return;
+    }
+
     if (isOptionExists(trimmed)) {
       window.alert("이미 등록된 옵션입니다.");
       return;
@@ -232,7 +247,7 @@ export default function ManageDetailPage() {
       });
 
       setItems((prev) => [...prev, created]);
-      setSelectedOptionId(created.id);
+      handleSelectOption(created.id);
       showToast("옵션 추가 완료");
     } catch (err) {
       console.error("옵션 서버 저장 실패", err);
@@ -342,13 +357,11 @@ export default function ManageDetailPage() {
   const filteredRecords = useMemo(() => {
     let arr = Array.isArray(records) ? [...records] : [];
 
-    // 기간 필터
     if (effectiveRange.from)
       arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
     if (effectiveRange.to)
       arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
 
-    // 검색(메모/가격/수량/날짜/type)
     const q = norm(searchText).toLowerCase();
     if (q) {
       arr = arr.filter((r) => {
@@ -365,7 +378,6 @@ export default function ManageDetailPage() {
       });
     }
 
-    // 정렬
     arr.sort((a, b) => {
       const da = a.date || "";
       const db = b.date || "";
@@ -383,7 +395,6 @@ export default function ManageDetailPage() {
     return arr;
   }, [records, effectiveRange, searchText, sortMode]);
 
-  //  그래프는 IN/OUT 둘 다
   const recordsForStats = useMemo(() => filteredRecords, [filteredRecords]);
 
   return (
@@ -465,7 +476,7 @@ export default function ManageDetailPage() {
 
           {options.length === 0 && (
             <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
-              옵션이 없습니다. (name 매칭/라우팅을 확인해줘!)
+              옵션이 없습니다.
             </div>
           )}
 
@@ -482,7 +493,7 @@ export default function ManageDetailPage() {
               return (
                 <div
                   key={opt.id}
-                  onClick={() => setSelectedOptionId(opt.id)}
+                  onClick={() => handleSelectOption(opt.id)}
                   style={{
                     border:
                       selectedOptionId === opt.id
@@ -737,7 +748,7 @@ export default function ManageDetailPage() {
                 itemName={`${decodedName} (${selectedOption?.size ?? ""})`}
               />
 
-              {/* 매입/출고 기록 추가/리스트 (너 기존 컴포넌트 유지) */}
+              {/* 기록 추가 */}
               <div
                 style={{
                   marginTop: 14,
@@ -781,7 +792,7 @@ export default function ManageDetailPage() {
                         type: (created?.type || info.type || "IN").toUpperCase(),
                         price: created?.price ?? (info.price ?? null),
                         count: created?.count ?? countValue,
-                        date: ((created?.date ?? dateValue) || "").slice(0, 10),
+                        date: String(created?.date ?? dateValue).slice(0, 10),
                         memo: created?.memo ?? (info.memo ?? ""),
                       };
 
@@ -848,7 +859,7 @@ export default function ManageDetailPage() {
                               date: String(
                                 updated?.date ?? dateValue ?? r.date ?? ""
                               ).slice(0, 10),
-                              type: (updated?.type ?? r.type ?? "IN").toUpperCase(),
+                              type: String(updated?.type ?? r.type ?? "IN").toUpperCase(),
                               memo: updated?.memo ?? r.memo ?? "",
                             }
                           : r
@@ -1087,7 +1098,14 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           />
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 18,
+          }}
+        >
           <button
             onClick={() => setEditModal(null)}
             style={{
@@ -1136,7 +1154,14 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
       >
         <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 18,
+          }}
+        >
           <button
             onClick={onCancel}
             style={{
