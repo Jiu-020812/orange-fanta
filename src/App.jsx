@@ -80,12 +80,14 @@ function App() {
           <Route path="/in" element={<InPage />} />
           <Route path="/out" element={<OutPage />} />
 
-          {/* 보호 라우트 */}
           <Route element={<ProtectedRoute />}>
           <Route path="/manage" element={<ManageListPage />} />
           <Route path="/manage/:itemId" element={<ManageDetailPage />} />
-          </Route>
 
+         {/* 예전 주소로 들어오면 manage로 보내버리기 (일단 안전하게) */}
+          <Route path="/manage/item/:name" element={<Navigate to="/manage" replace />} />
+          <Route path="/manage-id/:itemId" element={<Navigate to="/manage" replace />} />
+       </Route>
 
           {/* 마이그레이션 */}
           <Route

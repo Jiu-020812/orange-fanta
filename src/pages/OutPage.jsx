@@ -234,13 +234,7 @@ export default function OutPage() {
                 </button>
               )}
 
-              <button
-                type="button"
-                onClick={() => goDetailByItemId(r.itemId)}
-                style={linkBtn}
-              >
-                상세
-              </button>
+            <button onClick={() => navigate(`/manage/${r.itemId}`)}>상세</button>
             </div>
           ))
         )}

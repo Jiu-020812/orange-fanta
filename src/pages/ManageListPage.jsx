@@ -21,8 +21,6 @@ export default function ManageListPage() {
     async function load() {
       try {
         const data = await fetchItems();
-
-        // 서버가 배열을 주는 형태(지금 너 백엔드가 그럼)
         setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
       } catch (err) {
         console.error("ManageListPage 아이템 불러오기 실패:", err);
@@ -34,7 +32,7 @@ export default function ManageListPage() {
 
   const isShoes = activeType === "shoes";
 
-  // ✅ 카테고리로 분리 (서버 enum: SHOE | FOOD)
+  // 카테고리로 분리 (서버 enum: SHOE | FOOD)
   const filteredByCategory = useMemo(() => {
     const cat = isShoes ? "SHOE" : "FOOD";
     return items.filter((it) => (it?.category ?? "SHOE") === cat);
@@ -43,14 +41,12 @@ export default function ManageListPage() {
   /* ----------------------- name 기준 그룹핑 ----------------------- */
   const grouped = useMemo(() => {
     const map = {};
-
     filteredByCategory.forEach((item) => {
       const key = norm(item.name);
       if (!key) return;
       if (!map[key]) map[key] = [];
       map[key].push(item);
     });
-
     return map;
   }, [filteredByCategory]);
 
@@ -62,9 +58,9 @@ export default function ManageListPage() {
     const result = {};
     Object.entries(grouped).forEach(([name, list]) => {
       const nameMatch = name.toLowerCase().includes(keyword);
-
-      // ✅ 서버는 option/flavor가 아니라 size를 씀
-      const optionMatch = list.some((item) => norm(item.size).toLowerCase().includes(keyword));
+      const optionMatch = list.some((item) =>
+        norm(item.size).toLowerCase().includes(keyword)
+      );
 
       if (nameMatch || optionMatch) result[name] = list;
     });
@@ -92,7 +88,6 @@ export default function ManageListPage() {
       if (sortKey === "name") {
         base = nameA.localeCompare(nameB, "ko");
       } else if (sortKey === "count") {
-        // ✅ 옵션 개수(list.length) 기준
         base = listA.length - listB.length;
       } else if (sortKey === "latest") {
         base = getLatestTime(listA) - getLatestTime(listB);
@@ -106,7 +101,8 @@ export default function ManageListPage() {
     sortKey === "name" ? "이름순" : sortKey === "latest" ? "최신순" : "옵션 많은 순";
   const sortIcon = sortOrder === "asc" ? "▲" : "▼";
 
-  const toggleSortOrder = () => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  const toggleSortOrder = () =>
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
 
   const handleSelectSortKey = (key) => {
     setSortKey(key);
@@ -115,9 +111,24 @@ export default function ManageListPage() {
     setIsSortMenuOpen(false);
   };
 
+  /* ✅ name 그룹 → 대표 itemId로 상세 이동 */
+  const goDetailByGroupName = (groupName, list) => {
+    // 대표 item: 이미지 있는 것 우선, 없으면 첫 번째
+    const representative = list.find((i) => i.imageUrl) || list[0];
+    const id = representative?.id;
+
+    if (!id) {
+      alert("이 품목의 itemId를 찾을 수 없어요.");
+      return;
+    }
+    navigate(`/manage/${id}`);
+  };
+
   return (
     <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>물품 관리</h2>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
+        물품 관리
+      </h2>
 
       {/* 타입 선택 */}
       <div
@@ -160,7 +171,14 @@ export default function ManageListPage() {
       </div>
 
       {/* 검색 + 정렬 */}
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         <input
           type="text"
           placeholder="품명 / 옵션(size) 검색"
@@ -210,7 +228,9 @@ export default function ManageListPage() {
                 minWidth: 130,
               }}
             >
-              <div style={{ marginBottom: 6, fontSize: 11, color: "#6b7280" }}>정렬 기준 선택</div>
+              <div style={{ marginBottom: 6, fontSize: 11, color: "#6b7280" }}>
+                정렬 기준 선택
+              </div>
 
               <button
                 type="button"
@@ -241,7 +261,8 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "latest" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "latest" ? "#eff6ff" : "transparent",
                   color: sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -260,7 +281,8 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "count" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "count" ? "#eff6ff" : "transparent",
                   color: sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
@@ -291,7 +313,9 @@ export default function ManageListPage() {
 
       {/* 그룹 목록 */}
       {Object.keys(filteredGroups).length === 0 ? (
-        <div style={{ fontSize: 14, color: "#9ca3af" }}>등록된 물품이 없습니다.</div>
+        <div style={{ fontSize: 14, color: "#9ca3af" }}>
+          등록된 물품이 없습니다.
+        </div>
       ) : (
         <div
           style={{
@@ -301,7 +325,6 @@ export default function ManageListPage() {
           }}
         >
           {sortedGroupEntries.map(([name, list]) => {
-            // ✅ 대표 이미지: 서버는 imageUrl
             const representative = list.find((i) => i.imageUrl) || list[0];
 
             return (
@@ -362,7 +385,7 @@ export default function ManageListPage() {
                     border: "none",
                     cursor: "pointer",
                   }}
-                  onClick={() => navigate(`/manage/item/${encodeURIComponent(name)}`)}
+                  onClick={() => goDetailByGroupName(name, list)}
                 >
                   관리하기
                 </button>

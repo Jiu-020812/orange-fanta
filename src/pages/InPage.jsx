@@ -230,14 +230,7 @@ export default function InPage() {
                   가격 입력
                 </button>
               )}
-
-              <button
-                type="button"
-                onClick={() => goDetailByItemId(r.itemId)}
-                style={linkBtn}
-              >
-                상세
-              </button>
+              <button onClick={() => navigate(`/manage/${r.itemId}`)}>상세</button>
             </div>
           ))
         )}
