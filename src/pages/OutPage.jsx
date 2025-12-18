@@ -102,15 +102,11 @@ export default function OutPage() {
 
         {/*  겹침 방지 레이아웃 */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+
                   {/*  ItemPicker는 wrapper로 폭 제어 + minWidth:0(중요) */}
                   <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
                     <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
                   </div>
-                  
-          {/* ItemPicker는 wrapper로 폭 제어 */}
-          <div style={{ flex: "2 1 260px", minWidth: 240, maxWidth: 420 }}>
-            <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
-          </div>
 
           {/* 수량 고정폭 */}
           <input
