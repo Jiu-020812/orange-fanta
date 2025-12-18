@@ -76,17 +76,15 @@ function App() {
             }
           />
 
-          {/* 입출고 페이지*/}
+          {/* 입출고 페이지 */}
           <Route path="/in" element={<InPage />} />
           <Route path="/out" element={<OutPage />} />
 
-          {/*  품목 상세 (둘 다 추가) */}
-          
-         <Route element={<ProtectedRoute />}>
-         <Route path="/manage" element={<ManageListPage />} />
-         <Route path="/manage/:name" element={<ManageDetailPage />} />
-         <Route path="/manage-id/:itemId" element={<ManageDetailPage />} />
-         </Route>
+          {/* 보호 라우트 */}
+          <Route element={<ProtectedRoute />}>
+          <Route path="/manage" element={<ManageListPage />} />
+          <Route path="/manage/:itemId" element={<ManageDetailPage />} />
+          </Route>
 
 
           {/* 마이그레이션 */}

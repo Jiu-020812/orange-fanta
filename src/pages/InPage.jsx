@@ -12,7 +12,7 @@ export default function InPage() {
 
   // 새 입고 입력
   const [selectedItem, setSelectedItem] = useState(null);
-  const [count, setCount] = useState(1);
+  const [count, setCount] = useState(""); // 문자열로 유지 (010 방지용)
   const [memo, setMemo] = useState("");
 
   // 가격 입력 모달
@@ -22,8 +22,15 @@ export default function InPage() {
   async function loadRecords() {
     setLoading(true);
     try {
-      const list = await getAllRecords({ type: "IN" });
-      setRecords(Array.isArray(list) ? list : []);
+      const data = await getAllRecords({ type: "IN" });
+
+      // getAllRecords가 []를 주든 { ok, records }를 주든 대응
+      const arr = Array.isArray(data) ? data : data?.records;
+      setRecords(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      console.error("loadRecords error:", e);
+      alert(e?.message || "입고 내역을 불러오지 못했어요.");
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -38,46 +45,54 @@ export default function InPage() {
       alert("상품을 선택해주세요");
       return;
     }
-    if (!Number.isFinite(Number(count)) || Number(count) <= 0) {
+
+    const n = Number(count || 0);
+    if (!Number.isFinite(n) || n <= 0) {
       alert("수량을 확인해주세요");
       return;
     }
 
-    await createRecord({
-      itemId: selectedItem.id,
-      count: Number(count),
-      type: "IN",
-      memo: memo || null,
-    });
+    try {
+      await createRecord({
+        itemId: selectedItem.id,
+        count: n, // 
+        type: "IN",
+        memo: memo?.trim() ? memo.trim() : null,
+      });
 
-    setSelectedItem(null);
-    setCount(1);
-    setMemo("");
-    await loadRecords();
+      setSelectedItem(null);
+      setCount(""); // ✅ ""로 초기화 (0 고정값 X)
+      setMemo("");
+      await loadRecords();
+    } catch (e) {
+      console.error("createRecord error:", e);
+      alert(e?.message || "입고 추가에 실패했어요.");
+    }
   }
 
   async function handlePriceSubmit(price) {
     if (!selectedRecord) return;
 
-    await updateRecord({
-      itemId: selectedRecord.itemId,
-      id: selectedRecord.id,
-      price,
-    });
+    try {
+      await updateRecord({
+        itemId: selectedRecord.itemId,
+        id: selectedRecord.id,
+        price,
+      });
 
-    setPriceModalOpen(false);
-    setSelectedRecord(null);
-    await loadRecords();
+      setPriceModalOpen(false);
+      setSelectedRecord(null);
+      await loadRecords();
+    } catch (e) {
+      console.error("updateRecord error:", e);
+      alert(e?.message || "가격 저장에 실패했어요.");
+    }
   }
 
-  function goDetail(r) {
-    const name = r?.item?.name;
-    if (!name) {
-      alert("이 기록에 item name이 없어서 상세로 이동할 수 없어요.");
-      return;
-    }
-    // 상세 라우트
-    navigate(`/manage/item/${encodeURIComponent(name)}`);
+  function goDetailByItemId(itemId) {
+    if (!itemId) return;
+    //  상세 라우트는 itemId 기반으로 통일
+    navigate(`/manage/${itemId}`);
   }
 
   return (
@@ -86,7 +101,7 @@ export default function InPage() {
         📥 입고 관리
       </h2>
 
-      {/*  새 입고 카드 */}
+      {/* 새 입고 카드 */}
       <div
         style={{
           padding: 16,
@@ -100,23 +115,43 @@ export default function InPage() {
           새 입고
         </h3>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {/*  ItemPicker는 wrapper로 폭 제어 + minWidth:0(중요) */}
-          <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* ItemPicker */}
+          <div
+            style={{
+              flex: "1 1 260px",
+              minWidth: 0, // 
+              maxWidth: 380,
+            }}
+          >
             <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
           </div>
 
-           {/* 수량 고정폭 */}
+          {/* 수량 */}
           <input
             type="number"
             inputMode="numeric"
-            placeholder="수량"
+            min={0}
+            placeholder="0"
             value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            style={{ ...inputStyle, width: 120, flex: "0 0 120px" }}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (v === "") return setCount("");
+              v = v.replace(/^0+(?=\d)/, ""); // 
+              setCount(v);
+            }}
+            style={{ ...inputStyle, width: 110 }}
           />
 
-           {/* 메모는 남는 폭 */}
+          {/* 메모 */}
           <input
             placeholder="메모 (선택)"
             value={memo}
@@ -124,7 +159,11 @@ export default function InPage() {
             style={{ ...inputStyle, flex: "1 1 220px", minWidth: 180 }}
           />
 
-          <button onClick={handleCreateIn} style={{ ...primaryBtn, flex: "0 0 auto" }}>
+          <button
+            type="button"
+            onClick={handleCreateIn}
+            style={{ ...primaryBtn, flex: "0 0 auto" }}
+          >
             입고 추가
           </button>
         </div>
@@ -134,7 +173,7 @@ export default function InPage() {
         </div>
       </div>
 
-      {/*  입고 내역 카드 */}
+      {/* 입고 내역 카드 */}
       <div
         style={{
           padding: 16,
@@ -181,23 +220,24 @@ export default function InPage() {
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedRecord(r);
                     setPriceModalOpen(true);
                   }}
                   style={warnBtn}
                 >
-                  입고가 입력
+                  가격 입력
                 </button>
               )}
-              
+
               <button
-               type="button"
-               onClick={() => navigate(`/manage-id/${r.itemId}`)}
-               style={linkBtn}
-            >
+                type="button"
+                onClick={() => goDetailByItemId(r.itemId)}
+                style={linkBtn}
+              >
                 상세
-            </button>
+              </button>
             </div>
           ))
         )}

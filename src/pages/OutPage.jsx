@@ -13,8 +13,8 @@ export default function OutPage() {
   // 상품 선택
   const [selectedItem, setSelectedItem] = useState(null);
 
-  // 출고 입력
-  const [count, setCount] = useState(1);
+  // 출고 입력 (문자열로 관리해서 010/빈칸 문제 방지)
+  const [count, setCount] = useState("");
   const [memo, setMemo] = useState("");
 
   // 가격 입력 모달
@@ -24,8 +24,15 @@ export default function OutPage() {
   async function loadRecords() {
     setLoading(true);
     try {
-      const list = await getAllRecords({ type: "OUT" });
-      setRecords(list);
+      const data = await getAllRecords({ type: "OUT" });
+
+      // [] 또는 { ok, records } 모두 대응
+      const arr = Array.isArray(data) ? data : data?.records;
+      setRecords(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      console.error("loadRecords error:", e);
+      alert(e?.message || "출고 내역을 불러오지 못했어요.");
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -40,44 +47,55 @@ export default function OutPage() {
       alert("상품을 선택해주세요");
       return;
     }
-    if (!Number.isFinite(Number(count)) || Number(count) <= 0) {
+
+    const n = Number(count || 0);
+    if (!Number.isFinite(n) || n <= 0) {
       alert("수량을 확인해주세요");
       return;
     }
 
-    await createRecord({
-      itemId: selectedItem.id,
-      count: Number(count),
-      type: "OUT",
-      memo: memo || null,
-    });
+    try {
+      await createRecord({
+        itemId: selectedItem.id,
+        count: n,
+        type: "OUT",
+        memo: memo?.trim() ? memo.trim() : null,
+      });
 
-    // 초기화
-    setSelectedItem(null);
-    setCount(1);
-    setMemo("");
+      // 초기화
+      setSelectedItem(null);
+      setCount("");
+      setMemo("");
 
-    await loadRecords();
+      await loadRecords();
+    } catch (e) {
+      console.error("createRecord error:", e);
+      alert(e?.message || "출고 처리에 실패했어요.");
+    }
   }
 
   async function handlePriceSubmit(price) {
     if (!selectedRecord) return;
 
-    await updateRecord({
-      itemId: selectedRecord.itemId,
-      id: selectedRecord.id,
-      price,
-    });
-    await loadRecords();
+    try {
+      await updateRecord({
+        itemId: selectedRecord.itemId,
+        id: selectedRecord.id,
+        price,
+      });
+
+      setPriceModalOpen(false);
+      setSelectedRecord(null);
+      await loadRecords();
+    } catch (e) {
+      console.error("updateRecord error:", e);
+      alert(e?.message || "판매가 저장에 실패했어요.");
+    }
   }
 
-  function goDetailByName(r) {
-    const name = r?.item?.name;
-    if (!name) {
-      alert("이 기록에 item name이 없어서 상세로 이동할 수 없어요.");
-      return;
-    }
-    navigate(`/manage/item/${encodeURIComponent(name)}`);
+  function goDetailByItemId(itemId) {
+    if (!itemId) return;
+    navigate(`/manage/${itemId}`); 
   }
 
   return (
@@ -86,7 +104,7 @@ export default function OutPage() {
         📤 출고 관리
       </h2>
 
-      {/*  출고 추가 카드 */}
+      {/* 출고 추가 카드 */}
       <div
         style={{
           padding: 16,
@@ -100,25 +118,43 @@ export default function OutPage() {
           새 출고
         </h3>
 
-        {/*  겹침 방지 레이아웃 */}
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
+          {/* ItemPicker */}
+          <div
+            style={{
+              flex: "1 1 260px",
+              minWidth: 0,
+              maxWidth: 380,
+            }}
+          >
+            <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
+          </div>
 
-                  {/*  ItemPicker는 wrapper로 폭 제어 + minWidth:0(중요) */}
-                  <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
-                    <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
-                  </div>
-
-          {/* 수량 고정폭 */}
+          {/* 수량 (010 방지 + 빈칸 허용) */}
           <input
             type="number"
             inputMode="numeric"
-            placeholder="수량"
+            min={0}
+            placeholder="0"
             value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              let v = e.target.value;
+              if (v === "") return setCount("");
+              v = v.replace(/^0+(?=\d)/, "");
+              setCount(v);
+            }}
             style={{ ...inputStyle, width: 120, flex: "0 0 120px" }}
           />
 
-          {/* 메모는 남는 폭 */}
+          {/* 메모 */}
           <input
             placeholder="메모 (선택)"
             value={memo}
@@ -127,6 +163,7 @@ export default function OutPage() {
           />
 
           <button
+            type="button"
             onClick={handleCreateOut}
             style={{ ...dangerBtn, flex: "0 0 auto" }}
           >
@@ -139,7 +176,7 @@ export default function OutPage() {
         </div>
       </div>
 
-      {/*  출고 내역 카드 */}
+      {/* 출고 내역 카드 */}
       <div
         style={{
           padding: 16,
@@ -186,6 +223,7 @@ export default function OutPage() {
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => {
                     setSelectedRecord(r);
                     setPriceModalOpen(true);
@@ -195,14 +233,14 @@ export default function OutPage() {
                   판매가 입력
                 </button>
               )}
-             <button
-               type="button"
-               onClick={() => navigate(`/manage-id/${r.itemId}`)}
-               style={linkBtn}
-            >
-                상세
-            </button>
 
+              <button
+                type="button"
+                onClick={() => goDetailByItemId(r.itemId)}
+                style={linkBtn}
+              >
+                상세
+              </button>
             </div>
           ))
         )}
@@ -211,7 +249,10 @@ export default function OutPage() {
       <PriceInputModal
         open={priceModalOpen}
         record={selectedRecord}
-        onClose={() => setPriceModalOpen(false)}
+        onClose={() => {
+          setPriceModalOpen(false);
+          setSelectedRecord(null);
+        }}
         onSubmit={handlePriceSubmit}
       />
     </div>

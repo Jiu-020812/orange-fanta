@@ -52,7 +52,6 @@ function toYmd(d) {
 }
 
 function parseRecordsResponse(data) {
-  // 백엔드가 배열로 줄 수도 있고 { ok, records, stock }로 줄 수도 있어서 둘 다 대응
   if (Array.isArray(data)) return { records: data, stock: null };
   if (data && Array.isArray(data.records))
     return { records: data.records, stock: data.stock ?? null };
@@ -61,19 +60,8 @@ function parseRecordsResponse(data) {
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
-  const { name, itemId } = useParams();
-
-  //  /manage/:name 로 들어온 경우
-  const decodedNameFromRoute = name ? decodeURIComponent(name) : "";
-
-  //  /manage-id/:itemId 로 들어온 경우 (이 itemId는 "옵션 item id"라고 보면 됨)
-  const numericItemId = itemId ? Number(itemId) : null;
-
-  //  itemId로 들어와도 품목명을 items에서 찾아서 제목/옵션필터에 반영
-  const [resolvedName, setResolvedName] = useState(decodedNameFromRoute);
-
-  //  최종 품목명
-  const decodedName = resolvedName || decodedNameFromRoute;
+  const { itemId } = useParams();
+  const numericItemId = Number(itemId);
 
   const [items, setItems] = useState([]);
   const [records, setRecords] = useState([]);
@@ -92,7 +80,7 @@ export default function ManageDetailPage() {
 
   // 검색/정렬
   const [searchText, setSearchText] = useState("");
-  const [sortMode, setSortMode] = useState("ASC"); // ASC(oldest) | DESC(latest)
+  const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
   // 출고 폼
   const [outPrice, setOutPrice] = useState("");
@@ -100,7 +88,6 @@ export default function ManageDetailPage() {
   const [outDate, setOutDate] = useState(() => toYmd(new Date()));
   const [outMemo, setOutMemo] = useState("");
 
-  // shoes/foods 구분이 필요하면 여기서 바꿔
   const isShoes = true;
 
   const showToast = (msg) => {
@@ -122,52 +109,46 @@ export default function ManageDetailPage() {
     loadItems();
   }, []);
 
-  /*  itemId로 들어오면: items 로드된 뒤 자동으로 옵션 선택 + 이름 resolve */
-  useEffect(() => {
-    if (!numericItemId) return;
-    if (!items || items.length === 0) return;
+  /* ---------------- 현재 선택 옵션(= item row) ---------------- */
+  const selectedOption = useMemo(() => {
+    if (!selectedOptionId) return null;
+    return items.find((it) => it.id === selectedOptionId) || null;
+  }, [items, selectedOptionId]);
 
-    const found = items.find((it) => it.id === numericItemId);
-    if (found?.name) setResolvedName(found.name);
-    setSelectedOptionId(numericItemId);
-  }, [numericItemId, items]);
-
-  /* ---------------- 옵션 리스트 (품목명 기준 그룹) ---------------- */
+  /* ---------------- 옵션 리스트 (같은 name 묶음) ---------------- */
   const options = useMemo(() => {
-    if (numericItemId) {
-      return items.filter((i) => i.id === numericItemId);
-    }
-    const target = norm(decodedName);
-    return items.filter((i) => norm(i.name) === target);
-  }, [items, decodedName, numericItemId]);
-  
+    const groupName = norm(selectedOption?.name);
+    if (!groupName) return [];
+    return items.filter((i) => norm(i.name) === groupName);
+  }, [items, selectedOption?.name]);
+
   const representativeImageUrl = useMemo(() => {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  const selectedOption =
-    options.find((opt) => opt.id === selectedOptionId) || null;
+  /* ---------------- 초기 selectedOptionId 세팅 ---------------- */
+  useEffect(() => {
+    if (!items || items.length === 0) return;
 
-  const isOptionExists = (value) => {
-    const trimmed = String(value ?? "").trim();
-    if (!trimmed) return false;
-    return options.some((opt) => norm(opt.size) === trimmed);
+    // 1) URL에 itemId가 있고, 그 id가 실제 items에 있으면 그걸 선택
+    if (Number.isFinite(numericItemId) && numericItemId > 0) {
+      const exists = items.some((it) => it.id === numericItemId);
+      if (exists) {
+        setSelectedOptionId(numericItemId);
+        return;
+      }
+    }
+
+    // 2) 아니면 첫 아이템을 기본 선택 (또는 네 정책대로)
+    setSelectedOptionId(items[0].id);
+  }, [items, numericItemId]);
+
+  /* ---------------- 옵션 바꾸면 URL도 같이 맞추기(선택) ---------------- */
+  const handleSelectOption = (nextId) => {
+    setSelectedOptionId(nextId);
+    navigate(`/manage/${nextId}`, { replace: true }); 
   };
 
-  /*  name으로 들어왔는데 옵션 선택이 비어있으면, 첫 옵션 자동 선택 */
-  useEffect(() => {
-    if (numericItemId) return; // itemId 진입이면 위에서 이미 선택함
-    if (!selectedOptionId && options.length > 0) {
-      setSelectedOptionId(options[0].id);
-    }
-  }, [numericItemId, options, selectedOptionId]);
-
-// /manage-id/:itemId 로 들어오면 해당 옵션 자동 선택
-  useEffect(() => {
-    if (numericItemId && items.length > 0) {
-      setSelectedOptionId(numericItemId);
-    }
-  }, [numericItemId, items]);
 
   /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   useEffect(() => {
