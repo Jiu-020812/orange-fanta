@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BarChart,
   Bar,
@@ -17,6 +18,11 @@ import {
 export default function StatsSection({ records, itemName }) {
   const safeRecords = Array.isArray(records) ? records : [];
 
+  //  처음 진입 시 둘 다 보이기
+  const [showPurchase, setShowPurchase] = useState(true);
+  const [showSale, setShowSale] = useState(true);
+
+  /* ---------- utils ---------- */
   const toDateOnly = (d) => {
     try {
       const s = String(d ?? "");
@@ -74,6 +80,7 @@ export default function StatsSection({ records, itemName }) {
     }
   }
 
+  /* ---------- 차트 데이터 ---------- */
   const data = Array.from(map.values())
     .sort((a, b) => (a.dateOnly > b.dateOnly ? 1 : -1))
     .map((d) => ({
@@ -86,6 +93,7 @@ export default function StatsSection({ records, itemName }) {
     (d) => Number.isFinite(d.purchaseUnit) || Number.isFinite(d.saleUnit)
   );
 
+  /* ---------- empty ---------- */
   if (!hasAny) {
     return (
       <div
@@ -100,9 +108,11 @@ export default function StatsSection({ records, itemName }) {
         <h2 style={{ fontSize: 18, fontWeight: 600 }}>
           📊 단가 그래프 {itemName ? `- ${itemName}` : ""}
         </h2>
+
         <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>
           가격이 입력된 입·출고 기록이 없어요.
         </div>
+
         <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
           • 원가 미입력 입고: <b>{missingInQty}</b>개<br />
           • 판매가 미입력 출고: <b>{missingOutQty}</b>개
@@ -111,6 +121,7 @@ export default function StatsSection({ records, itemName }) {
     );
   }
 
+  /* ---------- chart ---------- */
   return (
     <div
       style={{
@@ -130,19 +141,50 @@ export default function StatsSection({ records, itemName }) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="label" />
             <YAxis />
+
             <Tooltip
-              formatter={(v, name) => [
-                Number.isFinite(v) ? `${v.toLocaleString()}원` : "-",
+              formatter={(value, name) => [
+                Number.isFinite(value)
+                  ? `${Number(value).toLocaleString()}원`
+                  : "-",
                 name === "purchaseUnit" ? "매입 단가" : "판매 단가",
               ]}
             />
+
+            {/*  Legend 클릭으로 on/off */}
             <Legend
-              formatter={(v) =>
-                v === "purchaseUnit" ? "매입 단가" : "판매 단가"
-              }
+              onClick={(e) => {
+                if (e.dataKey === "purchaseUnit") {
+                  setShowPurchase((v) => !v || showSale);
+                }
+                if (e.dataKey === "saleUnit") {
+                  setShowSale((v) => !v || showPurchase);
+                }
+              }}
+              formatter={(v) => {
+                if (v === "purchaseUnit")
+                  return showPurchase ? "매입 단가" : "매입 단가 (숨김)";
+                if (v === "saleUnit")
+                  return showSale ? "판매 단가" : "판매 단가 (숨김)";
+                return v;
+              }}
             />
-            <Bar dataKey="purchaseUnit" />
-            <Bar dataKey="saleUnit" />
+
+            {/*  색 분리 */}
+            {showPurchase && (
+              <Bar
+                dataKey="purchaseUnit"
+                fill="#2563eb" // 파랑
+                name="purchaseUnit"
+              />
+            )}
+            {showSale && (
+              <Bar
+                dataKey="saleUnit"
+                fill="#ef4444" // 빨강
+                name="saleUnit"
+              />
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>
