@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
 import PurchaseForm from "../components/PurchaseForm";
 import PurchaseList from "../components/PurchaseList";
@@ -328,9 +328,9 @@ export default function ManageDetailPage() {
     return arr;
   }, [records, effectiveRange, searchText, sortMode]);
 
-  // StatsSection은 “매입 평균”용이니까 IN만 보내는 게 안전
+  // StatsSection??
   const recordsForStats = useMemo(
-    () => filteredRecords.filter((r) => (r.type || "IN") !== "OUT"),
+    () => filteredRecords,
     [filteredRecords]
   );
 

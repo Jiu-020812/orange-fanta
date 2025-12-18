@@ -193,13 +193,14 @@ export default function OutPage() {
                   판매가 입력
                 </button>
               )}
-              <button
-              type="button"
-              onClick={() => navigate(`/manage-id/${r.itemId}`)}
-              style={linkBtn}
+             <button
+               type="button"
+               onClick={() => navigate(`/manage/${encodeURIComponent(r.item?.name || "")}?itemId=${r.itemId}`)}
+               style={linkBtn}
             >
                 상세
             </button>
+
             </div>
           ))
         )}

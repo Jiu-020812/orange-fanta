@@ -105,7 +105,7 @@ export default function InPage() {
           <div style={{ flex: "1 1 260px", minWidth: 220, maxWidth: 380, minWidth: 0 }}>
             <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
           </div>
-          
+
            {/* 수량 고정폭 */}
           <input
             type="number"
@@ -185,13 +185,17 @@ export default function InPage() {
                   }}
                   style={warnBtn}
                 >
-                  원가 입력
+                  입고가 입력
                 </button>
               )}
-
-              <button type="button" onClick={() => goDetail(r)} style={linkBtn}>
+              
+              <button
+               type="button"
+               onClick={() => navigate(`/manage/${encodeURIComponent(r.item?.name || "")}?itemId=${r.itemId}`)}
+               style={linkBtn}
+            >
                 상세
-              </button>
+            </button>
             </div>
           ))
         )}
