@@ -22,8 +22,9 @@ export default function StatsSection({ records, itemName }) {
   const [showPurchase, setShowPurchase] = useState(true);
   const [showSale, setShowSale] = useState(true);
 
-  // 기간 필터: quick + 직접 선택
-  const [mode, setMode] = useState("7"); // "7" | "30" | "90" | "ALL" | "CUSTOM"
+  // ✅ 기간 필터: quick + 직접 선택
+  // ✅ 기본값을 "7" -> "ALL" 로 변경 (전체가 디폴트)
+  const [mode, setMode] = useState("ALL"); // "7" | "30" | "90" | "ALL" | "CUSTOM"
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(() => toYmd(new Date()));
 
@@ -31,7 +32,7 @@ export default function StatsSection({ records, itemName }) {
   useEffect(() => {
     if (mode === "CUSTOM") return;
 
-    const today = toYmd(new Date()); //  항상 YYYY-MM-DD
+    const today = toYmd(new Date()); // 항상 YYYY-MM-DD
 
     if (mode === "ALL") {
       setFrom("");
@@ -111,7 +112,7 @@ export default function StatsSection({ records, itemName }) {
       }
       const row = map.get(dateOnly);
 
-      //  price는 "총액"으로 저장되어 있음 (단가 = 총액/수량)
+      // price는 "총액"으로 저장되어 있음 (단가 = 총액/수량)
       const rawPrice = r.price;
 
       if (type === "IN") {
@@ -188,7 +189,7 @@ export default function StatsSection({ records, itemName }) {
     return `최근 ${mode}일`;
   }, [mode, from, to]);
 
-  //  Tooltip 한글 고정
+  // Tooltip 한글 고정
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload || payload.length === 0) return null;
     return (
@@ -257,7 +258,7 @@ export default function StatsSection({ records, itemName }) {
         </div>
       </div>
 
-      {/* 기간 컨트롤  */}
+      {/* 기간 컨트롤 */}
       <div
         style={{
           marginTop: 10,
@@ -267,27 +268,45 @@ export default function StatsSection({ records, itemName }) {
           alignItems: "center",
         }}
       >
-        <button type="button" onClick={() => setMode("7")} style={pill(mode === "7")}>
+        <button
+          type="button"
+          onClick={() => setMode("7")}
+          style={pill(mode === "7")}
+        >
           최근 7일
         </button>
-        <button type="button" onClick={() => setMode("30")} style={pill(mode === "30")}>
+        <button
+          type="button"
+          onClick={() => setMode("30")}
+          style={pill(mode === "30")}
+        >
           최근 30일
         </button>
-        <button type="button" onClick={() => setMode("90")} style={pill(mode === "90")}>
+        <button
+          type="button"
+          onClick={() => setMode("90")}
+          style={pill(mode === "90")}
+        >
           최근 90일
         </button>
-        <button type="button" onClick={() => setMode("ALL")} style={pill(mode === "ALL")}>
+        <button
+          type="button"
+          onClick={() => setMode("ALL")}
+          style={pill(mode === "ALL")}
+        >
           전체
         </button>
 
-        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>기간:</span>
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
+          기간:
+        </span>
 
         <input
           type="date"
           value={from}
           onChange={(e) => {
             setMode("CUSTOM");
-            setFrom(e.target.value); 
+            setFrom(e.target.value);
           }}
           style={dateInput}
         />
@@ -297,14 +316,21 @@ export default function StatsSection({ records, itemName }) {
           value={to}
           onChange={(e) => {
             setMode("CUSTOM");
-            setTo(e.target.value); 
+            setTo(e.target.value);
           }}
           style={dateInput}
         />
       </div>
 
-      {/* 요약( 기간 바뀌면 같이 바뀜: computed가 mode/from/to에 의존) */}
-      <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>
+      {/* 요약 */}
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 12,
+          color: "#6b7280",
+          lineHeight: 1.6,
+        }}
+      >
         <div>
           • 적용 기간: <b>{periodText}</b>
         </div>
@@ -347,7 +373,7 @@ export default function StatsSection({ records, itemName }) {
         </div>
       </div>
 
-      {/* 차트  */}
+      {/* 차트 */}
       {!computed.hasChartValue ? (
         <div style={{ marginTop: 14, fontSize: 13, color: "#6b7280" }}>
           가격이 입력된 입·출고 기록이 없어요. (가격 입력된 기록만 그래프에 반영)
@@ -357,8 +383,8 @@ export default function StatsSection({ records, itemName }) {
           <ResponsiveContainer>
             <BarChart
               data={computed.data}
-              barSize={10}            
-              barCategoryGap={14}     
+              barSize={10}
+              barCategoryGap={14}
               margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
@@ -366,7 +392,6 @@ export default function StatsSection({ records, itemName }) {
               <YAxis />
 
               <Tooltip content={<CustomTooltip />} />
-              {/*  Bar에 name을 넣어서 Legend 영어 방지 */}
               <Legend />
 
               {effectiveShowPurchase && (
@@ -385,7 +410,7 @@ export default function StatsSection({ records, itemName }) {
 
 /* -------- utils / styles -------- */
 
-//  핵심: date input value는 "" 또는 YYYY-MM-DD만
+// 핵심: date input value는 "" 또는 YYYY-MM-DD만
 function toYmd(v) {
   if (!v) return "";
   const s = String(v);
@@ -414,7 +439,7 @@ const chipBtn = (active) => ({
 });
 
 const pill = (active) => ({
-  padding: "5px 9px", //  줄임
+  padding: "5px 9px",
   borderRadius: 10,
   border: "1px solid " + (active ? "#2563eb" : "#e5e7eb"),
   background: active ? "#2563eb" : "#ffffff",
@@ -425,7 +450,7 @@ const pill = (active) => ({
 });
 
 const dateInput = {
-  height: 28, // 
+  height: 28,
   padding: "0 8px",
   borderRadius: 10,
   border: "1px solid #e5e7eb",
