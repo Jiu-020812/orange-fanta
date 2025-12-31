@@ -65,11 +65,7 @@ export default function ManageDetailPage() {
 
   //  itemId가 이상하면 공백 대신 안내
   if (!Number.isFinite(numericItemId) || numericItemId <= 0) {
-    return (
-      <div style={{ padding: 24 }}>
-        잘못된 접근입니다. (itemId가 없습니다)
-      </div>
-    );
+    return <div style={{ padding: 24 }}>잘못된 접근입니다. (itemId가 없습니다)</div>;
   }
 
   const [items, setItems] = useState([]);
@@ -86,6 +82,11 @@ export default function ManageDetailPage() {
   const [rangeMode, setRangeMode] = useState("ALL"); // ALL | 7 | 30 | 90 | CUSTOM
   const [fromDate, setFromDate] = useState(() => "");
   const [toDate, setToDate] = useState(() => toYmd(new Date()));
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
+  };
 
   /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
   useEffect(() => {
@@ -125,8 +126,8 @@ export default function ManageDetailPage() {
   const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
 
   /*  검색/정렬 상태 — 반드시 필요 */
-const [searchText, setSearchText] = useState("");
-const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
+  const [searchText, setSearchText] = useState("");
+  const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
   /*  최종 품목명 (name 라우팅 제거) */
   const decodedName = selectedOption?.name ?? "";
@@ -196,8 +197,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
-    if (selectedOption && typeof selectedOption.memo === "string")
-      setMemoText(selectedOption.memo);
+    if (selectedOption && typeof selectedOption.memo === "string") setMemoText(selectedOption.memo);
     else setMemoText("");
   }, [selectedOption]);
 
@@ -207,11 +207,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       const updated = await updateServerItem(selectedOption.id, {
         memo: memoText,
       });
-      setItems((prev) =>
-        prev.map((it) =>
-          it.id === selectedOption.id ? { ...it, ...updated } : it
-        )
-      );
+      setItems((prev) => prev.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it)));
       showToast("메모 저장 완료!");
     } catch (err) {
       console.error("메모 서버 저장 실패", err);
@@ -220,8 +216,11 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
   };
 
   /* ---------------- 옵션 추가 ---------------- */
-  const handleAddOption = async ({ value, image }) => {
+  // ⭐ barcode 추가
+  const handleAddOption = async ({ value, image, barcode }) => {
     const trimmed = String(value ?? "").trim();
+    const trimmedBarcode = String(barcode ?? "").trim();
+
     if (!trimmed) return;
 
     if (!decodedName) {
@@ -234,12 +233,22 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       return;
     }
 
+    // ⭐ 바코드 중복 체크(같은 name 옵션들 안에서)
+    if (trimmedBarcode) {
+      const dup = options.some((opt) => String(opt.barcode ?? "").trim() === trimmedBarcode);
+      if (dup) {
+        window.alert("이미 등록된 바코드입니다.");
+        return;
+      }
+    }
+
     try {
       const created = await createItem({
         name: decodedName,
         size: trimmed,
         imageUrl: image || null,
-        category: selectedOption?.category,
+        category: selectedOption?.category, // ⭐ 카테고리 승계(FOOD가 SHOE로 튀는 문제 방지)
+        barcode: trimmedBarcode || null, // ⭐ 추가
       });
 
       setItems((prev) => [...prev, created]);
@@ -255,8 +264,11 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
-    const { id, value, image } = editModal;
+    // ⭐ barcode 포함
+    const { id, value, image, barcode } = editModal;
     const trimmed = String(value ?? "").trim();
+    const trimmedBarcode = String(barcode ?? "").trim();
+
     if (!trimmed) return;
 
     if (options.some((opt) => opt.id !== id && norm(opt.size) === trimmed)) {
@@ -264,15 +276,23 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       return;
     }
 
+    // ⭐ 바코드 중복 체크(같은 name 옵션들 안에서, 자기 자신 제외)
+    if (trimmedBarcode) {
+      const dup = options.some((opt) => opt.id !== id && String(opt.barcode ?? "").trim() === trimmedBarcode);
+      if (dup) {
+        window.alert("이미 등록된 바코드입니다.");
+        return;
+      }
+    }
+
     try {
       const updated = await updateServerItem(id, {
         size: trimmed,
         imageUrl: image || null,
+        barcode: trimmedBarcode || null, // ⭐ 추가
       });
 
-      setItems((prev) =>
-        prev.map((it) => (it.id === id ? { ...it, ...updated } : it))
-      );
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
       setEditModal(null);
       showToast("옵션 수정 완료");
     } catch (err) {
@@ -290,9 +310,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       await deleteServerItem(id);
     } catch (err) {
       console.error("옵션 서버 삭제 실패", err);
-      window.alert(
-        "서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다."
-      );
+      window.alert("서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다.");
     }
 
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -312,9 +330,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       await Promise.all(ids.map((id) => deleteServerItem(id)));
     } catch (err) {
       console.error("품목 전체 삭제 실패", err);
-      window.alert(
-        "서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요."
-      );
+      window.alert("서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요.");
     }
 
     setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
@@ -337,8 +353,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
   /* ======================= 기간 필터 계산 ======================= */
   const effectiveRange = useMemo(() => {
-    if (rangeMode === "CUSTOM")
-      return { from: fromDate || null, to: toDate || null };
+    if (rangeMode === "CUSTOM") return { from: fromDate || null, to: toDate || null };
     if (rangeMode === "ALL") return { from: null, to: null };
 
     const days = Number(rangeMode);
@@ -353,21 +368,13 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
   const filteredRecords = useMemo(() => {
     let arr = Array.isArray(records) ? [...records] : [];
 
-    if (effectiveRange.from)
-      arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
-    if (effectiveRange.to)
-      arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
+    if (effectiveRange.from) arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
+    if (effectiveRange.to) arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
 
     const q = norm(searchText).toLowerCase();
     if (q) {
       arr = arr.filter((r) => {
-        const hay = [
-          r.date,
-          String(r.price ?? ""),
-          String(r.count ?? ""),
-          r.type || "IN",
-          r.memo || "",
-        ]
+        const hay = [r.date, String(r.price ?? ""), String(r.count ?? ""), r.type || "IN", r.memo || ""]
           .join(" ")
           .toLowerCase();
         return hay.includes(q);
@@ -378,13 +385,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       const da = a.date || "";
       const db = b.date || "";
       if (da !== db)
-        return sortMode === "DESC"
-          ? db > da
-            ? 1
-            : -1
-          : da > db
-          ? 1
-          : -1;
+        return sortMode === "DESC" ? (db > da ? 1 : -1) : da > db ? 1 : -1;
       return sortMode === "DESC" ? b.id - a.id : a.id - b.id;
     });
 
@@ -415,14 +416,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
       )}
 
       {/* 상단 헤더 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          marginBottom: 16,
-          gap: 12,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
         <button
           onClick={() => navigate("/manage")}
           style={{
@@ -437,9 +431,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
           ← 뒤로
         </button>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>
-          {decodedName || "(품목)"}
-        </h2>
+        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName || "(품목)"}</h2>
 
         <button
           onClick={handleDeleteItem}
@@ -457,32 +449,16 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
         </button>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)",
-          gap: 24,
-        }}
-      >
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 24 }}>
         {/* 좌측: 옵션 목록 */}
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>
-            옵션 목록
-          </h3>
+          <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>
 
           {options.length === 0 && (
-            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>
-              옵션이 없습니다.
-            </div>
+            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>옵션이 없습니다.</div>
           )}
 
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: 12,
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
             {options.map((opt) => {
               const displayImageUrl = opt.imageUrl || representativeImageUrl;
 
@@ -491,10 +467,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                   key={opt.id}
                   onClick={() => handleSelectOption(opt.id)}
                   style={{
-                    border:
-                      selectedOptionId === opt.id
-                        ? "2px solid #2563eb"
-                        : "1px solid #e5e7eb",
+                    border: selectedOptionId === opt.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
                     borderRadius: 12,
                     padding: 10,
                     cursor: "pointer",
@@ -532,9 +505,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                     </div>
                   )}
 
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>
-                    {opt.size || "(옵션)"}
-                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{opt.size || "(옵션)"}</div>
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
                     <button
@@ -544,6 +515,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                           id: opt.id,
                           value: opt.size ?? "",
                           image: opt.imageUrl ?? "",
+                          barcode: opt.barcode ?? "", // ⭐ 추가
                         });
                       }}
                       style={{
@@ -609,9 +581,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
               >
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
                   현재 재고:{" "}
-                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>
-                    {stock}
-                  </span>
+                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>{stock}</span>
                 </div>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
                   {decodedName} ({selectedOption?.size ?? ""})
@@ -628,13 +598,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                   marginBottom: 12,
                 }}
               >
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 1fr 1fr",
-                    gap: 10,
-                  }}
-                >
+                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 10 }}>
                   <label style={{ fontSize: 12 }}>
                     기간
                     <select
@@ -695,14 +659,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                 </div>
 
                 {rangeMode === "CUSTOM" && (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: 10,
-                      marginTop: 10,
-                    }}
-                  >
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
                     <label style={{ fontSize: 12 }}>
                       시작일
                       <input
@@ -739,10 +696,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                 )}
               </div>
 
-              <StatsSection
-                records={recordsForStats}
-                itemName={`${decodedName} (${selectedOption?.size ?? ""})`}
-              />
+              <StatsSection records={recordsForStats} itemName={`${decodedName} (${selectedOption?.size ?? ""})`} />
 
               {/* 기록 추가 */}
               <div
@@ -754,29 +708,20 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                   backgroundColor: "#ffffff",
                 }}
               >
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>
-                  🧾 기록 추가
-                </div>
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
                   onAddRecord={async (info) => {
                     if (!selectedOptionId) return;
 
-                    const dateValue =
-                      info.date || new Date().toISOString().slice(0, 10);
-                    const countValue =
-                      info.count === "" || info.count == null
-                        ? 1
-                        : Number(info.count);
+                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
 
                     try {
                       const created = await createRecord({
                         itemId: selectedOptionId,
                         type: (info.type || "IN").toUpperCase(),
-                        price:
-                          info.price === "" || info.price == null
-                            ? null
-                            : Number(info.price),
+                        price: info.price === "" || info.price == null ? null : Number(info.price),
                         count: countValue,
                         date: dateValue,
                         memo: info.memo ?? null,
@@ -796,9 +741,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                       showToast("기록 추가 완료");
                     } catch (err) {
                       console.error("백엔드 기록 저장 실패", err);
-                      window.alert(
-                        "서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요."
-                      );
+                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
                     }
                   }}
                 />
@@ -814,9 +757,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
-                    window.alert(
-                      "서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요."
-                    );
+                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
                   }
 
                   showToast("기록 삭제 완료");
@@ -825,14 +766,8 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                   if (!selectedOptionId) return;
 
                   const dateValue = info.date || undefined;
-                  const priceValue =
-                    info.price === "" || info.price == null
-                      ? undefined
-                      : Number(info.price);
-                  const countValue =
-                    info.count === "" || info.count == null
-                      ? undefined
-                      : Number(info.count);
+                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
+                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
 
                   try {
                     const updated = await updateServerRecord({
@@ -852,9 +787,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                               ...r,
                               price: updated?.price ?? (priceValue ?? r.price),
                               count: updated?.count ?? (countValue ?? r.count),
-                              date: String(
-                                updated?.date ?? dateValue ?? r.date ?? ""
-                              ).slice(0, 10),
+                              date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(0, 10),
                               type: String(updated?.type ?? r.type ?? "IN").toUpperCase(),
                               memo: updated?.memo ?? r.memo ?? "",
                             }
@@ -865,9 +798,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                     showToast("기록 수정 완료");
                   } catch (err) {
                     console.error("백엔드 기록 수정 실패", err);
-                    window.alert(
-                      "서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요."
-                    );
+                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
               />
@@ -883,9 +814,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
                   boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
                 }}
               >
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  옵션 메모
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>옵션 메모</div>
 
                 <textarea
                   value={memoText}
@@ -949,6 +878,7 @@ const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 function OptionAddBox({ isShoes, onAdd }) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState("");
+  const [barcode, setBarcode] = useState(""); // ⭐ 추가
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -964,9 +894,10 @@ function OptionAddBox({ isShoes, onAdd }) {
   };
 
   const submit = () => {
-    onAdd({ value, image });
+    onAdd({ value, image, barcode }); // ⭐ barcode 같이 전달
     setValue("");
     setImage("");
+    setBarcode(""); // ⭐ 초기화
   };
 
   return (
@@ -986,6 +917,21 @@ function OptionAddBox({ isShoes, onAdd }) {
         placeholder={isShoes ? "사이즈 (260)" : "옵션"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        style={{
+          width: "100%",
+          marginTop: 8,
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #d1d5db",
+        }}
+      />
+
+      {/* ⭐ 바코드 입력 추가 */}
+      <input
+        type="text"
+        placeholder="바코드(선택)"
+        value={barcode}
+        onChange={(e) => setBarcode(e.target.value)}
         style={{
           width: "100%",
           marginTop: 8,
@@ -1031,7 +977,7 @@ function OptionAddBox({ isShoes, onAdd }) {
 
 /* ======================= 옵션 수정 모달 ======================= */
 function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
-  const { id, value, image } = editModal;
+  const { id, value, image, barcode } = editModal; // ⭐ barcode 추가
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -1039,7 +985,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 
     try {
       const compressed = await compressImage(file, 900, 900, 0.75);
-      setEditModal({ id, value, image: compressed });
+      setEditModal({ id, value, image: compressed, barcode }); // ⭐ barcode 유지
     } catch (err) {
       console.error("이미지 압축 실패", err);
       alert("이미지 처리 중 오류가 발생했어요 😢");
@@ -1062,7 +1008,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
         <input
           type="text"
           value={value}
-          onChange={(e) => setEditModal({ id, value: e.target.value, image })}
+          onChange={(e) => setEditModal({ id, value: e.target.value, image, barcode })}
           style={{
             width: "100%",
             marginTop: 14,
@@ -1073,12 +1019,22 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           placeholder={isShoes ? "사이즈" : "옵션"}
         />
 
+        {/* ⭐ 바코드 수정 입력 */}
         <input
-          type="file"
-          accept="image/*"
-          onChange={handleImage}
-          style={{ marginTop: 8 }}
+          type="text"
+          value={barcode ?? ""}
+          onChange={(e) => setEditModal({ id, value, image, barcode: e.target.value })}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+          }}
+          placeholder="바코드(선택)"
         />
+
+        <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />
 
         {image && (
           <img
@@ -1094,14 +1050,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           />
         )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={() => setEditModal(null)}
             style={{
@@ -1150,14 +1099,7 @@ function ConfirmModal({ message, onCancel, onConfirm }) {
       >
         <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 18,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
           <button
             onClick={onCancel}
             style={{
