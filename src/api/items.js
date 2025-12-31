@@ -44,11 +44,13 @@ function unwrapObject(data) {
 
 // ======================= Items =======================
 
-// GET /api/items
-export async function getItems() {
-  const res = await api.get("/api/items");
+// GET /api/items?category=SHOE|FOOD
+export async function getItems(category) {
+  const params = category ? { params: { category } } : undefined;
+  const res = await api.get("/api/items", params);
   return unwrapArray(res.data);
 }
+
 
 // POST /api/items  
 export async function createItem({

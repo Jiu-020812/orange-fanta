@@ -18,26 +18,23 @@ export default function ManageListPage() {
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
   /* ----------------------- 서버 데이터 로드 ----------------------- */
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await fetchItems();
-        setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
-      } catch (err) {
-        console.error("ManageListPage 아이템 불러오기 실패:", err);
-        setItems([]);
-      }
+  const isShoes = activeType === "shoes"; 
+
+useEffect(() => {
+  async function load() {
+    try {
+      const category = isShoes ? "SHOE" : "FOOD";
+      const data = await fetchItems(category); // 서버 필터
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("ManageListPage 아이템 불러오기 실패:", err);
+      setItems([]);
     }
-    load();
-  }, []);
+  }
 
-  const isShoes = activeType === "shoes";
+  load();
+}, [isShoes]); //  탭 바뀌면 다시 요청
 
-  // 카테고리로 분리 (서버 enum: SHOE | FOOD)
-  const filteredByCategory = useMemo(() => {
-    const cat = isShoes ? "SHOE" : "FOOD";
-    return items.filter((it) => (it?.category ?? "SHOE") === cat);
-  }, [items, isShoes]);
 
   /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
   const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
