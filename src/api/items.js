@@ -89,6 +89,15 @@ export async function createItem({
   return unwrapObject(res.data);
 }
 
+// POST /api/categories  body: { name, sortOrder? }
+export async function createCategory({ name, sortOrder }) {
+  const res = await api.post("/api/categories", {
+    name: String(name ?? "").trim(),
+    ...(sortOrder != null ? { sortOrder: Number(sortOrder) } : {}),
+  });
+  return res.data;
+}
+
 // PUT /api/items/:id  (barcode/categoryId 수정 가능)
 export async function updateItem(id, patch) {
   const numericId = safeNumber(id);

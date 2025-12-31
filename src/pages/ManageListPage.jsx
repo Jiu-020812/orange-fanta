@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getItems as fetchItems, getCategories } from "../api/items";
+import {
+  getItems as fetchItems,
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+} from "../api/items";
 import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
@@ -19,36 +25,49 @@ export default function ManageListPage() {
   const [sortOrder, setSortOrder] = useState("asc"); // asc | desc
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
-  /* ----------------------- 카테고리 로드 ----------------------- */
-  useEffect(() => {
-    let mounted = true;
+  // 카테고리 메뉴(⋯) 상태
+  const [catMenu, setCatMenu] = useState(null); // { id, x, y } | null
+  const menuRef = useRef(null);
 
-    async function loadCategories() {
-      try {
-        const cats = await getCategories();
-        const safeCats = Array.isArray(cats) ? cats : [];
-        if (!mounted) return;
+  // 모달 상태
+  const [renameModal, setRenameModal] = useState(null); // { id, name }
+  const [deleteModal, setDeleteModal] = useState(null); // { id, name }
 
-        setCategories(safeCats);
+  /* ----------------------- 공통: 카테고리 재로딩 ----------------------- */
+  const reloadCategories = async (preferId = null) => {
+    try {
+      const cats = await getCategories();
+      const safe = Array.isArray(cats) ? cats : [];
+      setCategories(safe);
 
-        // 첫 카테고리 자동 선택
-        if (safeCats.length > 0) {
-          setActiveCategoryId((prev) => prev ?? safeCats[0].id);
-        } else {
-          setActiveCategoryId(null);
-        }
-      } catch (err) {
-        console.error("ManageListPage 카테고리 불러오기 실패:", err);
-        if (!mounted) return;
-        setCategories([]);
-        setActiveCategoryId(null);
-      }
+      setActiveCategoryId((prev) => {
+        if (safe.length === 0) return null;
+
+        // 1) preferId 우선
+        if (preferId && safe.some((c) => c.id === preferId)) return preferId;
+
+        // 2) 기존 선택 유지
+        const still = prev && safe.some((c) => c.id === prev);
+        if (still) return prev;
+
+        // 3) 미분류 우선 (있으면)
+        const unc = safe.find((c) => c.name === "미분류");
+        if (unc) return unc.id;
+
+        // 4) 아니면 첫번째
+        return safe[0].id;
+      });
+    } catch (err) {
+      console.error("카테고리 불러오기 실패:", err);
+      setCategories([]);
+      setActiveCategoryId(null);
     }
+  };
 
-    loadCategories();
-    return () => {
-      mounted = false;
-    };
+  /* ----------------------- 초기 카테고리 로드 ----------------------- */
+  useEffect(() => {
+    reloadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ----------------------- 아이템 로드 (선택된 카테고리) ----------------------- */
@@ -61,11 +80,11 @@ export default function ManageListPage() {
           if (mounted) setItems([]);
           return;
         }
-        const data = await fetchItems(activeCategoryId); //  categoryId로 서버 필터
+        const data = await fetchItems(activeCategoryId);
         if (!mounted) return;
         setItems(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("ManageListPage 아이템 불러오기 실패:", err);
+        console.error("아이템 불러오기 실패:", err);
         if (!mounted) return;
         setItems([]);
       }
@@ -77,14 +96,62 @@ export default function ManageListPage() {
     };
   }, [activeCategoryId]);
 
-  /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
+  /* ----------------------- 바코드 스캔(검색창 포커스일 때만) ----------------------- */
   const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
-    items, // 현재 선택된 카테고리 아이템만
+    items,
     navigate,
     buildUrl: (id) => `/manage/${id}`,
     minLength: 6,
     idleMs: 120,
   });
+
+  /* ----------------------- 카테고리 추가 ----------------------- */
+  const handleAddCategory = async () => {
+    const name = window.prompt("새 카테고리 이름을 입력해줘 (예: 신발 / 식품)");
+    const trimmed = norm(name);
+    if (!trimmed) return;
+
+    try {
+      const created = await createCategory({ name: trimmed });
+      // UX: 생성 즉시 탭에 반영 + 선택
+      setCategories((prev) => [...prev, created]);
+      setActiveCategoryId(created.id);
+    } catch (err) {
+      console.error("카테고리 생성 실패:", err);
+      const msg = String(err?.response?.data?.message || err?.message || "");
+      if (msg.includes("duplicate")) alert("이미 같은 이름의 카테고리가 있어!");
+      else alert("카테고리 추가 실패 😢");
+    }
+  };
+
+  /* ----------------------- 카테고리 메뉴 열기 ----------------------- */
+  const openCategoryMenu = (e, id) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setCatMenu({
+      id,
+      x: rect.left,
+      y: rect.bottom + 6,
+    });
+  };
+
+  /* ----------------------- 메뉴 바깥 클릭 닫기 ----------------------- */
+  useEffect(() => {
+    if (!catMenu) return;
+    const onDoc = (e) => {
+      const el = menuRef.current;
+      if (!el) return;
+      if (!el.contains(e.target)) setCatMenu(null);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [catMenu]);
+
+  const activeCategoryName = useMemo(() => {
+    const c = categories.find((x) => x.id === activeCategoryId);
+    return c?.name ?? "";
+  }, [categories, activeCategoryId]);
 
   /* ----------------------- name 기준 그룹핑 ----------------------- */
   const grouped = useMemo(() => {
@@ -98,7 +165,7 @@ export default function ManageListPage() {
     return map;
   }, [items]);
 
-  /* ----------------------- 검색 (이름 + 옵션(size) + 바코드(barcode)) ----------------------- */
+  /* ----------------------- 검색(이름 + 옵션 + 바코드) ----------------------- */
   const filteredGroups = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
     if (!keyword) return grouped;
@@ -138,13 +205,9 @@ export default function ManageListPage() {
     return entries.sort(([nameA, listA], [nameB, listB]) => {
       let base = 0;
 
-      if (sortKey === "name") {
-        base = nameA.localeCompare(nameB, "ko");
-      } else if (sortKey === "count") {
-        base = listA.length - listB.length;
-      } else if (sortKey === "latest") {
-        base = getLatestTime(listA) - getLatestTime(listB);
-      }
+      if (sortKey === "name") base = nameA.localeCompare(nameB, "ko");
+      else if (sortKey === "count") base = listA.length - listB.length;
+      else if (sortKey === "latest") base = getLatestTime(listA) - getLatestTime(listB);
 
       return sortOrder === "asc" ? base : -base;
     });
@@ -164,7 +227,7 @@ export default function ManageListPage() {
     setIsSortMenuOpen(false);
   };
 
-  /*  name 그룹 → 대표 itemId로 상세 이동 */
+  /* name 그룹 → 대표 itemId로 상세 이동 */
   const goDetailByGroupName = (groupName, list) => {
     const representative = list.find((i) => i.imageUrl) || list[0];
     const id = representative?.id;
@@ -176,57 +239,213 @@ export default function ManageListPage() {
     navigate(`/manage/${id}`);
   };
 
-  const activeCategoryName = useMemo(() => {
-    const c = categories.find((x) => x.id === activeCategoryId);
-    return c?.name ?? "";
-  }, [categories, activeCategoryId]);
+  /* ----------------------- 카테고리 이름 변경 ----------------------- */
+  const openRename = (id) => {
+    const cat = categories.find((c) => c.id === id);
+    if (!cat) return;
+    setRenameModal({ id: cat.id, name: cat.name });
+    setCatMenu(null);
+  };
+
+  const submitRename = async () => {
+    if (!renameModal) return;
+    const id = renameModal.id;
+    const nextName = norm(renameModal.name);
+    if (!nextName) return alert("이름을 입력해줘!");
+
+    try {
+      const updated = await updateCategory(id, { name: nextName });
+      setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, ...updated } : c)));
+      setRenameModal(null);
+    } catch (err) {
+      console.error("카테고리 이름 변경 실패:", err);
+      const msg = String(err?.response?.data?.message || err?.message || "");
+      if (msg.includes("duplicate")) alert("이미 같은 이름의 카테고리가 있어!");
+      else alert("이름 변경 실패 😢");
+    }
+  };
+
+  /* ----------------------- 카테고리 삭제 ----------------------- */
+  const openDelete = (id) => {
+    const cat = categories.find((c) => c.id === id);
+    if (!cat) return;
+    setDeleteModal({ id: cat.id, name: cat.name });
+    setCatMenu(null);
+  };
+
+  const submitDelete = async () => {
+    if (!deleteModal) return;
+    const id = deleteModal.id;
+
+    // UX: 미분류는 백엔드에서 막고 있는데, 프론트도 미리 막기
+    if (deleteModal.name === "미분류") {
+      alert("미분류는 삭제할 수 없어!");
+      return;
+    }
+
+    try {
+      await deleteCategory(id);
+
+      // 삭제 UX:
+      // 1) 카테고리 목록 새로고침
+      // 2) 현재 선택 카테고리였다면 '미분류' 또는 첫 카테고리로 자동 이동
+      const wasActive = activeCategoryId === id;
+
+      setDeleteModal(null);
+
+      // reload 후 선택 우선순위는 reloadCategories 안에서 처리
+      await reloadCategories(wasActive ? null : activeCategoryId);
+
+      // 3) 아이템도 재로딩: (activeCategoryId가 reload에서 바뀌면 useEffect로 알아서 로드됨)
+      //    근데 wasActive가 아니면 화면상 탭 유지되니, 그냥 놔둬도 됨
+      if (!wasActive) {
+        // 현재 탭의 아이템을 다시 한번 로딩해서 "미분류로 이동된" 게 있으면 반영되게
+        const data = await fetchItems(activeCategoryId);
+        setItems(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("카테고리 삭제 실패:", err);
+      const msg = String(err?.response?.data?.message || err?.message || "");
+      alert(msg || "카테고리 삭제 실패 😢");
+    }
+  };
 
   return (
     <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
+      {/* 상단 타이틀 */}
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
         물품 관리 {activeCategoryName ? `· ${activeCategoryName}` : ""}
       </h2>
 
-      {/* 카테고리 탭 */}
+      {/* 카테고리 탭 + +버튼 */}
       <div
         style={{
-          display: "inline-flex",
-          borderRadius: 999,
-          backgroundColor: "#f3f4f6",
-          padding: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
           marginBottom: 20,
-          gap: 6,
           flexWrap: "wrap",
         }}
       >
-        {categories.length === 0 ? (
-          <div style={{ padding: "6px 12px", fontSize: 13, color: "#6b7280" }}>
-            카테고리가 없습니다. (먼저 카테고리를 추가해줘!)
-          </div>
-        ) : (
-          categories.map((c) => {
-            const isActive = c.id === activeCategoryId;
-            return (
-              <button
-                key={c.id}
-                onClick={() => setActiveCategoryId(c.id)}
-                style={{
-                  border: "none",
-                  borderRadius: 999,
-                  padding: "6px 16px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  backgroundColor: isActive ? "#2563eb" : "transparent",
-                  color: isActive ? "#ffffff" : "#374151",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {c.name}
-              </button>
-            );
-          })
-        )}
+        <div
+          style={{
+            display: "inline-flex",
+            borderRadius: 999,
+            backgroundColor: "#f3f4f6",
+            padding: 4,
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          {categories.length === 0 ? (
+            <div style={{ padding: "6px 12px", fontSize: 13, color: "#6b7280" }}>
+              카테고리가 없습니다. (오른쪽 + 로 추가해줘!)
+            </div>
+          ) : (
+            categories.map((c) => {
+              const isActive = c.id === activeCategoryId;
+              return (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    onClick={() => setActiveCategoryId(c.id)}
+                    style={{
+                      border: "none",
+                      borderRadius: 999,
+                      padding: "6px 14px",
+                      fontSize: 13,
+                      cursor: "pointer",
+                      backgroundColor: isActive ? "#2563eb" : "transparent",
+                      color: isActive ? "#ffffff" : "#374151",
+                      whiteSpace: "nowrap",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {c.name}
+                    <span
+                      onClick={(e) => openCategoryMenu(e, c.id)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                        opacity: isActive ? 0.95 : 0.6,
+                        background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)",
+                        color: isActive ? "#fff" : "#374151",
+                      }}
+                      title="카테고리 설정"
+                    >
+                      ⋯
+                    </span>
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* 예쁜 + 버튼 */}
+        <button
+          onClick={handleAddCategory}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 12,
+            border: "1px solid #2563eb",
+            backgroundColor: "#eff6ff",
+            color: "#1d4ed8",
+            fontSize: 18,
+            fontWeight: 900,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          title="카테고리 추가"
+        >
+          +
+        </button>
       </div>
+
+      {/* 카테고리 메뉴(⋯) */}
+      {catMenu && (
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            left: catMenu.x,
+            top: catMenu.y,
+            padding: 8,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#ffffff",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+            fontSize: 12,
+            zIndex: 999,
+            minWidth: 150,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => openRename(catMenu.id)}
+            style={menuBtnStyle()}
+          >
+            ✏️ 이름 변경
+          </button>
+          <button
+            type="button"
+            onClick={() => openDelete(catMenu.id)}
+            style={menuBtnStyle({ danger: true })}
+          >
+            🗑️ 삭제
+          </button>
+        </div>
+      )}
 
       {/* 검색 + 정렬 */}
       <div
@@ -291,62 +510,13 @@ export default function ManageListPage() {
                 정렬 기준 선택
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleSelectSortKey("name")}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "6px 8px",
-                  textAlign: "left",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor:
-                    sortKey === "name" ? "#eff6ff" : "transparent",
-                  color: sortKey === "name" ? "#1d4ed8" : "#374151",
-                  cursor: "pointer",
-                  marginBottom: 2,
-                }}
-              >
+              <button type="button" onClick={() => handleSelectSortKey("name")} style={sortBtnStyle(sortKey === "name")}>
                 이름 순
               </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectSortKey("latest")}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "6px 8px",
-                  textAlign: "left",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor:
-                    sortKey === "latest" ? "#eff6ff" : "transparent",
-                  color: sortKey === "latest" ? "#1d4ed8" : "#374151",
-                  cursor: "pointer",
-                  marginBottom: 2,
-                }}
-              >
+              <button type="button" onClick={() => handleSelectSortKey("latest")} style={sortBtnStyle(sortKey === "latest")}>
                 최신 순
               </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectSortKey("count")}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "6px 8px",
-                  textAlign: "left",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor:
-                    sortKey === "count" ? "#eff6ff" : "transparent",
-                  color: sortKey === "count" ? "#1d4ed8" : "#374151",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" onClick={() => handleSelectSortKey("count")} style={sortBtnStyle(sortKey === "count")}>
                 옵션 많은 순
               </button>
             </div>
@@ -355,7 +525,7 @@ export default function ManageListPage() {
 
         <button
           type="button"
-          onClick={toggleSortOrder}
+          onClick={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
           style={{
             padding: "7px 10px",
             borderRadius: 999,
@@ -366,6 +536,7 @@ export default function ManageListPage() {
             fontWeight: 700,
             cursor: "pointer",
           }}
+          title="오름/내림차순"
         >
           {sortIcon}
         </button>
@@ -454,6 +625,151 @@ export default function ManageListPage() {
           })}
         </div>
       )}
+
+      {/* 이름변경 모달 */}
+      {renameModal && (
+        <ModalContainer>
+          <div style={modalCardStyle()}>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 10 }}>
+              카테고리 이름 변경
+            </div>
+
+            <input
+              value={renameModal.name}
+              onChange={(e) => setRenameModal((p) => ({ ...p, name: e.target.value }))}
+              placeholder="새 이름"
+              style={modalInputStyle()}
+            />
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button onClick={() => setRenameModal(null)} style={modalBtnStyle()}>
+                취소
+              </button>
+              <button onClick={submitRename} style={modalBtnStyle({ primary: true })}>
+                저장
+              </button>
+            </div>
+          </div>
+        </ModalContainer>
+      )}
+
+      {/* 삭제 모달 */}
+      {deleteModal && (
+        <ModalContainer>
+          <div style={modalCardStyle()}>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 8 }}>
+              카테고리 삭제
+            </div>
+
+            <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+              <div>
+                <b>{deleteModal.name}</b> 카테고리를 삭제할까요?
+              </div>
+              <div style={{ marginTop: 6, color: "#6b7280" }}>
+                삭제해도 아이템은 사라지지 않고 <b>“미분류”</b>로 자동 이동합니다.
+              </div>
+              <div style={{ marginTop: 6, color: "#dc2626", fontWeight: 700 }}>
+                (미분류 카테고리는 삭제할 수 없어요)
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button onClick={() => setDeleteModal(null)} style={modalBtnStyle()}>
+                취소
+              </button>
+              <button onClick={submitDelete} style={modalBtnStyle({ danger: true })}>
+                삭제
+              </button>
+            </div>
+          </div>
+        </ModalContainer>
+      )}
     </div>
   );
+}
+
+/* ----------------------- UI Helpers ----------------------- */
+function menuBtnStyle({ danger } = {}) {
+  return {
+    display: "block",
+    width: "100%",
+    padding: "8px 10px",
+    borderRadius: 10,
+    border: "none",
+    backgroundColor: danger ? "#fee2e2" : "#f3f4f6",
+    color: danger ? "#991b1b" : "#111827",
+    cursor: "pointer",
+    textAlign: "left",
+    fontWeight: 700,
+    marginBottom: 6,
+  };
+}
+
+function sortBtnStyle(active) {
+  return {
+    display: "block",
+    width: "100%",
+    padding: "6px 8px",
+    textAlign: "left",
+    borderRadius: 8,
+    border: "none",
+    backgroundColor: active ? "#eff6ff" : "transparent",
+    color: active ? "#1d4ed8" : "#374151",
+    cursor: "pointer",
+    marginBottom: 2,
+  };
+}
+
+function ModalContainer({ children }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        backgroundColor: "rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 16,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function modalCardStyle() {
+  return {
+    width: "100%",
+    maxWidth: 420,
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 18,
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+  };
+}
+
+function modalInputStyle() {
+  return {
+    width: "100%",
+    height: 38,
+    padding: "0 12px",
+    borderRadius: 10,
+    border: "1px solid #d1d5db",
+    fontSize: 14,
+  };
+}
+
+function modalBtnStyle({ primary, danger } = {}) {
+  return {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: "none",
+    cursor: "pointer",
+    fontWeight: 800,
+    backgroundColor: primary ? "#2563eb" : danger ? "#dc2626" : "#f3f4f6",
+    color: primary || danger ? "#fff" : "#111827",
+  };
 }
