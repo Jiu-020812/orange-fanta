@@ -87,17 +87,6 @@ export default function ManageDetailPage() {
   const [fromDate, setFromDate] = useState(() => "");
   const [toDate, setToDate] = useState(() => toYmd(new Date()));
 
-  // 검색/정렬
-  const [searchText, setSearchText] = useState("");
-  const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
-
-  const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2000);
-  };
-
   /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
   useEffect(() => {
     async function loadItems() {
@@ -132,6 +121,8 @@ export default function ManageDetailPage() {
     if (!selectedOptionId) return null;
     return items.find((it) => it.id === selectedOptionId) || null;
   }, [items, selectedOptionId]);
+
+  const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
 
   /*  최종 품목명 (name 라우팅 제거) */
   const decodedName = selectedOption?.name ?? "";
@@ -244,7 +235,7 @@ export default function ManageDetailPage() {
         name: decodedName,
         size: trimmed,
         imageUrl: image || null,
-        category: selectedOption?.category ?? "FOOD",
+        category: selectedOption?.category,
       });
 
       setItems((prev) => [...prev, created]);
