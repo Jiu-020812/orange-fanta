@@ -54,10 +54,21 @@ export async function getCategories() {
 
 // GET /api/items?categoryId=123
 export async function getItems(categoryId) {
-  const cid = safeNumber(categoryId, null);
-  const params = cid ? { params: { categoryId: cid } } : undefined;
+  const cid = Number(categoryId);
+  const params =
+    Number.isFinite(cid) && cid > 0 ? { params: { categoryId: cid } } : undefined;
+
   const res = await api.get("/api/items", params);
   return unwrapArray(res.data);
+}
+
+// GET /api/items/:itemId/records  (v2 detail)
+export async function getItemDetail(itemId) {
+  const numericItemId = safeNumber(itemId);
+  if (!numericItemId) throw new Error("getItemDetail: invalid itemId");
+
+  const res = await api.get(`/api/items/${numericItemId}/records`);
+  return res.data; // { ok:true, item, records, stock, timing }
 }
 
 // POST /api/items  body: { name, size, categoryId, barcode?, imageUrl? }

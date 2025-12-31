@@ -5,11 +5,11 @@ import PurchaseForm from "../components/PurchaseForm";
 import PurchaseList from "../components/PurchaseList";
 import {
   getItems as fetchItems,
+  getItemDetail,
   createItem,
   updateItem as updateServerItem,
   createRecord,
   updateRecord as updateServerRecord,
-  getRecords as fetchRecords,
   deleteRecord as deleteServerRecord,
   deleteItem as deleteServerItem,
 } from "../api/items";
@@ -96,32 +96,70 @@ export default function ManageDetailPage() {
 
   /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
   useEffect(() => {
-    async function loadItems() {
+    let alive = true;
+  
+    async function boot() {
       try {
-        const data = await fetchItems();
-        const list = Array.isArray(data) ? data : data?.items ?? [];
-        setItems(list);
+        // 1) 현재 item + records + stock (v2 API)
+        const detail = await getItemDetail(numericItemId); 
+        // detail: { ok:true, item, records, stock }
+  
+        const itemFromApi = detail?.item ?? null;
+        const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+        const stockFromApi = detail?.stock ?? null;
+  
+        if (!alive) return;
+  
+        // selectedOptionId는 URL itemId로 고정
+        setSelectedOptionId(numericItemId);
+  
+        // records 세팅
+        setRecords(
+          rawRecords.map((rec) => ({
+            id: rec.id,
+            itemId: rec.itemId,
+            type: (rec.type || "IN").toUpperCase(),
+            price: rec.price,
+            count: rec.count,
+            date: String(rec.date || "").slice(0, 10),
+            memo: rec.memo ?? "",
+          }))
+        );
+  
+        // item이 없으면 404 등
+        if (!itemFromApi?.id) {
+          // item not found면 /manage로 보내도 됨
+          return;
+        }
+  
+        // 2) 같은 categoryId의 items만 불러오기 (카테고리 섞임 방지 핵심)
+        const catId = itemFromApi.categoryId;
+        const list = await fetchItems(catId);
+  
+        if (!alive) return;
+  
+        // items에 "현재 item" 정보(categoryId 포함)가 확실히 들어가도록 merge
+        const safeList = Array.isArray(list) ? list : [];
+        const merged = (() => {
+          const map = new Map(safeList.map((x) => [x.id, x]));
+          map.set(itemFromApi.id, { ...(map.get(itemFromApi.id) || {}), ...itemFromApi });
+          return Array.from(map.values());
+        })();
+  
+        setItems(merged);
       } catch (err) {
-        console.error("아이템 불러오기 오류:", err);
+        console.error("detail boot failed:", err);
+        if (!alive) return;
+        setItems([]);
+        setRecords([]);
       }
     }
-    loadItems();
-  }, []);
-
-  /* ---------------- 초기 selectedOptionId 세팅 ---------------- */
-  useEffect(() => {
-    if (!items || items.length === 0) return;
-
-    // URL itemId가 실제로 있으면 그걸 선택
-    const exists = items.some((it) => it.id === numericItemId);
-    if (exists) {
-      setSelectedOptionId(numericItemId);
-      return;
-    }
-
-    // 없으면 첫 아이템 선택 (혹은 /manage로 돌려도 됨)
-    setSelectedOptionId(items[0].id);
-  }, [items, numericItemId]);
+  
+    boot();
+    return () => {
+      alive = false;
+    };
+  }, [numericItemId]);
 
   /* ---------------- 현재 선택 옵션(= item row) ---------------- */
   const selectedOption = useMemo(() => {
@@ -161,60 +199,40 @@ export default function ManageDetailPage() {
     if (!trimmed) return false;
     return options.some((opt) => norm(opt.size) === trimmed);
   };
-
-  /* ---------------- 옵션 바꾸면 URL도 같이 맞추기 ---------------- */
-  const handleSelectOption = (nextId) => {
+  
+  /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
+  const handleSelectOption = async (nextId) => {
     setSelectedOptionId(nextId);
     navigate(`/manage/${nextId}`, { replace: true });
-  };
-
-  /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
-  useEffect(() => {
-    if (!selectedOptionId) {
-      setRecords([]);
-      return;
-    }
-
-    let alive = true;
-
-    async function loadRecords() {
-      try {
-        const data = await fetchRecords(selectedOptionId);
-        const { records: raw } = parseRecordsResponse(data);
-
-        //  categoryId를 items에 반영(없으면 유지)
-       if (itemFromApi?.id) {
+  
+    try {
+      const detail = await getItemDetail(nextId);
+      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+      setRecords(
+        rawRecords.map((rec) => ({
+          id: rec.id,
+          itemId: rec.itemId,
+          type: (rec.type || "IN").toUpperCase(),
+          price: rec.price,
+          count: rec.count,
+          date: String(rec.date || "").slice(0, 10),
+          memo: rec.memo ?? "",
+        }))
+      );
+  
+      // item 정보도 반영
+      const itemFromApi = detail?.item ?? null;
+      if (itemFromApi?.id) {
         setItems((prev) =>
-           prev.map((it) =>
-             it.id === itemFromApi.id ? { ...it, categoryId: itemFromApi.categoryId } : it
-           )
-         );
-       }
-
-        const normalized = Array.isArray(raw)
-          ? raw.map((rec) => ({
-              id: rec.id,
-              itemId: rec.itemId,
-              type: (rec.type || "IN").toUpperCase(),
-              price: rec.price,
-              count: rec.count,
-              date: String(rec.date || "").slice(0, 10),
-              memo: rec.memo ?? "",
-            }))
-          : [];
-
-        if (alive) setRecords(normalized);
-      } catch (err) {
-        console.error("기록 불러오기 실패:", err);
-        if (alive) setRecords([]);
+          prev.map((it) => (it.id === itemFromApi.id ? { ...it, ...itemFromApi } : it))
+        );
       }
+    } catch (err) {
+      console.error("option detail load failed:", err);
+      setRecords([]);
     }
-
-    loadRecords();
-    return () => {
-      alive = false;
-    };
-  }, [selectedOptionId]);
+  };
+  
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
