@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getItems as fetchItems } from "../api/items";
-import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
 
@@ -36,13 +35,6 @@ export default function ManageListPage() {
     }
     load();
   }, []);
-
-  /* ===================== 바코드 입력 → 자동 이동 ===================== */
-  const barcodeNav = useBarcodeInputNavigate({
-    items,
-    navigate,
-    minLength: 8, // EAN-13이면 13으로 조절 가능
-  });
 
   const isShoes = activeType === "shoes";
 
@@ -125,7 +117,7 @@ export default function ManageListPage() {
     setIsSortMenuOpen(false);
   };
 
-  /* ----------------------- 그룹 → 대표 itemId 이동 ----------------------- */
+  /*  name 그룹 → 대표 itemId로 상세 이동 */
   const goDetailByGroupName = (groupName, list) => {
     const representative = list.find((i) => i.imageUrl) || list[0];
     const id = representative?.id;
@@ -135,6 +127,73 @@ export default function ManageListPage() {
       return;
     }
     navigate(`/manage/${id}`);
+  };
+
+  /* ===================== 바코드 입력(검색창 포커스일 때만) → 자동 이동 ===================== */
+  const barcodeBufRef = useRef("");
+  const barcodeTimerRef = useRef(null);
+
+  const BARCODE_MIN_LEN = 8;  // EAN-13이면 13 추천
+  const BARCODE_IDLE_MS = 120;
+
+  const resetBarcode = () => {
+    barcodeBufRef.current = "";
+    if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current);
+    barcodeTimerRef.current = null;
+  };
+
+  const finalizeBarcode = () => {
+    const code = String(barcodeBufRef.current || "").trim();
+    if (code.length < BARCODE_MIN_LEN) {
+      resetBarcode();
+      return;
+    }
+
+    // 현재 선택된 카테고리 안에서만 찾기(원하면 전체에서 찾게 바꿀 수도 있음)
+    const pool = filteredByCategory;
+
+    const found = pool.find((it) => {
+      // ✅ DB에 barcode 컬럼이 있다면 여기서 정확히 매칭됨
+      const bc = String(it?.barcode ?? "").trim();
+      if (bc && bc === code) return true;
+
+      // 임시 호환(바코드 필드 없을 때): name/size/memo에 들어있으면 매칭
+      const hay = `${it?.name ?? ""} ${it?.size ?? ""} ${it?.memo ?? ""}`;
+      return hay.includes(code);
+    });
+
+    if (found?.id) {
+      navigate(`/manage/${found.id}`);
+    }
+
+    resetBarcode();
+  };
+
+  const handleSearchKeyDown = (e) => {
+    const k = e.key;
+
+    // Enter로도 확정되게(있어도 되고 없어도 됨)
+    if (k === "Enter") {
+      finalizeBarcode();
+      return;
+    }
+
+    if (k === "Escape") {
+      resetBarcode();
+      return;
+    }
+
+    // 1글자만 버퍼에 쌓기
+    if (typeof k !== "string" || k.length !== 1) return;
+
+    // 바코드 스캐너는 보통 숫자/영문만 들어옴 (필요시 범위 늘려도 됨)
+    if (!/^[0-9A-Za-z\-]$/.test(k)) return;
+
+    barcodeBufRef.current += k;
+
+    // 엔터 없어도 "잠깐 멈춤"을 입력 종료로 판단
+    if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current);
+    barcodeTimerRef.current = setTimeout(finalizeBarcode, BARCODE_IDLE_MS);
   };
 
   return (
@@ -197,7 +256,7 @@ export default function ManageListPage() {
           placeholder="품명 / 옵션(size) 검색 (바코드 스캔 가능)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={barcodeNav.onKeyDown} // ✅ 바코드 자동 이동
+          onKeyDown={handleSearchKeyDown} // ✅ 검색창 포커스일 때만 바코드 감지
           style={{
             padding: "8px 12px",
             borderRadius: 8,
@@ -278,8 +337,7 @@ export default function ManageListPage() {
                   border: "none",
                   backgroundColor:
                     sortKey === "latest" ? "#eff6ff" : "transparent",
-                  color:
-                    sortKey === "latest" ? "#1d4ed8" : "#374151",
+                  color: sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
                 }}
@@ -299,8 +357,7 @@ export default function ManageListPage() {
                   border: "none",
                   backgroundColor:
                     sortKey === "count" ? "#eff6ff" : "transparent",
-                  color:
-                    sortKey === "count" ? "#1d4ed8" : "#374151",
+                  color: sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
               >
