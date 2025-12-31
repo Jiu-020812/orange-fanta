@@ -91,7 +91,7 @@ export default function ManageDetailPage() {
   const [searchText, setSearchText] = useState("");
   const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
-  const isShoes = true;
+  const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
 
   const showToast = (msg) => {
     setToast(msg);
@@ -244,6 +244,7 @@ export default function ManageDetailPage() {
         name: decodedName,
         size: trimmed,
         imageUrl: image || null,
+        category: selectedOption?.category ?? "FOOD",
       });
 
       setItems((prev) => [...prev, created]);

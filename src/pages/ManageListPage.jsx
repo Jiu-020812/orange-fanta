@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getItems as fetchItems } from "../api/items";
+import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
 
@@ -21,7 +22,13 @@ export default function ManageListPage() {
     async function load() {
       try {
         const data = await fetchItems();
-        setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
+        setItems(
+          Array.isArray(data)
+            ? data
+            : Array.isArray(data?.items)
+            ? data.items
+            : []
+        );
       } catch (err) {
         console.error("ManageListPage 아이템 불러오기 실패:", err);
         setItems([]);
@@ -29,6 +36,13 @@ export default function ManageListPage() {
     }
     load();
   }, []);
+
+  /* ===================== 바코드 입력 → 자동 이동 ===================== */
+  const barcodeNav = useBarcodeInputNavigate({
+    items,
+    navigate,
+    minLength: 8, // EAN-13이면 13으로 조절 가능
+  });
 
   const isShoes = activeType === "shoes";
 
@@ -111,9 +125,8 @@ export default function ManageListPage() {
     setIsSortMenuOpen(false);
   };
 
-  /*  name 그룹 → 대표 itemId로 상세 이동 */
+  /* ----------------------- 그룹 → 대표 itemId 이동 ----------------------- */
   const goDetailByGroupName = (groupName, list) => {
-    // 대표 item: 이미지 있는 것 우선, 없으면 첫 번째
     const representative = list.find((i) => i.imageUrl) || list[0];
     const id = representative?.id;
 
@@ -181,9 +194,10 @@ export default function ManageListPage() {
       >
         <input
           type="text"
-          placeholder="품명 / 옵션(size) 검색"
+          placeholder="품명 / 옵션(size) 검색 (바코드 스캔 가능)"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={barcodeNav.onKeyDown} // ✅ 바코드 자동 이동
           style={{
             padding: "8px 12px",
             borderRadius: 8,
@@ -242,7 +256,8 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "name" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "name" ? "#eff6ff" : "transparent",
                   color: sortKey === "name" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -263,7 +278,8 @@ export default function ManageListPage() {
                   border: "none",
                   backgroundColor:
                     sortKey === "latest" ? "#eff6ff" : "transparent",
-                  color: sortKey === "latest" ? "#1d4ed8" : "#374151",
+                  color:
+                    sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
                 }}
@@ -283,7 +299,8 @@ export default function ManageListPage() {
                   border: "none",
                   backgroundColor:
                     sortKey === "count" ? "#eff6ff" : "transparent",
-                  color: sortKey === "count" ? "#1d4ed8" : "#374151",
+                  color:
+                    sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
               >
