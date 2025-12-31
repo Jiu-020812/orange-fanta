@@ -50,6 +50,44 @@ export async function getCategories() {
   return unwrapArray(res.data);
 }
 
+// POST /api/categories  body: { name, sortOrder? }
+export async function createCategory({ name, sortOrder } = {}) {
+  const n = String(name ?? "").trim();
+  if (!n) throw new Error("createCategory: name required");
+
+  const res = await api.post("/api/categories", {
+    name: n,
+    ...(sortOrder != null ? { sortOrder: Number(sortOrder) } : {}),
+  });
+
+  return res.data;
+}
+
+// PATCH /api/categories/:id  body: { name?, sortOrder? }
+export async function updateCategory(id, patch = {}) {
+  const numericId = safeNumber(id);
+  if (!numericId) throw new Error("updateCategory: invalid id");
+
+  const nextPatch = { ...patch };
+
+  if ("name" in nextPatch) {
+    nextPatch.name = String(nextPatch.name ?? "").trim();
+  }
+  if ("sortOrder" in nextPatch && nextPatch.sortOrder != null) {
+    nextPatch.sortOrder = Number(nextPatch.sortOrder);
+  }
+
+  const res = await api.patch(`/api/categories/${numericId}`, nextPatch);
+  return res.data;
+}
+
+// DELETE /api/categories/:id
+export async function deleteCategory(id) {
+  const numericId = safeNumber(id);
+  if (!numericId) throw new Error("deleteCategory: invalid id");
+
+  await api.delete(`/api/categories/${numericId}`);
+}
 // ======================= Items =======================
 
 // GET /api/items?categoryId=123
