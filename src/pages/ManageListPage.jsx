@@ -36,26 +36,27 @@ useEffect(() => {
 }, [isShoes]); //  탭 바뀌면 다시 요청
 
 
-  /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
-  const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
-    items: filteredByCategory, // 현재 탭(신발/식품)에서만 탐색
-    navigate,
-    buildUrl: (id) => `/manage/${id}`,
-    minLength: 6, // 바코드가 짧을 수도 있으면 6~8 중 선택 (원래 8이었음)
-    idleMs: 120,
-  });
+ /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
+const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
+  items,
+  navigate,
+  buildUrl: (id) => `/manage/${id}`,
+  minLength: 6,
+  idleMs: 120,
+});
 
-  /* ----------------------- name 기준 그룹핑 ----------------------- */
-  const grouped = useMemo(() => {
-    const map = {};
-    filteredByCategory.forEach((item) => {
-      const key = norm(item.name);
-      if (!key) return;
-      if (!map[key]) map[key] = [];
-      map[key].push(item);
-    });
-    return map;
-  }, [filteredByCategory]);
+/* ----------------------- name 기준 그룹핑 ----------------------- */
+const grouped = useMemo(() => {
+  const map = {};
+  items.forEach((item) => {     
+    const key = norm(item.name);
+    if (!key) return;
+    if (!map[key]) map[key] = [];
+    map[key].push(item);
+  });
+  return map;
+}, [items]);                        
+
 
   /* ----------------------- 검색 (이름 + 옵션(size) + 바코드(barcode)) ----------------------- */
   const filteredGroups = useMemo(() => {
