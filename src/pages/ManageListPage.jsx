@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getItems as fetchItems } from "../api/items";
+import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
 
@@ -21,13 +22,7 @@ export default function ManageListPage() {
     async function load() {
       try {
         const data = await fetchItems();
-        setItems(
-          Array.isArray(data)
-            ? data
-            : Array.isArray(data?.items)
-            ? data.items
-            : []
-        );
+        setItems(Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []);
       } catch (err) {
         console.error("ManageListPage 아이템 불러오기 실패:", err);
         setItems([]);
@@ -44,6 +39,15 @@ export default function ManageListPage() {
     return items.filter((it) => (it?.category ?? "SHOE") === cat);
   }, [items, isShoes]);
 
+  /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
+  const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
+    items: filteredByCategory, // 현재 탭(신발/식품)에서만 탐색
+    navigate,
+    buildUrl: (id) => `/manage/${id}`,
+    minLength: 6, // 바코드가 짧을 수도 있으면 6~8 중 선택 (원래 8이었음)
+    idleMs: 120,
+  });
+
   /* ----------------------- name 기준 그룹핑 ----------------------- */
   const grouped = useMemo(() => {
     const map = {};
@@ -56,7 +60,7 @@ export default function ManageListPage() {
     return map;
   }, [filteredByCategory]);
 
-  /* ----------------------- 검색 (이름 + 옵션(size)) ----------------------- */
+  /* ----------------------- 검색 (이름 + 옵션(size) + 바코드(barcode)) ----------------------- */
   const filteredGroups = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
     if (!keyword) return grouped;
@@ -64,9 +68,12 @@ export default function ManageListPage() {
     const result = {};
     Object.entries(grouped).forEach(([name, list]) => {
       const nameMatch = name.toLowerCase().includes(keyword);
-      const optionMatch = list.some((item) =>
-        norm(item.size).toLowerCase().includes(keyword)
-      );
+
+      const optionMatch = list.some((item) => {
+        const sizeMatch = norm(item.size).toLowerCase().includes(keyword);
+        const barcodeMatch = String(item.barcode ?? "").toLowerCase().includes(keyword);
+        return sizeMatch || barcodeMatch;
+      });
 
       if (nameMatch || optionMatch) result[name] = list;
     });
@@ -129,73 +136,6 @@ export default function ManageListPage() {
     navigate(`/manage/${id}`);
   };
 
-  /* ===================== 바코드 입력(검색창 포커스일 때만) → 자동 이동 ===================== */
-  const barcodeBufRef = useRef("");
-  const barcodeTimerRef = useRef(null);
-
-  const BARCODE_MIN_LEN = 8;  // EAN-13이면 13 추천
-  const BARCODE_IDLE_MS = 120;
-
-  const resetBarcode = () => {
-    barcodeBufRef.current = "";
-    if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current);
-    barcodeTimerRef.current = null;
-  };
-
-  const finalizeBarcode = () => {
-    const code = String(barcodeBufRef.current || "").trim();
-    if (code.length < BARCODE_MIN_LEN) {
-      resetBarcode();
-      return;
-    }
-
-    // 현재 선택된 카테고리 안에서만 찾기(원하면 전체에서 찾게 바꿀 수도 있음)
-    const pool = filteredByCategory;
-
-    const found = pool.find((it) => {
-      // ✅ DB에 barcode 컬럼이 있다면 여기서 정확히 매칭됨
-      const bc = String(it?.barcode ?? "").trim();
-      if (bc && bc === code) return true;
-
-      // 임시 호환(바코드 필드 없을 때): name/size/memo에 들어있으면 매칭
-      const hay = `${it?.name ?? ""} ${it?.size ?? ""} ${it?.memo ?? ""}`;
-      return hay.includes(code);
-    });
-
-    if (found?.id) {
-      navigate(`/manage/${found.id}`);
-    }
-
-    resetBarcode();
-  };
-
-  const handleSearchKeyDown = (e) => {
-    const k = e.key;
-
-    // Enter로도 확정되게(있어도 되고 없어도 됨)
-    if (k === "Enter") {
-      finalizeBarcode();
-      return;
-    }
-
-    if (k === "Escape") {
-      resetBarcode();
-      return;
-    }
-
-    // 1글자만 버퍼에 쌓기
-    if (typeof k !== "string" || k.length !== 1) return;
-
-    // 바코드 스캐너는 보통 숫자/영문만 들어옴 (필요시 범위 늘려도 됨)
-    if (!/^[0-9A-Za-z\-]$/.test(k)) return;
-
-    barcodeBufRef.current += k;
-
-    // 엔터 없어도 "잠깐 멈춤"을 입력 종료로 판단
-    if (barcodeTimerRef.current) clearTimeout(barcodeTimerRef.current);
-    barcodeTimerRef.current = setTimeout(finalizeBarcode, BARCODE_IDLE_MS);
-  };
-
   return (
     <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
@@ -253,10 +193,10 @@ export default function ManageListPage() {
       >
         <input
           type="text"
-          placeholder="품명 / 옵션(size) 검색 (바코드 스캔 가능)"
+          placeholder="품명 / 옵션(size) / 바코드 검색"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={handleSearchKeyDown} // ✅ 검색창 포커스일 때만 바코드 감지
+          onKeyDown={onBarcodeKeyDown} // ✅ 포커스 있을 때만 스캔 감지 + 자동 이동
           style={{
             padding: "8px 12px",
             borderRadius: 8,
@@ -315,8 +255,7 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "name" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "name" ? "#eff6ff" : "transparent",
                   color: sortKey === "name" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -335,8 +274,7 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "latest" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "latest" ? "#eff6ff" : "transparent",
                   color: sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -355,8 +293,7 @@ export default function ManageListPage() {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor:
-                    sortKey === "count" ? "#eff6ff" : "transparent",
+                  backgroundColor: sortKey === "count" ? "#eff6ff" : "transparent",
                   color: sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
