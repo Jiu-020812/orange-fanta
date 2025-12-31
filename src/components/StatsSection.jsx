@@ -22,8 +22,8 @@ export default function StatsSection({ records, itemName }) {
   const [showPurchase, setShowPurchase] = useState(true);
   const [showSale, setShowSale] = useState(true);
 
-  // ✅ 기간 필터: quick + 직접 선택
-  // ✅ 기본값을 "7" -> "ALL" 로 변경 (전체가 디폴트)
+  //  기간 필터: quick + 직접 선택
+  //  기본값을 "7" -> "ALL" 로 변경 (전체가 디폴트)
   const [mode, setMode] = useState("ALL"); // "7" | "30" | "90" | "ALL" | "CUSTOM"
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(() => toYmd(new Date()));

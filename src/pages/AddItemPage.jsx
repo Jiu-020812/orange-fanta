@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getItems, createItem } from "../api/items";
+import { getItems, createItem, getCategories } from "../api/items";
 import { useLocation, useNavigate } from "react-router-dom";
 import "./AddItemPage.css";
 
@@ -10,12 +10,14 @@ function AddItemPage() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [activeType, setActiveType] = useState("shoes"); // shoes | foods
+  //  서버 카테고리
+  const [categories, setCategories] = useState([]);
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
 
   // 입력값
-  const [barcode, setBarcode] = useState(""); //  바코드
+  const [barcode, setBarcode] = useState(""); // 바코드
   const [name, setName] = useState("");
-  const [second, setSecond] = useState(""); // shoes=size, foods=option
+  const [second, setSecond] = useState(""); // size/option 통합
   const [imageDataUrl, setImageDataUrl] = useState("");
 
   // 자동완성
@@ -26,40 +28,83 @@ function AddItemPage() {
   // 토스트
   const [toast, setToast] = useState("");
 
-  // 서버 Item 목록
+  // 서버 Item 목록(현재 선택 카테고리 기준으로 쓰면 자동완성 품질이 좋아짐)
   const [serverItems, setServerItems] = useState([]);
 
-  const isShoes = activeType === "shoes";
-  const targetCategory = isShoes ? "SHOE" : "FOOD";
+  const activeCategoryName = useMemo(() => {
+    const c = categories.find((x) => x.id === activeCategoryId);
+    return c?.name ?? "";
+  }, [categories, activeCategoryId]);
 
   /* ----------------------- 쿼리에서 barcode 자동 세팅 ----------------------- */
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const bc = params.get("barcode");
-    if (bc) {
-      setBarcode(String(bc));
-      // 원하면 자동으로 입력창 포커스/UX도 추가 가능
-    }
+    if (bc) setBarcode(String(bc));
   }, [location.search]);
 
-  /* ----------------------- 초기 로드: 서버 items ----------------------- */
+  /* ----------------------- 초기 로드: categories ----------------------- */
   useEffect(() => {
-    async function load() {
+    let mounted = true;
+
+    async function loadCategories() {
       try {
-        const backendItems = await getItems();
+        const cats = await getCategories();
+        const list = Array.isArray(cats) ? cats : [];
+        if (!mounted) return;
+
+        setCategories(list);
+
+        // 첫 카테고리 자동 선택
+        if (list.length > 0) {
+          setActiveCategoryId((prev) => prev ?? list[0].id);
+        } else {
+          setActiveCategoryId(null);
+        }
+      } catch (e) {
+        console.error("AddItemPage categories 로드 오류:", e);
+        if (!mounted) return;
+        setCategories([]);
+        setActiveCategoryId(null);
+      }
+    }
+
+    loadCategories();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  /* ----------------------- 현재 선택 카테고리 items 로드 ----------------------- */
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadItems() {
+      try {
+        if (!activeCategoryId) {
+          if (mounted) setServerItems([]);
+          return;
+        }
+        const backendItems = await getItems(activeCategoryId); //  categoryId로 서버 필터
         const list = Array.isArray(backendItems)
           ? backendItems
           : Array.isArray(backendItems?.items)
           ? backendItems.items
           : [];
+        if (!mounted) return;
         setServerItems(list);
       } catch (e) {
         console.error("AddItemPage 서버 items 로드 오류:", e);
+        if (!mounted) return;
         setServerItems([]);
       }
     }
-    load();
-  }, []);
+
+    loadItems();
+    return () => {
+      mounted = false;
+    };
+  }, [activeCategoryId]);
 
   /* ----------------------- 자동완성 후보 ----------------------- */
   const nameSuggestions = useMemo(() => {
@@ -69,17 +114,14 @@ function AddItemPage() {
     const set = new Set();
 
     for (const it of serverItems) {
-      const cat = it?.category ?? "SHOE";
-      if (cat !== targetCategory) continue;
-
+      //  같은 카테고리 items만 이미 로드돼있어서 별도 필터 거의 필요 없음
       const n = norm(it?.name);
       if (!n) continue;
-
       if (lower(n).includes(keyword)) set.add(n);
     }
 
     return Array.from(set).slice(0, 20);
-  }, [serverItems, name, targetCategory]);
+  }, [serverItems, name]);
 
   const hasNameSuggestions = nameFocused && nameSuggestions.length > 0;
 
@@ -137,10 +179,8 @@ function AddItemPage() {
 
   /* ----------------------- 중복 체크 ----------------------- */
   function isDuplicatedByNameSize(trimmedName, finalSecond) {
+    //  현재 카테고리 items만 serverItems에 들어있으므로 그대로 비교하면 됨
     return serverItems.some((it) => {
-      const cat = it?.category ?? "SHOE";
-      if (cat !== targetCategory) return false;
-
       return (
         lower(it?.name) === lower(trimmedName) &&
         norm(it?.size) === norm(finalSecond)
@@ -148,9 +188,12 @@ function AddItemPage() {
     });
   }
 
-  //  barcode 유니크 제약 대응 (userId+barcode)
+  // barcode 유니크 제약 대응 (userId+barcode)
   function isDuplicatedByBarcode(trimmedBarcode) {
     if (!trimmedBarcode) return false;
+    //  현재 카테고리 내에만 체크하면 "다른 카테고리에 같은 바코드"를 놓칠 수 있음
+    // 하지만 DB 제약이 userId+barcode라서 서버에서 어차피 막힘.
+    // UX 위해: 가능하면 전체 items를 로드해서 체크하는게 더 좋지만, 일단은 서버 에러 처리로 커버.
     return serverItems.some((it) => norm(it?.barcode) === trimmedBarcode);
   }
 
@@ -162,18 +205,23 @@ function AddItemPage() {
     const trimmedName = norm(name);
     const trimmedSecond = norm(second);
 
+    if (!activeCategoryId) {
+      alert("카테고리를 먼저 만들어주세요.");
+      return;
+    }
+
     if (!trimmedName) {
       alert("품명을 입력해주세요.");
       return;
     }
 
-    const finalSecond = isShoes ? trimmedSecond : trimmedSecond || "-";
-    if (isShoes && !finalSecond) {
-      alert("사이즈를 입력해주세요.");
+    const finalSecond = trimmedSecond || "-"; // 옵션/사이즈 통합: 비면 "-"
+    if (!finalSecond) {
+      alert("옵션(또는 사이즈)을 입력해주세요.");
       return;
     }
 
-    // (1) barcode 중복 방지 (유니크 제약 걸었으니까 필수)
+    // (1) barcode 중복 방지 (서버에서도 막음)
     if (trimmedBarcode && isDuplicatedByBarcode(trimmedBarcode)) {
       alert("이미 등록된 바코드입니다.");
       return;
@@ -191,25 +239,25 @@ function AddItemPage() {
         size: finalSecond,
         barcode: trimmedBarcode || null,
         imageUrl: imageDataUrl || null,
-        category: targetCategory,
+        categoryId: activeCategoryId, // 
       });
 
-      // createItem 응답이 {item: ...} 형태일 수도 있어서 안전하게 처리
       const createdItem = created?.item ?? created;
 
       setServerItems((prev) => [...prev, createdItem]);
       showToast(`"${trimmedName} (${finalSecond})" 등록 완료`);
 
-      // 등록 성공 후, URL에 barcode 쿼리 남아있으면 깔끔하게 제거(선택)
-      // navigate("/add", { replace: true });
+      // 필요하면 등록 후 이동:
+      // navigate(`/manage/${createdItem.id}`);
 
     } catch (err) {
       console.error("등록 실패:", err);
 
-      // 유니크 충돌이 서버에서 났을 때도 사용자에게 이해되게
       const msg = String(err?.response?.data?.message || err?.message || "");
-      if (msg.toLowerCase().includes("unique") || msg.includes("barcode")) {
+      if (msg.toLowerCase().includes("barcode") || msg.toLowerCase().includes("unique")) {
         alert("이미 등록된 바코드입니다.");
+      } else if (msg.toLowerCase().includes("category")) {
+        alert("카테고리 설정이 올바르지 않습니다.");
       } else {
         alert("서버 등록 실패");
       }
@@ -227,33 +275,35 @@ function AddItemPage() {
       {toast && <div className="add-item-toast">{toast}</div>}
 
       <div className="add-item-card">
-        <h1 className="add-item-title">새 물품 등록</h1>
+        <h1 className="add-item-title">
+          새 물품 등록 {activeCategoryName ? `· ${activeCategoryName}` : ""}
+        </h1>
 
-        {/* 탭 */}
+        {/* 카테고리 탭 (DB 기반) */}
         <div className="add-item-tabs">
-          <button
-            type="button"
-            className={`add-item-tab-button ${
-              activeType === "shoes" ? "active" : ""
-            }`}
-            onClick={() => setActiveType("shoes")}
-          >
-            신발
-          </button>
-          <button
-            type="button"
-            className={`add-item-tab-button ${
-              activeType === "foods" ? "active" : ""
-            }`}
-            onClick={() => setActiveType("foods")}
-          >
-            식품
-          </button>
+          {categories.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#6b7280" }}>
+              카테고리가 없습니다. 먼저 카테고리를 추가해주세요.
+            </div>
+          ) : (
+            categories.map((c) => {
+              const active = c.id === activeCategoryId;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={`add-item-tab-button ${active ? "active" : ""}`}
+                  onClick={() => setActiveCategoryId(c.id)}
+                >
+                  {c.name}
+                </button>
+              );
+            })
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="add-item-form">
-
-          {/*  바코드 */}
+          {/* 바코드 */}
           <input
             type="text"
             placeholder="바코드 스캔 (선택)"
@@ -303,7 +353,7 @@ function AddItemPage() {
           {/* 옵션/사이즈 */}
           <input
             type="text"
-            placeholder={isShoes ? "사이즈" : "옵션 (ex: 갤럭시맛)"}
+            placeholder="옵션 / 사이즈 (ex: 260, 갤럭시맛)"
             value={second}
             onChange={(e) => setSecond(e.target.value)}
             className="add-item-input"

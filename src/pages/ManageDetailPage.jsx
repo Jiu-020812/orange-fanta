@@ -52,11 +52,17 @@ function toYmd(d) {
 }
 
 function parseRecordsResponse(data) {
-  if (Array.isArray(data)) return { records: data, stock: null };
-  if (data && Array.isArray(data.records))
-    return { records: data.records, stock: data.stock ?? null };
-  return { records: [], stock: null };
+  if (Array.isArray(data)) return { item: null, records: data, stock: null };
+  if (data && Array.isArray(data.records)) {
+    return {
+      item: data.item ?? null,
+      records: data.records,
+      stock: data.stock ?? null,
+    };
+  }
+  return { item: null, records: [], stock: null };
 }
+
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
@@ -123,7 +129,13 @@ export default function ManageDetailPage() {
     return items.find((it) => it.id === selectedOptionId) || null;
   }, [items, selectedOptionId]);
 
-  const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
+  const looksLikeShoeSize = (v) => {
+    const s = String(v ?? "").trim();
+    if (!s) return true; // 비어있으면 기본은 신발
+    const n = Number(s);
+    return Number.isFinite(n) && n >= 180 && n <= 400;
+  };
+  const isShoes = looksLikeShoeSize(selectedOption?.size);
 
   /*  검색/정렬 상태 — 반드시 필요 */
   const [searchText, setSearchText] = useState("");
@@ -169,6 +181,15 @@ export default function ManageDetailPage() {
       try {
         const data = await fetchRecords(selectedOptionId);
         const { records: raw } = parseRecordsResponse(data);
+
+        //  categoryId를 items에 반영(없으면 유지)
+       if (itemFromApi?.id) {
+        setItems((prev) =>
+           prev.map((it) =>
+             it.id === itemFromApi.id ? { ...it, categoryId: itemFromApi.categoryId } : it
+           )
+         );
+       }
 
         const normalized = Array.isArray(raw)
           ? raw.map((rec) => ({
@@ -247,8 +268,8 @@ export default function ManageDetailPage() {
         name: decodedName,
         size: trimmed,
         imageUrl: image || null,
-        category: selectedOption?.category, // ⭐ 카테고리 승계(FOOD가 SHOE로 튀는 문제 방지)
-        barcode: trimmedBarcode || null, // ⭐ 추가
+        categoryId: selectedOption?.categoryId ?? null,
+        barcode: trimmedBarcode || null,
       });
 
       setItems((prev) => [...prev, created]);

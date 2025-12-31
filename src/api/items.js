@@ -42,40 +42,55 @@ function unwrapObject(data) {
   return data;
 }
 
+// ======================= Categories =======================
+
+// GET /api/categories
+export async function getCategories() {
+  const res = await api.get("/api/categories");
+  return unwrapArray(res.data);
+}
+
 // ======================= Items =======================
 
-// GET /api/items?category=SHOE|FOOD
-export async function getItems(category) {
-  const params = category ? { params: { category } } : undefined;
+// GET /api/items?categoryId=123
+export async function getItems(categoryId) {
+  const cid = safeNumber(categoryId, null);
+  const params = cid ? { params: { categoryId: cid } } : undefined;
   const res = await api.get("/api/items", params);
   return unwrapArray(res.data);
 }
 
-
-// POST /api/items  
+// POST /api/items  body: { name, size, categoryId, barcode?, imageUrl? }
 export async function createItem({
   name,
   size,
+  categoryId,
   barcode,
   imageUrl,
-  category,
 }) {
   const res = await api.post("/api/items", {
     name,
     size,
-    barcode: barcode ?? null,  
+    categoryId: safeNumber(categoryId, null),
+    barcode: barcode ?? null,
     imageUrl: imageUrl ?? null,
-    category: category ?? undefined,
   });
   return unwrapObject(res.data);
 }
 
-// PUT /api/items/:id  (barcode 수정 가능)
+// PUT /api/items/:id  (barcode/categoryId 수정 가능)
 export async function updateItem(id, patch) {
   const numericId = safeNumber(id);
   if (!numericId) throw new Error("updateItem: invalid id");
 
-  const res = await api.put(`/api/items/${numericId}`, patch);
+  // patch 안에 categoryId가 있다면 숫자로 정리
+  const nextPatch = { ...patch };
+  if ("categoryId" in nextPatch) {
+    const cid = safeNumber(nextPatch.categoryId, null);
+    nextPatch.categoryId = cid;
+  }
+
+  const res = await api.put(`/api/items/${numericId}`, nextPatch);
   return unwrapObject(res.data);
 }
 
@@ -87,7 +102,7 @@ export async function deleteItem(id) {
   await api.delete(`/api/items/${numericId}`);
 }
 
-// ======================= 🔫 Barcode =======================
+// ======================= Barcode =======================
 
 // GET /api/items/lookup?barcode=xxxx
 export async function lookupItemByBarcode(barcode) {
@@ -109,6 +124,11 @@ export async function getRecords(itemId) {
   if (!numericItemId) throw new Error("getRecords: invalid itemId");
 
   const res = await api.get(`/api/items/${numericItemId}/records`);
+
+  // 백엔드가 { ok:true, records:[...] } 형태면 이게 제일 안전
+  if (res.data && Array.isArray(res.data.records)) return res.data.records;
+
+  // 혹시 배열만 바로 내려오는 구버전 대비
   return unwrapArray(res.data);
 }
 
@@ -175,7 +195,7 @@ export async function deleteRecord({ itemId, id }) {
   });
 }
 
-// ======================= 📦 Batch IN / OUT =======================
+// ======================= Batch IN / OUT =======================
 
 // POST /api/records/batch
 // payload: { type: "IN" | "OUT", items: [{ itemId, count }] }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getItems as fetchItems } from "../api/items";
+import { getItems as fetchItems, getCategories } from "../api/items";
 import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
@@ -8,7 +8,9 @@ const norm = (s) => String(s ?? "").trim();
 export default function ManageListPage() {
   const navigate = useNavigate();
 
-  const [activeType, setActiveType] = useState("shoes"); // shoes | foods
+  const [categories, setCategories] = useState([]);
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -17,46 +19,84 @@ export default function ManageListPage() {
   const [sortOrder, setSortOrder] = useState("asc"); // asc | desc
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
 
-  /* ----------------------- 서버 데이터 로드 ----------------------- */
-  const isShoes = activeType === "shoes"; 
+  /* ----------------------- 카테고리 로드 ----------------------- */
+  useEffect(() => {
+    let mounted = true;
 
-useEffect(() => {
-  async function load() {
-    try {
-      const category = isShoes ? "SHOE" : "FOOD";
-      const data = await fetchItems(category); // 서버 필터
-      setItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("ManageListPage 아이템 불러오기 실패:", err);
-      setItems([]);
+    async function loadCategories() {
+      try {
+        const cats = await getCategories();
+        const safeCats = Array.isArray(cats) ? cats : [];
+        if (!mounted) return;
+
+        setCategories(safeCats);
+
+        // 첫 카테고리 자동 선택
+        if (safeCats.length > 0) {
+          setActiveCategoryId((prev) => prev ?? safeCats[0].id);
+        } else {
+          setActiveCategoryId(null);
+        }
+      } catch (err) {
+        console.error("ManageListPage 카테고리 불러오기 실패:", err);
+        if (!mounted) return;
+        setCategories([]);
+        setActiveCategoryId(null);
+      }
     }
-  }
 
-  load();
-}, [isShoes]); //  탭 바뀌면 다시 요청
+    loadCategories();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
+  /* ----------------------- 아이템 로드 (선택된 카테고리) ----------------------- */
+  useEffect(() => {
+    let mounted = true;
 
- /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
-const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
-  items,
-  navigate,
-  buildUrl: (id) => `/manage/${id}`,
-  minLength: 6,
-  idleMs: 120,
-});
+    async function loadItems() {
+      try {
+        if (!activeCategoryId) {
+          if (mounted) setItems([]);
+          return;
+        }
+        const data = await fetchItems(activeCategoryId); //  categoryId로 서버 필터
+        if (!mounted) return;
+        setItems(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("ManageListPage 아이템 불러오기 실패:", err);
+        if (!mounted) return;
+        setItems([]);
+      }
+    }
 
-/* ----------------------- name 기준 그룹핑 ----------------------- */
-const grouped = useMemo(() => {
-  const map = {};
-  items.forEach((item) => {     
-    const key = norm(item.name);
-    if (!key) return;
-    if (!map[key]) map[key] = [];
-    map[key].push(item);
+    loadItems();
+    return () => {
+      mounted = false;
+    };
+  }, [activeCategoryId]);
+
+  /* ----------------------- 바코드 스캔: 검색창 포커스일 때만 ----------------------- */
+  const { onKeyDown: onBarcodeKeyDown } = useBarcodeInputNavigate({
+    items, // 현재 선택된 카테고리 아이템만
+    navigate,
+    buildUrl: (id) => `/manage/${id}`,
+    minLength: 6,
+    idleMs: 120,
   });
-  return map;
-}, [items]);                        
 
+  /* ----------------------- name 기준 그룹핑 ----------------------- */
+  const grouped = useMemo(() => {
+    const map = {};
+    items.forEach((item) => {
+      const key = norm(item.name);
+      if (!key) return;
+      if (!map[key]) map[key] = [];
+      map[key].push(item);
+    });
+    return map;
+  }, [items]);
 
   /* ----------------------- 검색 (이름 + 옵션(size) + 바코드(barcode)) ----------------------- */
   const filteredGroups = useMemo(() => {
@@ -69,7 +109,9 @@ const grouped = useMemo(() => {
 
       const optionMatch = list.some((item) => {
         const sizeMatch = norm(item.size).toLowerCase().includes(keyword);
-        const barcodeMatch = String(item.barcode ?? "").toLowerCase().includes(keyword);
+        const barcodeMatch = String(item.barcode ?? "")
+          .toLowerCase()
+          .includes(keyword);
         return sizeMatch || barcodeMatch;
       });
 
@@ -134,13 +176,18 @@ const grouped = useMemo(() => {
     navigate(`/manage/${id}`);
   };
 
+  const activeCategoryName = useMemo(() => {
+    const c = categories.find((x) => x.id === activeCategoryId);
+    return c?.name ?? "";
+  }, [categories, activeCategoryId]);
+
   return (
     <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
       <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
-        물품 관리
+        물품 관리 {activeCategoryName ? `· ${activeCategoryName}` : ""}
       </h2>
 
-      {/* 타입 선택 */}
+      {/* 카테고리 탭 */}
       <div
         style={{
           display: "inline-flex",
@@ -148,36 +195,37 @@ const grouped = useMemo(() => {
           backgroundColor: "#f3f4f6",
           padding: 4,
           marginBottom: 20,
+          gap: 6,
+          flexWrap: "wrap",
         }}
       >
-        <button
-          onClick={() => setActiveType("shoes")}
-          style={{
-            border: "none",
-            borderRadius: 999,
-            padding: "6px 16px",
-            fontSize: 13,
-            cursor: "pointer",
-            backgroundColor: isShoes ? "#2563eb" : "transparent",
-            color: isShoes ? "#ffffff" : "#374151",
-          }}
-        >
-          신발
-        </button>
-        <button
-          onClick={() => setActiveType("foods")}
-          style={{
-            border: "none",
-            borderRadius: 999,
-            padding: "6px 16px",
-            fontSize: 13,
-            cursor: "pointer",
-            backgroundColor: !isShoes ? "#2563eb" : "transparent",
-            color: !isShoes ? "#ffffff" : "#374151",
-          }}
-        >
-          식품
-        </button>
+        {categories.length === 0 ? (
+          <div style={{ padding: "6px 12px", fontSize: 13, color: "#6b7280" }}>
+            카테고리가 없습니다. (먼저 카테고리를 추가해줘!)
+          </div>
+        ) : (
+          categories.map((c) => {
+            const isActive = c.id === activeCategoryId;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setActiveCategoryId(c.id)}
+                style={{
+                  border: "none",
+                  borderRadius: 999,
+                  padding: "6px 16px",
+                  fontSize: 13,
+                  cursor: "pointer",
+                  backgroundColor: isActive ? "#2563eb" : "transparent",
+                  color: isActive ? "#ffffff" : "#374151",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.name}
+              </button>
+            );
+          })
+        )}
       </div>
 
       {/* 검색 + 정렬 */}
@@ -194,7 +242,7 @@ const grouped = useMemo(() => {
           placeholder="품명 / 옵션(size) / 바코드 검색"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={onBarcodeKeyDown} // ✅ 포커스 있을 때만 스캔 감지 + 자동 이동
+          onKeyDown={onBarcodeKeyDown}
           style={{
             padding: "8px 12px",
             borderRadius: 8,
@@ -253,7 +301,8 @@ const grouped = useMemo(() => {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "name" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "name" ? "#eff6ff" : "transparent",
                   color: sortKey === "name" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -272,7 +321,8 @@ const grouped = useMemo(() => {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "latest" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "latest" ? "#eff6ff" : "transparent",
                   color: sortKey === "latest" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                   marginBottom: 2,
@@ -291,7 +341,8 @@ const grouped = useMemo(() => {
                   textAlign: "left",
                   borderRadius: 8,
                   border: "none",
-                  backgroundColor: sortKey === "count" ? "#eff6ff" : "transparent",
+                  backgroundColor:
+                    sortKey === "count" ? "#eff6ff" : "transparent",
                   color: sortKey === "count" ? "#1d4ed8" : "#374151",
                   cursor: "pointer",
                 }}
