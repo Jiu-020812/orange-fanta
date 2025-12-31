@@ -124,6 +124,10 @@ export default function ManageDetailPage() {
 
   const isShoes = (selectedOption?.category ?? "SHOE") === "SHOE";
 
+  /*  검색/정렬 상태 — 반드시 필요 */
+const [searchText, setSearchText] = useState("");
+const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
+
   /*  최종 품목명 (name 라우팅 제거) */
   const decodedName = selectedOption?.name ?? "";
 
