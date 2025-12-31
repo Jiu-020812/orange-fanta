@@ -60,7 +60,8 @@ export async function createCategory({ name, sortOrder } = {}) {
     ...(sortOrder != null ? { sortOrder: Number(sortOrder) } : {}),
   });
 
-  return res.data;
+  // 백엔드는 category 객체를 그대로 내려줌
+  return unwrapObject(res.data);
 }
 
 // PATCH /api/categories/:id  body: { name?, sortOrder? }
@@ -78,7 +79,7 @@ export async function updateCategory(id, patch = {}) {
   }
 
   const res = await api.patch(`/api/categories/${numericId}`, nextPatch);
-  return res.data;
+  return unwrapObject(res.data);
 }
 
 // DELETE /api/categories/:id
@@ -88,6 +89,7 @@ export async function deleteCategory(id) {
 
   await api.delete(`/api/categories/${numericId}`);
 }
+
 // ======================= Items =======================
 
 // GET /api/items?categoryId=123
@@ -110,13 +112,7 @@ export async function getItemDetail(itemId) {
 }
 
 // POST /api/items  body: { name, size, categoryId, barcode?, imageUrl? }
-export async function createItem({
-  name,
-  size,
-  categoryId,
-  barcode,
-  imageUrl,
-}) {
+export async function createItem({ name, size, categoryId, barcode, imageUrl }) {
   const res = await api.post("/api/items", {
     name,
     size,
@@ -127,21 +123,11 @@ export async function createItem({
   return unwrapObject(res.data);
 }
 
-// POST /api/categories  body: { name, sortOrder? }
-export async function createCategory({ name, sortOrder }) {
-  const res = await api.post("/api/categories", {
-    name: String(name ?? "").trim(),
-    ...(sortOrder != null ? { sortOrder: Number(sortOrder) } : {}),
-  });
-  return res.data;
-}
-
 // PUT /api/items/:id  (barcode/categoryId 수정 가능)
 export async function updateItem(id, patch) {
   const numericId = safeNumber(id);
   if (!numericId) throw new Error("updateItem: invalid id");
 
-  // patch 안에 categoryId가 있다면 숫자로 정리
   const nextPatch = { ...patch };
   if ("categoryId" in nextPatch) {
     const cid = safeNumber(nextPatch.categoryId, null);
@@ -183,22 +169,12 @@ export async function getRecords(itemId) {
 
   const res = await api.get(`/api/items/${numericItemId}/records`);
 
-  // 백엔드가 { ok:true, records:[...] } 형태면 이게 제일 안전
   if (res.data && Array.isArray(res.data.records)) return res.data.records;
-
-  // 혹시 배열만 바로 내려오는 구버전 대비
   return unwrapArray(res.data);
 }
 
 // POST /api/items/:itemId/records
-export async function createRecord({
-  itemId,
-  price,
-  count,
-  date,
-  type = "IN",
-  memo = null,
-}) {
+export async function createRecord({ itemId, price, count, date, type = "IN", memo = null }) {
   const numericItemId = safeNumber(itemId);
   if (!numericItemId) throw new Error("createRecord: invalid itemId");
 
@@ -214,15 +190,7 @@ export async function createRecord({
 }
 
 // PUT /api/items/:itemId/records
-export async function updateRecord({
-  itemId,
-  id,
-  price,
-  count,
-  date,
-  type,
-  memo,
-}) {
+export async function updateRecord({ itemId, id, price, count, date, type, memo }) {
   const numericItemId = safeNumber(itemId);
   const numericId = safeNumber(id);
   if (!numericItemId) throw new Error("updateRecord: invalid itemId");
@@ -256,7 +224,6 @@ export async function deleteRecord({ itemId, id }) {
 // ======================= Batch IN / OUT =======================
 
 // POST /api/records/batch
-// payload: { type: "IN" | "OUT", items: [{ itemId, count }] }
 export async function createRecordsBatch({ type = "IN", items }) {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error("createRecordsBatch: items required");
