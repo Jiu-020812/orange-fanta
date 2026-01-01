@@ -36,6 +36,9 @@ export default function ManageListPage() {
   const [renameModal, setRenameModal] = useState(null); // { id, name }
   const [deleteModal, setDeleteModal] = useState(null); // { id, name }
 
+  //  items fetch 레이스 방지용
+  const itemsReqSeq = useRef(0);
+
   /* ----------------------- 공통: 카테고리 재로딩 ----------------------- */
   const reloadCategories = useCallback(async (preferId = null) => {
     try {
@@ -74,27 +77,32 @@ export default function ManageListPage() {
 
   /* ----------------------- 아이템 로드 (선택된 카테고리) ----------------------- */
   useEffect(() => {
-    let mounted = true;
+    const reqId = ++itemsReqSeq.current;
+    let alive = true;
 
     async function loadItems() {
       try {
         if (!activeCategoryId) {
-          if (mounted) setItems([]);
+          if (alive && reqId === itemsReqSeq.current) setItems([]);
           return;
         }
+
         const data = await fetchItems(activeCategoryId);
-        if (!mounted) return;
+
+        //  늦게 도착한 응답이면 무시
+        if (!alive || reqId !== itemsReqSeq.current) return;
+
         setItems(Array.isArray(data) ? data : []);
       } catch (err) {
+        if (!alive || reqId !== itemsReqSeq.current) return;
         console.error("아이템 불러오기 실패:", err);
-        if (!mounted) return;
         setItems([]);
       }
     }
 
     loadItems();
     return () => {
-      mounted = false;
+      alive = false;
     };
   }, [activeCategoryId]);
 
@@ -109,14 +117,14 @@ export default function ManageListPage() {
 
   /* ----------------------- 카테고리 추가 ----------------------- */
   const handleAddCategory = async () => {
-    const name = window.prompt("새 카테고리 이름을 입력해줘 (예: 신발 / 식품)");
+    const name = window.prompt("새 카테고리 이름을 입력해주세요.");
     const trimmed = norm(name);
     if (!trimmed) return;
 
     try {
       const created = await createCategory({ name: trimmed });
 
-      // 즉시 반영 + 선택 (정렬이 있다면 reloadCategories로 바꿔도 됨)
+      // 즉시 반영 + 선택
       setCategories((prev) => [...prev, created]);
       setActiveCategoryId(created.id);
     } catch (err) {
@@ -299,14 +307,10 @@ export default function ManageListPage() {
       const wasActive = activeCategoryId === id;
       setDeleteModal(null);
 
-      // reload 후 activeCategoryId도 적절히 바뀜 (미분류/첫번째)
+      //  reload 후 activeCategoryId 변경은 useEffect가 items를 알아서 안정적으로 로드함
       await reloadCategories(wasActive ? null : activeCategoryId);
 
-      // active가 아니었어도, "미분류로 이동된 아이템"이 있을 수 있으니 현재 탭 다시 로드
-      if (!wasActive && activeCategoryId) {
-        const data = await fetchItems(activeCategoryId);
-        setItems(Array.isArray(data) ? data : []);
-      }
+      //  여기서 activeCategoryId로 다시 fetchItems 호출하지 말기 (옛값 레이스 위험)
     } catch (err) {
       console.error("카테고리 삭제 실패:", err);
       const msg = String(err?.response?.data?.message || err?.message || "");
@@ -334,11 +338,13 @@ export default function ManageListPage() {
         >
           {categories.length === 0 ? (
             <div style={{ padding: "6px 12px", fontSize: 13, color: "#6b7280" }}>
-              카테고리가 없습니다. (오른쪽 + 로 추가해줘!)
+              카테고리가 없습니다. (오른쪽 + 로 추가해주세요.)
             </div>
           ) : (
             categories.map((c) => {
               const isActive = c.id === activeCategoryId;
+              const isUncategorized = c.name === "미분류";
+
               return (
                 <button
                   key={c.id}
@@ -358,25 +364,29 @@ export default function ManageListPage() {
                   }}
                 >
                   {c.name}
-                  <span
-                    onClick={(e) => openCategoryMenu(e, c.id)}
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 6,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: 900,
-                      cursor: "pointer",
-                      opacity: isActive ? 0.95 : 0.6,
-                      background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)",
-                      color: isActive ? "#fff" : "#374151",
-                    }}
-                    title="카테고리 설정"
-                  >
-                    ⋯
-                  </span>
+
+                  {/* 미분류는 ⋯ 메뉴 자체를 숨김 */}
+                  {!isUncategorized && (
+                    <span
+                      onClick={(e) => openCategoryMenu(e, c.id)}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: 6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: 900,
+                        cursor: "pointer",
+                        opacity: isActive ? 0.95 : 0.6,
+                        background: isActive ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.06)",
+                        color: isActive ? "#fff" : "#374151",
+                      }}
+                      title="카테고리 설정"
+                    >
+                      ⋯
+                    </span>
+                  )}
                 </button>
               );
             })
