@@ -6,7 +6,7 @@ import {
   createRecordsBatch,
   getAllRecords,
   updateRecord,
-  getItems, // ✅ 없으면 너 api에 맞는 함수명으로 바꿔줘 (ex: getItems as fetchItems)
+  getItems, 
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim().toLowerCase();
@@ -297,7 +297,7 @@ export default function OutPage() {
             style={{ ...inputStyle, marginBottom: 12, width: "100%" }}
           />
 
-          {/* ✅ 수기 추가 섹션 */}
+          {/*  수기 추가 섹션 */}
           <div style={{ marginTop: 8 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>수기 검색 추가</div>
 
@@ -473,10 +473,10 @@ const cardTitle = {
 };
 
 const inputStyle = {
-  padding: "10px 12px",
+  padding: "8px 10px",
   borderRadius: 10,
   border: "1px solid #e5e7eb",
-  fontSize: 14,
+  fontSize: 13,
   outline: "none",
 };
 
