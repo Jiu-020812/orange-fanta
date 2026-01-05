@@ -124,35 +124,32 @@ export default function StatsSection({ records, itemName }) {
       const rawPrice = r.price;
 
       // ===== IN =====
-      if (type === "IN") {
-        inQtyAll += qty;
-        continue; // IN은 단가 차트에 포함 안 함
-      }
+if (type === "IN") {
+  inQtyAll += qty;
 
-      // ===== PURCHASE (매입 단가 차트/통계) =====
-      if (type === "PURCHASE") {
-        purchaseQtyAll += qty;
+  // 🔥 IN인데 price가 있으면 "매입 입력"으로 간주해서 매입쪽에도 누적
+  if (hasPrice(rawPrice)) {
+    purchaseQtyAll += qty;
 
-        // 매입은 원칙적으로 price가 있어야 하지만 방어적으로 체크
-        if (hasPrice(rawPrice)) {
-          const amount = toNum(rawPrice, 0);
+    const amount = toNum(rawPrice, 0);
 
-          row.purchaseAmount += amount;
-          row.purchaseQty += qty;
+    row.purchaseAmount += amount;
+    row.purchaseQty += qty;
 
-          purchaseTotalAmount += amount;
-          purchaseTotalQty += qty;
+    purchaseTotalAmount += amount;
+    purchaseTotalQty += qty;
 
-          const unit = amount / qty;
-          if (Number.isFinite(unit)) {
-            minPurchaseUnit =
-              minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
-            maxPurchaseUnit =
-              maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
-          }
-        }
-        continue;
-      }
+    const unit = amount / qty;
+    if (Number.isFinite(unit)) {
+      minPurchaseUnit =
+        minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
+      maxPurchaseUnit =
+        maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
+    }
+  }
+
+  continue; // IN은 단가 차트에 포함 안 함(단, price 있는 IN은 위에서 매입으로 반영됨)
+}
 
       // ===== OUT (판매 단가 차트/통계) =====
       if (type === "OUT") {
