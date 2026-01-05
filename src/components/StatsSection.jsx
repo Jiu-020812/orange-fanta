@@ -96,8 +96,15 @@ export default function StatsSection({ records, itemName }) {
       const dateOnly = toYmd(r.date);
       if (!dateOnly) continue;
 
-      const type = String(r.type || "IN").toUpperCase(); //  IN / OUT / PURCHASE
+      const type = String(r.type || "IN").toUpperCase(); // IN / OUT / PURCHASE 그대로 유지
       const qty = toNum(r.count, 0);
+     
+      //테스트용 로그
+      console.log("[StatsSection record]", {
+        type, 
+        qty,
+        price: r.price,
+      });
       if (!Number.isFinite(qty) || qty <= 0) continue;
 
       //  map row 생성
@@ -194,6 +201,14 @@ export default function StatsSection({ records, itemName }) {
     // 미입력 정의
     const missingPurchaseQty = Math.max(0, inQtyAll - purchaseQtyAll);
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
+
+    //테스ㅡㅌ용 로그
+    console.log("[StatsSection summary]", {
+      inQtyAll,
+      purchaseQtyAll,
+      outQtyAll,
+      outPricedQty,
+    });
 
     return {
       data,
