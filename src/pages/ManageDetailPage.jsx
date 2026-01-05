@@ -395,6 +395,22 @@ const stock = useMemo(() => {
   }, 0);
 }, [records]);
 
+/* ======================= 매입했는데 미입고 수량 ======================= */
+const pendingIn = useMemo(() => {
+  const safe = Array.isArray(records) ? records : [];
+
+  const purchased = safe
+    .filter((r) => r.type === "PURCHASE")
+    .reduce((acc, r) => acc + (Number(r.count) || 0), 0);
+
+  const inSum = safe
+    .filter((r) => r.type === "IN")
+    .reduce((acc, r) => acc + (Number(r.count) || 0), 0);
+
+  return Math.max(0, purchased - inSum);
+}, [records]);
+
+
 
   /* ======================= 기간 필터 계산 ======================= */
   const effectiveRange = useMemo(() => {
@@ -626,11 +642,23 @@ const stock = useMemo(() => {
               >
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
                   현재 재고:{" "}
-                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>{stock}</span>
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  {decodedName} ({selectedOption?.size ?? ""})
-                </div>
+                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>
+                    {stock}
+                    </span>
+                    
+                    {/* 미입고 표시 */}
+                    <span
+                     style={{
+                    marginLeft: 10,
+                    fontSize: 13,
+                    ontWeight: 600,
+                    color: pendingIn > 0 ? "#d97706" : "#6b7280",
+                   }}
+                   >
+                    미입고: {pendingIn}
+                    </span>
+                    </div>
+
               </div>
 
               {/* 기간/검색/정렬 컨트롤 */}
