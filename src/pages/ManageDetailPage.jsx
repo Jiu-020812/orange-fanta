@@ -379,13 +379,19 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
- /* ======================= 재고 계산 ======================= */
+/* ======================= 재고 계산 ======================= */
 const stock = useMemo(() => {
   const safe = Array.isArray(records) ? records : [];
   return safe.reduce((sum, r) => {
-    if (r.type === "IN") return sum + (Number(r.count) || 0);
-    if (r.type === "OUT") return sum - (Number(r.count) || 0);
-    return sum; // PURCHASE 등은 재고 계산에서 제외
+    const count = Number(r.count) || 0;
+
+    //  방어막: price가 있으면 구매로 간주하고 재고 계산에서 제외
+    // (레거시 데이터/실수로 type이 IN으로 저장된 구매 기록도 차단)
+    if (r.price != null && Number(r.price) >= 0) return sum;
+
+    if (r.type === "IN") return sum + count;
+    if (r.type === "OUT") return sum - count;
+    return sum; // PURCHASE / 기타는 제외
   }, 0);
 }, [records]);
 
@@ -759,7 +765,7 @@ const stock = useMemo(() => {
                     try {
                       const created = await createRecord({
                         itemId: selectedOptionId,
-                        type: (info.type || "IN").toUpperCase(),
+                        type: "PURCHASE",
                         price: info.price === "" || info.price == null ? null : Number(info.price),
                         count: countValue,
                         date: dateValue,

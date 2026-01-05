@@ -3,7 +3,7 @@ import { useState } from "react";
 function PurchaseForm({ onAddRecord }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [type, setType] = useState("IN"); //  IN=매입, OUT=출고
+  const [type, setType] = useState("IN"); //  IN=매입, OUT=판매
   const [date, setDate] = useState(today);
   const [price, setPrice] = useState("");
   const [count, setCount] = useState("");
@@ -42,7 +42,7 @@ function PurchaseForm({ onAddRecord }) {
           alignItems: "center",
         }}
       >
-        {/*  매입/출고 선택 */}
+        {/*  매입/판매 선택 */}
         <select
           value={type}
           onChange={(e) => setType(e.target.value)}
@@ -56,7 +56,7 @@ function PurchaseForm({ onAddRecord }) {
           }}
         >
           <option value="IN">매입</option>
-          <option value="OUT">출고</option>
+          <option value="OUT">판매</option>
         </select>
 
         {/* 날짜 */}
@@ -118,7 +118,7 @@ function PurchaseForm({ onAddRecord }) {
             whiteSpace: "nowrap",
           }}
         >
-          {type === "OUT" ? "출고 추가" : "매입 추가"}
+          {type === "OUT" ? "판매 추가" : "매입 추가"}
         </button>
       </form>
     </div>

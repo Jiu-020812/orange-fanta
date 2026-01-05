@@ -368,7 +368,7 @@ export default function StatsSection({ records, itemName }) {
         </div>
 
         <div>
-          • 가격 미입력: 입고 <b>{computed.missingInQty}</b>개 · 출고{" "}
+          • 가격 미입력: 입고 <b>{computed.missingInQty}</b>개 · 판매{" "}
           <b>{computed.missingOutQty}</b>개
         </div>
       </div>

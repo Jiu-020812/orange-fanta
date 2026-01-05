@@ -37,7 +37,7 @@ function TypeBadge({ type }) {
         color: isOut ? "#991b1b" : "#1d4ed8",
       }}
     >
-      {isOut ? "출고" : "매입"}
+      {isOut ? "판매" : "매입"}
     </span>
   );
 }
@@ -102,7 +102,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
       <div style={{ marginBottom: 8, fontWeight: 600, color: "#111827" }}>
         기록 ({count}건){" "}
         <span style={{ color: "#6b7280", fontWeight: 500, fontSize: 13 }}>
-          · 매입 {inCount} · 출고 {outCount}
+          · 매입 {inCount} ·  {outCount}
         </span>
       </div>
 
@@ -158,7 +158,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord }) {
                           }}
                         >
                           <option value="IN">매입</option>
-                          <option value="OUT">출고</option>
+                          <option value="OUT"></option>
                         </select>
 
                         <input

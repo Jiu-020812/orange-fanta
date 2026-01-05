@@ -137,7 +137,7 @@ export default function TopNav() {
           입고 관리
         </DropItem>
         <DropItem to="/out" active={isActive("/out")} onClick={() => setManageOpen(false)}>
-          출고 관리
+          판매 관리
         </DropItem>
       </div>
     </div>

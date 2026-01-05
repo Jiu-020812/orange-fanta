@@ -12,7 +12,7 @@ export default function OutPage() {
   const navigate = useNavigate();
   const scanRef = useRef(null);
 
-  /* -------------------- 오른쪽: 출고 내역 -------------------- */
+  /* -------------------- 오른쪽: 판매 내역 -------------------- */
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,7 +38,7 @@ export default function OutPage() {
       setRecords(Array.isArray(arr) ? arr : []);
     } catch (e) {
       console.error(e);
-      alert("출고 내역을 불러오지 못했어요.");
+      alert("판매 내역을 불러오지 못했어요.");
       setRecords([]);
     } finally {
       setLoading(false);
@@ -128,10 +128,10 @@ async function handleScanEnter() {
     setCart((prev) => prev.filter((x) => x.itemId !== itemId));
   }
 
-  /* ==================== 출고 확정 ==================== */
+  /* ==================== 판매 확정 ==================== */
   async function handleConfirmOut() {
     if (cart.length === 0) {
-      alert("출고할 상품이 없습니다.");
+      alert("판매 할 상품이 없습니다.");
       return;
     }
 
@@ -150,7 +150,7 @@ async function handleScanEnter() {
       console.error(e);
       alert(
         e?.response?.data?.message ||
-          "출고 처리에 실패했어요. (재고 부족일 수 있어요)"
+          "판매 처리에 실패했어요. (재고 부족일 수 있어요)"
       );
     }
   }
@@ -179,10 +179,10 @@ async function handleScanEnter() {
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
   <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
-    📤 출고 관리
+    📤 판매 관리
   </h2>
 
-  {/*  방금 스캔된 상품 표시 (출고) */}
+  {/*  방금 스캔된 상품 표시 (판매) */}
   {lastScanned && (
     <div style={scanToast}>
       {lastScanned.imageUrl && (
@@ -260,7 +260,7 @@ async function handleScanEnter() {
               ))}
 
               <button onClick={handleConfirmOut} style={dangerBtn}>
-                출고 확정
+                판매 확정
               </button>
             </div>
           )}
@@ -268,13 +268,13 @@ async function handleScanEnter() {
 
         {/* ==================== RIGHT ==================== */}
         <div style={card}>
-          <h3 style={cardTitle}>출고 내역</h3>
+          <h3 style={cardTitle}>판매 내역</h3>
 
           {loading ? (
             <div>불러오는 중...</div>
           ) : records.length === 0 ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
-              아직 출고 기록이 없습니다.
+              아직 판매 기록이 없습니다.
             </div>
           ) : (
             records.map((r) => (
