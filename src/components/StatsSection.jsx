@@ -16,21 +16,21 @@ import {
  * - PURCHASE: 매입(가격 입력 기록, price 있음)
  * - OUT: 판매(출고, price 있으면 판매가 입력됨)
  *
- * 가격 미입력(매입) = IN 총수량 - PURCHASE 총수량
+ * 가격 미입력(매입) = (price 없는 IN 총수량) - (매입 입력 수량)
+ *   - 매입 입력 수량: PURCHASE 수량 + (레거시 IN+price 수량)
+ *
  * 가격 미입력(판매) = OUT 총수량 - price 있는 OUT 수량
  *
  * 차트(단가):
- * - 매입 단가: PURCHASE (price 총액 / 수량)
- * - 판매 단가: OUT 중 price 있는 것 (price 총액 / 수량)
+ * - 매입 단가: PURCHASE + (레거시 IN+price)
+ * - 판매 단가: OUT 중 price 있는 것
  */
 export default function StatsSection({ records, itemName }) {
   const safeRecords = Array.isArray(records) ? records : [];
 
-  // 보기 토글
   const [showPurchase, setShowPurchase] = useState(true);
   const [showSale, setShowSale] = useState(true);
 
-  // 기간 필터
   const [mode, setMode] = useState("ALL"); // "7" | "30" | "90" | "ALL" | "CUSTOM"
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(() => toYmd(new Date()));
@@ -55,7 +55,6 @@ export default function StatsSection({ records, itemName }) {
     setTo(today);
   }, [mode]);
 
-  // 둘 다 꺼지면 빈 차트 방지
   const effectiveShowPurchase = showPurchase || (!showPurchase && !showSale);
   const effectiveShowSale = showSale || (!showPurchase && !showSale);
 
@@ -77,12 +76,11 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
-    // 날짜별 누적(차트용)
     const map = new Map();
 
     // ===== 미입력 계산용 =====
-    let inQtyAll = 0; // 입고 총수량
-    let purchaseQtyAll = 0; // 매입(PURCHASE) 총수량
+    let inQtyAll = 0; // "가격 없는" 입고 총수량(진짜 입고만)
+    let purchaseQtyAll = 0; // 매입 입력 수량(PURCHASE + 레거시 IN+price)
     let outQtyAll = 0; // 판매(OUT) 총수량
     let outPricedQty = 0; // 가격 입력된 판매 수량
 
@@ -97,6 +95,27 @@ export default function StatsSection({ records, itemName }) {
     let minSaleUnit = null;
     let maxSaleUnit = null;
 
+    // 매입 누적 처리 공통 함수 (PURCHASE + 레거시 IN+price 공용)
+    const addPurchase = (row, qty, rawPrice) => {
+      purchaseQtyAll += qty;
+
+      const amount = toNum(rawPrice, 0);
+
+      row.purchaseAmount += amount;
+      row.purchaseQty += qty;
+
+      purchaseTotalAmount += amount;
+      purchaseTotalQty += qty;
+
+      const unit = amount / qty;
+      if (Number.isFinite(unit)) {
+        minPurchaseUnit =
+          minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
+        maxPurchaseUnit =
+          maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
+      }
+    };
+
     for (const r of safeRecords) {
       if (!r) continue;
       if (!inRange(r.date)) continue;
@@ -108,7 +127,6 @@ export default function StatsSection({ records, itemName }) {
       const qty = toNum(r.count, 0);
       if (qty <= 0) continue;
 
-      // row 생성(차트용)
       if (!map.has(dateOnly)) {
         map.set(dateOnly, {
           dateOnly,
@@ -124,36 +142,26 @@ export default function StatsSection({ records, itemName }) {
       const rawPrice = r.price;
 
       // ===== IN =====
-if (type === "IN") {
-  inQtyAll += qty;
+      if (type === "IN") {
+        // ✅ 핵심 수정:
+        // IN인데 price가 있으면 "매입 기록(레거시)"로 처리하고,
+        // inQtyAll(입고 총수량)에는 포함시키지 않음.
+        if (hasPrice(rawPrice)) {
+          addPurchase(row, qty, rawPrice);
+        } else {
+          inQtyAll += qty;
+        }
+        continue;
+      }
 
-  console.log("[IN check]", { qty, rawPrice, hasPrice: hasPrice(rawPrice), priceType: typeof rawPrice });
-
-  // 🔥 IN인데 price가 있으면 "매입 입력"으로 간주해서 매입쪽에도 누적
-  if (hasPrice(rawPrice)) {
-    purchaseQtyAll += qty;
-
-    console.log("[IN priced add]", { qty, purchaseQtyAll });
-
-    const amount = toNum(rawPrice, 0);
-
-    row.purchaseAmount += amount;
-    row.purchaseQty += qty;
-
-    purchaseTotalAmount += amount;
-    purchaseTotalQty += qty;
-
-    const unit = amount / qty;
-    if (Number.isFinite(unit)) {
-      minPurchaseUnit =
-        minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
-      maxPurchaseUnit =
-        maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
-    }
-  }
-
-  continue; // IN은 단가 차트에 포함 안 함(단, price 있는 IN은 위에서 매입으로 반영됨)
-}
+      // ===== PURCHASE =====
+      if (type === "PURCHASE") {
+        // 원칙적으로 price가 있어야 함 (없으면 그냥 수량만 매입 입력으로는 안 잡음)
+        if (hasPrice(rawPrice)) {
+          addPurchase(row, qty, rawPrice);
+        }
+        continue;
+      }
 
       // ===== OUT (판매 단가 차트/통계) =====
       if (type === "OUT") {
@@ -179,10 +187,9 @@ if (type === "IN") {
         continue;
       }
 
-      // 그 외 타입은 무시
+      // 그 외 타입 무시
     }
 
-    // ===== 차트 데이터 =====
     const data = Array.from(map.values())
       .sort((a, b) => (a.dateOnly > b.dateOnly ? 1 : -1))
       .map((d) => ({
@@ -196,14 +203,13 @@ if (type === "IN") {
       (d) => Number.isFinite(d.purchaseUnit) || Number.isFinite(d.saleUnit)
     );
 
-    // ===== 평균 단가 =====
     const avgPurchaseUnit =
       purchaseTotalQty > 0 ? Math.round(purchaseTotalAmount / purchaseTotalQty) : null;
     const avgSaleUnit =
       saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
-    //  가격 미입력
-   
+    // ✅ 가격 미입력
+    // - 매입: (price 없는 입고) - (매입 입력 수량)
     const missingPurchaseQty = Math.max(0, inQtyAll - purchaseQtyAll);
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
 
@@ -403,9 +409,10 @@ if (type === "IN") {
           <ResponsiveContainer>
             <BarChart
               data={computed.data}
-              barSize={6}
-              barCategoryGap={50}
-              maxBarSize={10}
+              // ✅ 두께는 여기서 조절
+              barSize={14}
+              barCategoryGap={18}
+              maxBarSize={18}
               margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
