@@ -303,7 +303,7 @@ export default function ManageDetailPage() {
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
-    // ⭐ barcode 포함
+    //  barcode 포함
     const { id, value, image, barcode } = editModal;
     const trimmed = String(value ?? "").trim();
     const trimmedBarcode = String(barcode ?? "").trim();
@@ -784,39 +784,54 @@ const pendingIn = useMemo(() => {
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
-                  onAddRecord={async (info) => {
-                    if (!selectedOptionId) return;
-
-                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
-                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
-
-                    try {
-                      const created = await createRecord({
-                        itemId: selectedOptionId,
-                        type: "PURCHASE",
-                        price: info.price === "" || info.price == null ? null : Number(info.price),
-                        count: countValue,
-                        date: dateValue,
-                        memo: info.memo ?? null,
-                      });
-
-                      const newRecord = {
-                        id: created?.id ?? Math.random(),
-                        itemId: created?.itemId ?? selectedOptionId,
-                        type: (created?.type || info.type || "IN").toUpperCase(),
-                        price: created?.price ?? (info.price ?? null),
-                        count: created?.count ?? countValue,
-                        date: String(created?.date ?? dateValue).slice(0, 10),
-                        memo: created?.memo ?? (info.memo ?? ""),
-                      };
-
-                      setRecords((prev) => [...prev, newRecord]);
-                      showToast("기록 추가 완료");
-                    } catch (err) {
-                      console.error("백엔드 기록 저장 실패", err);
-                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
-                    }
-                  }}
+                 onAddRecord={async (info) => {
+                  if (!selectedOptionId) return;
+                
+                  const dateValue = info.date || new Date().toISOString().slice(0, 10);
+                  const countValue =
+                    info.count === "" || info.count == null ? 1 : Number(info.count);
+                
+                  // ✅ 핵심: UI에서 선택한 타입을 서버 타입(IN/OUT)으로 변환
+                  // info.type 이 값이 뭐로 오는지 모르니까 최대한 방어적으로 처리
+                  // - "판매" / "OUT" => OUT
+                  // - 나머지(매입/입고) => IN
+                  const uiType = String(info.type ?? "").toUpperCase();
+                  const apiType =
+                    uiType === "OUT" || uiType === "SALE" || uiType === "판매"
+                      ? "OUT"
+                      : "IN";
+                
+                  // ✅ 가격: 빈값이면 null
+                  const priceValue =
+                    info.price === "" || info.price == null ? null : Number(info.price);
+                
+                  try {
+                    const created = await createRecord({
+                      itemId: selectedOptionId,
+                      type: apiType,        // 🔥 "PURCHASE" 절대 금지
+                      price: priceValue,    // 매입이면 price 있음, 입고면 null일 수 있음
+                      count: countValue,
+                      date: dateValue,
+                      memo: info.memo ?? null,
+                    });
+                
+                    const newRecord = {
+                      id: created?.id ?? Math.random(),
+                      itemId: created?.itemId ?? selectedOptionId,
+                      type: String(created?.type ?? apiType).toUpperCase(),
+                      price: created?.price ?? priceValue,
+                      count: created?.count ?? countValue,
+                      date: String(created?.date ?? dateValue).slice(0, 10),
+                      memo: created?.memo ?? (info.memo ?? ""),
+                    };
+                
+                    setRecords((prev) => [...prev, newRecord]);
+                    showToast("기록 추가 완료");
+                  } catch (err) {
+                    console.error("백엔드 기록 저장 실패", err);
+                    window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+                  }
+                }}
                 />
               </div>
 
