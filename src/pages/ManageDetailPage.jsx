@@ -199,7 +199,7 @@ export default function ManageDetailPage() {
     if (!trimmed) return false;
     return options.some((opt) => norm(opt.size) === trimmed);
   };
-  
+
   /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
   const handleSelectOption = async (nextId) => {
     setSelectedOptionId(nextId);
@@ -379,16 +379,16 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
-  /* ======================= 재고 계산 ======================= */
-  const stock = useMemo(() => {
-    const inSum = records
-      .filter((r) => (r.type || "IN") !== "OUT")
-      .reduce((acc, r) => acc + Number(r.count || 0), 0);
-    const outSum = records
-      .filter((r) => (r.type || "IN") === "OUT")
-      .reduce((acc, r) => acc + Number(r.count || 0), 0);
-    return inSum - outSum;
-  }, [records]);
+ /* ======================= 재고 계산 ======================= */
+const stock = useMemo(() => {
+  const safe = Array.isArray(records) ? records : [];
+  return safe.reduce((sum, r) => {
+    if (r.type === "IN") return sum + (Number(r.count) || 0);
+    if (r.type === "OUT") return sum - (Number(r.count) || 0);
+    return sum; // PURCHASE 등은 재고 계산에서 제외
+  }, 0);
+}, [records]);
+
 
   /* ======================= 기간 필터 계산 ======================= */
   const effectiveRange = useMemo(() => {
