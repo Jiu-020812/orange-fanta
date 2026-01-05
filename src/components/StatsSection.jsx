@@ -93,49 +93,63 @@ export default function StatsSection({ records, itemName }) {
       const dateOnly = toYmd(r.date);
       if (!dateOnly) continue;
 
-      const type = String(r.type || "IN").toUpperCase(); // IN / OUT
-      const qty = toNum(r.count, 0);
-      if (qty <= 0) continue;
+      const type = String(r.type || "IN").toUpperCase();
+const qty = toNum(r.count, 0);
+if (qty <= 0) continue;
 
-      if (!map.has(dateOnly)) {
-        map.set(dateOnly, {
-          dateOnly,
-          label: dateOnly.slice(5),
-          purchaseAmount: 0,
-          purchaseQty: 0,
-          saleAmount: 0,
-          saleQty: 0,
-        });
-      }
-      const row = map.get(dateOnly);
-      const rawPrice = r.price;
+const rawPrice = r.price;
 
-      // ================= IN (입고 / 매입)
-      if (type === "IN") {
-        inQtyAll += qty;
+// --- 입고 총량(미입력 기준의 기준점)
+if (type === "IN") {
+  inQtyAll += qty;
+  // A안에서는 IN 자체는 차트(단가) 계산에서 제외
+  continue;
+}
 
-        if (hasPrice(rawPrice)) {
-          // 👉 매입
-          inPricedQty += qty;
+// --- 매입: PURCHASE 타입 (or 혹시 레거시로 IN+price가 남아있으면 아래에서 같이 처리 가능)
+if (type === "PURCHASE") {
+  purchaseQtyAll += qty;
 
-          const amount = toNum(rawPrice, 0);
-          row.purchaseAmount += amount;
-          row.purchaseQty += qty;
+  if (hasPrice(rawPrice)) {
+    const amount = toNum(rawPrice, 0);
 
-          purchaseTotalAmount += amount;
-          purchaseTotalQty += qty;
+    row.purchaseAmount += amount;
+    row.purchaseQty += qty;
 
-          const unit = amount / qty;
-          if (Number.isFinite(unit)) {
-            minPurchaseUnit =
-              minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
-            maxPurchaseUnit =
-              maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
-          }
-        }
-        continue;
-      }
+    purchaseTotalAmount += amount;
+    purchaseTotalQty += qty;
 
+    const unit = amount / qty;
+    if (Number.isFinite(unit)) {
+      minPurchaseUnit = minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
+      maxPurchaseUnit = maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
+    }
+  }
+  continue;
+}
+
+// --- 판매: OUT 타입
+if (type === "OUT") {
+  outQtyAll += qty;
+
+  if (hasPrice(rawPrice)) {
+    outPricedQty += qty;
+
+    const amount = toNum(rawPrice, 0);
+    row.saleAmount += amount;
+    row.saleQty += qty;
+
+    saleTotalAmount += amount;
+    saleTotalQty += qty;
+
+    const unit = amount / qty;
+    if (Number.isFinite(unit)) {
+      minSaleUnit = minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
+      maxSaleUnit = maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
+    }
+  }
+  continue;
+}
       // ================= OUT (판매)
       if (type === "OUT") {
         outQtyAll += qty;
@@ -244,19 +258,25 @@ export default function StatsSection({ records, itemName }) {
       ) : (
         <div style={{ height: 240 }}>
           <ResponsiveContainer>
-            <BarChart data={computed.data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="label" />
-              <YAxis />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend />
-              {effectiveShowPurchase && (
-                <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
-              )}
-              {effectiveShowSale && (
-                <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />
-              )}
-            </BarChart>
+          <BarChart
+  data={computed.data}
+  barSize={6}
+  barCategoryGap={50}
+  maxBarSize={10}
+>
+  <CartesianGrid strokeDasharray="3 3" />
+  <XAxis dataKey="label" />
+  <YAxis />
+  <Tooltip content={<CustomTooltip />} />
+  <Legend />
+  {effectiveShowPurchase && (
+    <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
+  )}
+  {effectiveShowSale && (
+    <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />
+  )}
+</BarChart>
+
           </ResponsiveContainer>
         </div>
       )}
