@@ -11,9 +11,17 @@ import {
 } from "recharts";
 
 /**
- * props
- * - records: [{ id, type: "IN"|"OUT", price, count, date }]
- * - itemName: 그래프 제목
+ * A안(현재 프로젝트 상태 기준)
+ * - IN: 입고 (price 없음이 일반적)
+ * - PURCHASE: 매입(가격 입력 기록, price 있음)
+ * - OUT: 판매(출고, price 있으면 판매가 입력됨)
+ *
+ * 가격 미입력(매입) = IN 총수량 - PURCHASE 총수량
+ * 가격 미입력(판매) = OUT 총수량 - price 있는 OUT 수량
+ *
+ * 차트(단가):
+ * - 매입 단가: PURCHASE (price 총액 / 수량)
+ * - 판매 단가: OUT 중 price 있는 것 (price 총액 / 수량)
  */
 export default function StatsSection({ records, itemName }) {
   const safeRecords = Array.isArray(records) ? records : [];
@@ -31,6 +39,7 @@ export default function StatsSection({ records, itemName }) {
     if (mode === "CUSTOM") return;
 
     const today = toYmd(new Date());
+
     if (mode === "ALL") {
       setFrom("");
       setTo(today);
@@ -53,6 +62,7 @@ export default function StatsSection({ records, itemName }) {
   const computed = useMemo(() => {
     const hasPrice = (v) =>
       v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+
     const toNum = (v, fallback = 0) => {
       const n = Number(v);
       return Number.isFinite(n) ? n : fallback;
@@ -67,15 +77,16 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
+    // 날짜별 누적(차트용)
     const map = new Map();
 
-    // 🔹 수량 누적 (미입력 계산용)
-    let inQtyAll = 0;        // 전체 입고
-    let inPricedQty = 0;     // price 있는 입고 (= 매입)
-    let outQtyAll = 0;       // 전체 출고
-    let outPricedQty = 0;    // price 있는 출고
+    // ===== 미입력 계산용 =====
+    let inQtyAll = 0; // 입고 총수량
+    let purchaseQtyAll = 0; // 매입(PURCHASE) 총수량
+    let outQtyAll = 0; // 판매(OUT) 총수량
+    let outPricedQty = 0; // 가격 입력된 판매 수량
 
-    // 🔹 단가 통계
+    // ===== 단가 통계 =====
     let purchaseTotalAmount = 0;
     let purchaseTotalQty = 0;
     let saleTotalAmount = 0;
@@ -93,64 +104,57 @@ export default function StatsSection({ records, itemName }) {
       const dateOnly = toYmd(r.date);
       if (!dateOnly) continue;
 
-      const type = String(r.type || "IN").toUpperCase();
-const qty = toNum(r.count, 0);
-if (qty <= 0) continue;
+      const type = String(r.type || "IN").toUpperCase(); // IN / OUT / PURCHASE
+      const qty = toNum(r.count, 0);
+      if (qty <= 0) continue;
 
-const rawPrice = r.price;
+      // row 생성(차트용)
+      if (!map.has(dateOnly)) {
+        map.set(dateOnly, {
+          dateOnly,
+          label: dateOnly.slice(5),
+          purchaseAmount: 0,
+          purchaseQty: 0,
+          saleAmount: 0,
+          saleQty: 0,
+        });
+      }
+      const row = map.get(dateOnly);
 
-// --- 입고 총량(미입력 기준의 기준점)
-if (type === "IN") {
-  inQtyAll += qty;
-  // A안에서는 IN 자체는 차트(단가) 계산에서 제외
-  continue;
-}
+      const rawPrice = r.price;
 
-// --- 매입: PURCHASE 타입 (or 혹시 레거시로 IN+price가 남아있으면 아래에서 같이 처리 가능)
-if (type === "PURCHASE") {
-  purchaseQtyAll += qty;
+      // ===== IN =====
+      if (type === "IN") {
+        inQtyAll += qty;
+        continue; // IN은 단가 차트에 포함 안 함
+      }
 
-  if (hasPrice(rawPrice)) {
-    const amount = toNum(rawPrice, 0);
+      // ===== PURCHASE (매입 단가 차트/통계) =====
+      if (type === "PURCHASE") {
+        purchaseQtyAll += qty;
 
-    row.purchaseAmount += amount;
-    row.purchaseQty += qty;
+        // 매입은 원칙적으로 price가 있어야 하지만 방어적으로 체크
+        if (hasPrice(rawPrice)) {
+          const amount = toNum(rawPrice, 0);
 
-    purchaseTotalAmount += amount;
-    purchaseTotalQty += qty;
+          row.purchaseAmount += amount;
+          row.purchaseQty += qty;
 
-    const unit = amount / qty;
-    if (Number.isFinite(unit)) {
-      minPurchaseUnit = minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
-      maxPurchaseUnit = maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
-    }
-  }
-  continue;
-}
+          purchaseTotalAmount += amount;
+          purchaseTotalQty += qty;
 
-// --- 판매: OUT 타입
-if (type === "OUT") {
-  outQtyAll += qty;
+          const unit = amount / qty;
+          if (Number.isFinite(unit)) {
+            minPurchaseUnit =
+              minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
+            maxPurchaseUnit =
+              maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
+          }
+        }
+        continue;
+      }
 
-  if (hasPrice(rawPrice)) {
-    outPricedQty += qty;
-
-    const amount = toNum(rawPrice, 0);
-    row.saleAmount += amount;
-    row.saleQty += qty;
-
-    saleTotalAmount += amount;
-    saleTotalQty += qty;
-
-    const unit = amount / qty;
-    if (Number.isFinite(unit)) {
-      minSaleUnit = minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
-      maxSaleUnit = maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
-    }
-  }
-  continue;
-}
-      // ================= OUT (판매)
+      // ===== OUT (판매 단가 차트/통계) =====
       if (type === "OUT") {
         outQtyAll += qty;
 
@@ -158,6 +162,7 @@ if (type === "OUT") {
           outPricedQty += qty;
 
           const amount = toNum(rawPrice, 0);
+
           row.saleAmount += amount;
           row.saleQty += qty;
 
@@ -166,42 +171,38 @@ if (type === "OUT") {
 
           const unit = amount / qty;
           if (Number.isFinite(unit)) {
-            minSaleUnit =
-              minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
-            maxSaleUnit =
-              maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
+            minSaleUnit = minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
+            maxSaleUnit = maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
           }
         }
+        continue;
       }
+
+      // 그 외 타입은 무시
     }
 
+    // ===== 차트 데이터 =====
     const data = Array.from(map.values())
       .sort((a, b) => (a.dateOnly > b.dateOnly ? 1 : -1))
       .map((d) => ({
         label: d.label,
         purchaseUnit:
-          d.purchaseQty > 0
-            ? Math.round(d.purchaseAmount / d.purchaseQty)
-            : null,
-        saleUnit:
-          d.saleQty > 0 ? Math.round(d.saleAmount / d.saleQty) : null,
+          d.purchaseQty > 0 ? Math.round(d.purchaseAmount / d.purchaseQty) : null,
+        saleUnit: d.saleQty > 0 ? Math.round(d.saleAmount / d.saleQty) : null,
       }));
 
     const hasChartValue = data.some(
       (d) => Number.isFinite(d.purchaseUnit) || Number.isFinite(d.saleUnit)
     );
 
+    // ===== 평균 단가 =====
     const avgPurchaseUnit =
-      purchaseTotalQty > 0
-        ? Math.round(purchaseTotalAmount / purchaseTotalQty)
-        : null;
+      purchaseTotalQty > 0 ? Math.round(purchaseTotalAmount / purchaseTotalQty) : null;
     const avgSaleUnit =
-      saleTotalQty > 0
-        ? Math.round(saleTotalAmount / saleTotalQty)
-        : null;
+      saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
-    // ✅ 가격 미입력 (A안 핵심)
-    const missingPurchaseQty = Math.max(0, inQtyAll - inPricedQty);
+    // ✅ 가격 미입력
+    const missingPurchaseQty = Math.max(0, inQtyAll - purchaseQtyAll);
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
 
     return {
@@ -211,10 +212,8 @@ if (type === "OUT") {
       missingSaleQty,
       avgPurchaseUnit,
       avgSaleUnit,
-      minPurchaseUnit:
-        minPurchaseUnit == null ? null : Math.round(minPurchaseUnit),
-      maxPurchaseUnit:
-        maxPurchaseUnit == null ? null : Math.round(maxPurchaseUnit),
+      minPurchaseUnit: minPurchaseUnit == null ? null : Math.round(minPurchaseUnit),
+      maxPurchaseUnit: maxPurchaseUnit == null ? null : Math.round(maxPurchaseUnit),
       minSaleUnit: minSaleUnit == null ? null : Math.round(minSaleUnit),
       maxSaleUnit: maxSaleUnit == null ? null : Math.round(maxSaleUnit),
     };
@@ -227,56 +226,199 @@ if (type === "OUT") {
   }, [mode, from, to]);
 
   const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
+    if (!active || !payload || payload.length === 0) return null;
+
     return (
-      <div style={{ background: "#111827", color: "#fff", padding: 8, borderRadius: 8 }}>
-        <b>{label}</b>
-        {payload.map((p) => (
-          <div key={p.dataKey}>
-            {p.dataKey === "purchaseUnit" ? "매입" : "판매"}:{" "}
-            {p.value != null ? `${p.value.toLocaleString()}원` : "-"}
-          </div>
-        ))}
+      <div
+        style={{
+          background: "#111827",
+          color: "#fff",
+          borderRadius: 10,
+          padding: "8px 10px",
+          fontSize: 12,
+          border: "1px solid rgba(255,255,255,0.15)",
+        }}
+      >
+        <div style={{ fontWeight: 800, marginBottom: 6 }}>{label}</div>
+        {payload.map((p) => {
+          const name = p.dataKey === "purchaseUnit" ? "매입 단가" : "판매 단가";
+          const v = p.value;
+          return (
+            <div key={p.dataKey} style={{ opacity: 0.95 }}>
+              {name}:{" "}
+              {Number.isFinite(Number(v)) ? `${Number(v).toLocaleString()}원` : "-"}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
   return (
-    <div style={{ padding: 16, borderRadius: 16, border: "1px solid #e5e7eb" }}>
-      <h3>📊 단가 그래프 {itemName ? `- ${itemName}` : ""}</h3>
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 16,
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+      }}
+    >
+      {/* 타이틀 + 토글 */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
+          📊 단가 그래프 {itemName ? `- ${itemName}` : ""}
+        </h2>
 
-      <div style={{ fontSize: 12, color: "#6b7280" }}>
-        • 기간: <b>{periodText}</b><br />
-        • 가격 미입력: 매입 <b>{computed.missingPurchaseQty}</b>개 · 판매{" "}
-        <b>{computed.missingSaleQty}</b>개
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowPurchase((v) => !v)}
+            style={chipBtn(showPurchase)}
+          >
+            매입
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSale((v) => !v)}
+            style={chipBtn(showSale)}
+          >
+            판매
+          </button>
+        </div>
       </div>
 
+      {/* 기간 컨트롤 */}
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          alignItems: "center",
+        }}
+      >
+        <button type="button" onClick={() => setMode("7")} style={pill(mode === "7")}>
+          최근 7일
+        </button>
+        <button type="button" onClick={() => setMode("30")} style={pill(mode === "30")}>
+          최근 30일
+        </button>
+        <button type="button" onClick={() => setMode("90")} style={pill(mode === "90")}>
+          최근 90일
+        </button>
+        <button type="button" onClick={() => setMode("ALL")} style={pill(mode === "ALL")}>
+          전체
+        </button>
+
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>기간:</span>
+
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => {
+            setMode("CUSTOM");
+            setFrom(e.target.value);
+          }}
+          style={dateInput}
+        />
+        <span style={{ fontSize: 12, color: "#6b7280" }}>~</span>
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => {
+            setMode("CUSTOM");
+            setTo(e.target.value);
+          }}
+          style={dateInput}
+        />
+      </div>
+
+      {/* 요약 */}
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 12,
+          color: "#6b7280",
+          lineHeight: 1.6,
+        }}
+      >
+        <div>
+          • 적용 기간: <b>{periodText}</b>
+        </div>
+
+        <div>
+          • 평균 매입 단가:{" "}
+          <b>
+            {computed.avgPurchaseUnit != null
+              ? `${computed.avgPurchaseUnit.toLocaleString()}원`
+              : "-"}
+          </b>
+          {computed.avgPurchaseUnit != null && (
+            <span>
+              {" "}
+              (최저 {computed.minPurchaseUnit?.toLocaleString() ?? "-"}원 / 최고{" "}
+              {computed.maxPurchaseUnit?.toLocaleString() ?? "-"}원)
+            </span>
+          )}
+        </div>
+
+        <div>
+          • 평균 판매 단가:{" "}
+          <b>
+            {computed.avgSaleUnit != null
+              ? `${computed.avgSaleUnit.toLocaleString()}원`
+              : "-"}
+          </b>
+          {computed.avgSaleUnit != null && (
+            <span>
+              {" "}
+              (최저 {computed.minSaleUnit?.toLocaleString() ?? "-"}원 / 최고{" "}
+              {computed.maxSaleUnit?.toLocaleString() ?? "-"}원)
+            </span>
+          )}
+        </div>
+
+        <div>
+          • 가격 미입력: 매입 <b>{computed.missingPurchaseQty}</b>개 · 판매{" "}
+          <b>{computed.missingSaleQty}</b>개
+        </div>
+      </div>
+
+      {/* 차트 */}
       {!computed.hasChartValue ? (
-        <div style={{ marginTop: 12, color: "#6b7280" }}>
-          가격 입력된 매입·판매 기록이 없어요.
+        <div style={{ marginTop: 14, fontSize: 13, color: "#6b7280" }}>
+          가격이 입력된 매입·판매 기록이 없어요. (가격 입력된 기록만 그래프에 반영)
         </div>
       ) : (
-        <div style={{ height: 240 }}>
+        <div style={{ width: "100%", height: 240, marginTop: 8 }}>
           <ResponsiveContainer>
-          <BarChart
-  data={computed.data}
-  barSize={6}
-  barCategoryGap={50}
-  maxBarSize={10}
->
-  <CartesianGrid strokeDasharray="3 3" />
-  <XAxis dataKey="label" />
-  <YAxis />
-  <Tooltip content={<CustomTooltip />} />
-  <Legend />
-  {effectiveShowPurchase && (
-    <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
-  )}
-  {effectiveShowSale && (
-    <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />
-  )}
-</BarChart>
+            <BarChart
+              data={computed.data}
+              barSize={6}
+              barCategoryGap={50}
+              maxBarSize={10}
+              margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend />
 
+              {effectiveShowPurchase && (
+                <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
+              )}
+              {effectiveShowSale && (
+                <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />
+              )}
+            </BarChart>
           </ResponsiveContainer>
         </div>
       )}
@@ -289,6 +431,38 @@ function toYmd(v) {
   if (!v) return "";
   const s = String(v);
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
+
+/* styles */
+const chipBtn = (active) => ({
+  padding: "6px 10px",
+  borderRadius: 999,
+  border: "1px solid #e5e7eb",
+  background: active ? "#111827" : "#ffffff",
+  color: active ? "#ffffff" : "#111827",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
+});
+
+const pill = (active) => ({
+  padding: "5px 9px",
+  borderRadius: 10,
+  border: "1px solid " + (active ? "#2563eb" : "#e5e7eb"),
+  background: active ? "#2563eb" : "#ffffff",
+  color: active ? "#ffffff" : "#111827",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
+});
+
+const dateInput = {
+  height: 28,
+  padding: "0 8px",
+  borderRadius: 10,
+  border: "1px solid #e5e7eb",
+  fontSize: 12,
+};
