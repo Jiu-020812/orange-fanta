@@ -127,9 +127,13 @@ export default function StatsSection({ records, itemName }) {
 if (type === "IN") {
   inQtyAll += qty;
 
+  console.log("[IN check]", { qty, rawPrice, hasPrice: hasPrice(rawPrice), priceType: typeof rawPrice });
+
   // 🔥 IN인데 price가 있으면 "매입 입력"으로 간주해서 매입쪽에도 누적
   if (hasPrice(rawPrice)) {
     purchaseQtyAll += qty;
+
+    console.log("[IN priced add]", { qty, purchaseQtyAll });
 
     const amount = toNum(rawPrice, 0);
 
@@ -198,7 +202,8 @@ if (type === "IN") {
     const avgSaleUnit =
       saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
-    // ✅ 가격 미입력
+    //  가격 미입력
+   
     const missingPurchaseQty = Math.max(0, inQtyAll - purchaseQtyAll);
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
 
