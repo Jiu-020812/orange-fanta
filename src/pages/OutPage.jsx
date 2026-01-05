@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PriceInputModal from "../components/PriceInputModal";
 import {
@@ -6,15 +6,27 @@ import {
   createRecordsBatch,
   getAllRecords,
   updateRecord,
+  getItems, // ✅ 없으면 너 api에 맞는 함수명으로 바꿔줘 (ex: getItems as fetchItems)
 } from "../api/items";
+
+const norm = (s) => String(s ?? "").trim().toLowerCase();
+const safeNum = (v, d = 0) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : d;
+};
 
 export default function OutPage() {
   const navigate = useNavigate();
   const scanRef = useRef(null);
+  const manualRef = useRef(null);
 
   /* -------------------- 오른쪽: 판매 내역 -------------------- */
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  /* -------------------- 아이템 목록 (수기 검색용) -------------------- */
+  const [items, setItems] = useState([]);
+  const [itemsLoading, setItemsLoading] = useState(true);
 
   /* -------------------- 왼쪽: 스캔 누적 -------------------- */
   const [scanValue, setScanValue] = useState("");
@@ -24,6 +36,9 @@ export default function OutPage() {
   // 방금 스캔된 상품 (강조 카드)
   const [lastScanned, setLastScanned] = useState(null);
   const lastTimerRef = useRef(null);
+
+  /* -------------------- 수기 검색 -------------------- */
+  const [manualQuery, setManualQuery] = useState("");
 
   /* -------------------- 가격 모달 -------------------- */
   const [priceModalOpen, setPriceModalOpen] = useState(false);
@@ -45,70 +60,117 @@ export default function OutPage() {
     }
   }
 
+  async function loadItems() {
+    setItemsLoading(true);
+    try {
+      const data = await getItems(); // ✅ 여기 API만 너 프로젝트에 맞게
+      const arr = Array.isArray(data) ? data : data?.items;
+      setItems(Array.isArray(arr) ? arr : []);
+    } catch (e) {
+      console.error(e);
+      setItems([]);
+    } finally {
+      setItemsLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadRecords();
+    loadItems();
   }, []);
 
-  /* -------------------- 스캔 input 항상 포커스 -------------------- */
+  /* -------------------- 스캔 input 포커스 -------------------- */
   useEffect(() => {
+    // 처음엔 스캔에 포커스
     scanRef.current?.focus();
-    const onClick = () => scanRef.current?.focus();
+
+    const onClick = () => {
+      // 수기 검색창에 포커스 중이면 스캔으로 포커스 빼앗지 않기
+      if (document.activeElement === manualRef.current) return;
+      scanRef.current?.focus();
+    };
+
     window.addEventListener("click", onClick);
     return () => window.removeEventListener("click", onClick);
   }, []);
 
   /* ==================== 바코드 스캔 ==================== */
-async function handleScanEnter() {
+  async function handleScanEnter() {
     const code = scanValue.trim();
     if (!code) return;
     setScanValue("");
-  
+
     try {
       const res = await lookupItemByBarcode(code);
-  
+
       if (!res?.ok) {
         alert(`미등록 상품입니다.\n바코드: ${code}`);
         return;
       }
-  
+
       const item = res.item;
-  
-      //  방금 스캔된 상품 강조 카드 띄우기
+
+      // 방금 스캔된 상품 강조 카드
       setLastScanned({
         itemId: item.itemId,
         name: item.name,
         size: item.size,
         imageUrl: item.imageUrl,
       });
-  
+
       if (lastTimerRef.current) clearTimeout(lastTimerRef.current);
       lastTimerRef.current = setTimeout(() => {
         setLastScanned(null);
       }, 1200);
 
-      //  카트 누적 (같으면 count + 1)
-      setCart((prev) => {
-        const idx = prev.findIndex((x) => x.itemId === item.itemId);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = { ...next[idx], count: next[idx].count + 1 };
-          return next;
-        }
-        return [
-          {
-            itemId: item.itemId,
-            name: item.name,
-            size: item.size,
-            imageUrl: item.imageUrl,
-            count: 1,
-          },
-          ...prev,
-        ];
-      });
+      // 카트 누적 (같으면 count + 1)
+      setCart((prev) => addOrIncCart(prev, {
+        itemId: item.itemId,
+        name: item.name,
+        size: item.size,
+        imageUrl: item.imageUrl,
+        count: 1,
+      }));
     } catch (e) {
       console.error(e);
       alert("바코드 조회 중 오류가 발생했어요.");
     }
+  }
+
+  /* ==================== 수기 검색 결과 ==================== */
+  const manualResults = useMemo(() => {
+    const q = norm(manualQuery);
+    if (!q) return [];
+
+    // ✅ items 구조가 { id, name, size, imageUrl } 라고 가정
+    //    만약 { itemId } 같은 다른 키면 아래에서 조정해줘
+    return (Array.isArray(items) ? items : [])
+      .filter((it) => {
+        const name = norm(it.name);
+        const size = norm(it.size);
+        return name.includes(q) || size.includes(q);
+      })
+      .slice(0, 10);
+  }, [items, manualQuery]);
+
+  function addManualToCart(item) {
+    // item.id를 itemId로 쓰는 구조 가정
+    const itemId = item.id ?? item.itemId;
+    if (!itemId) return;
+
+    setCart((prev) =>
+      addOrIncCart(prev, {
+        itemId,
+        name: item.name,
+        size: item.size,
+        imageUrl: item.imageUrl,
+        count: 1,
+      })
+    );
+
+    setManualQuery("");
+    // 담고 나면 다시 스캔 포커스(원하면)
+    scanRef.current?.focus();
   }
 
   /* ==================== 수량 조절 ==================== */
@@ -116,9 +178,7 @@ async function handleScanEnter() {
     setCart((prev) =>
       prev
         .map((x) =>
-          x.itemId === itemId
-            ? { ...x, count: Math.max(1, x.count + delta) }
-            : x
+          x.itemId === itemId ? { ...x, count: Math.max(1, x.count + delta) } : x
         )
         .filter((x) => x.count > 0)
     );
@@ -178,41 +238,45 @@ async function handleScanEnter() {
   /* ==================== UI ==================== */
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
-  <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
-    📤 판매 관리
-  </h2>
+      <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
+        📤 판매 관리
+      </h2>
 
-  {/*  방금 스캔된 상품 표시 (판매) */}
-  {lastScanned && (
-    <div style={scanToast}>
-      {lastScanned.imageUrl && (
-        <img
-          src={lastScanned.imageUrl}
-          alt=""
-          style={{
-            width: 48,
-            height: 48,
-            borderRadius: 8,
-            objectFit: "cover",
-          }}
-        />
+      {/* 방금 스캔된 상품 표시 */}
+      {lastScanned && (
+        <div style={scanToast}>
+          {lastScanned.imageUrl && (
+            <img
+              src={lastScanned.imageUrl}
+              alt=""
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 8,
+                objectFit: "cover",
+              }}
+            />
+          )}
+
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700 }}>
+              {lastScanned.name}
+              {lastScanned.size ? ` (${lastScanned.size})` : ""}
+            </div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>방금 스캔됨</div>
+          </div>
+
+          <div style={scanBadge}>+1</div>
+        </div>
       )}
 
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700 }}>
-          {lastScanned.name}
-          {lastScanned.size ? ` (${lastScanned.size})` : ""}
-        </div>
-        <div style={{ fontSize: 12, color: "#6b7280" }}>
-          방금 스캔됨
-        </div>
-      </div>
-
-      <div style={scanBadge}>+1</div>
-    </div>
-  )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 24 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1.2fr",
+          gap: 24,
+        }}
+      >
         {/* ==================== LEFT ==================== */}
         <div style={card}>
           <h3 style={cardTitle}>바코드 스캔</h3>
@@ -230,40 +294,92 @@ async function handleScanEnter() {
             placeholder="바코드 스캔 후 Enter"
             autoComplete="off"
             inputMode="numeric"
-            style={{ ...inputStyle, marginBottom: 12 }}
+            style={{ ...inputStyle, marginBottom: 12, width: "100%" }}
           />
 
-          {cart.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              스캔한 상품이 없습니다.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {cart.map((x) => (
-                <div key={x.itemId} style={cartRow}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {x.name} {x.size ? `(${x.size})` : ""}
+          {/* ✅ 수기 추가 섹션 */}
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>수기 검색 추가</div>
+
+            <input
+              ref={manualRef}
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (manualResults[0]) addManualToCart(manualResults[0]);
+                }
+              }}
+              placeholder="이름/옵션(사이즈) 검색 후 Enter"
+              autoComplete="off"
+              style={{ ...inputStyle, width: "100%" }}
+            />
+
+            {manualQuery && (
+              <div style={resultBox}>
+                {itemsLoading ? (
+                  <div style={resultEmpty}>불러오는 중...</div>
+                ) : manualResults.length === 0 ? (
+                  <div style={resultEmpty}>검색 결과가 없어요.</div>
+                ) : (
+                  manualResults.map((it) => (
+                    <button
+                      key={it.id ?? it.itemId}
+                      type="button"
+                      onClick={() => addManualToCart(it)}
+                      style={resultRow}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>
+                          {it.name}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>
+                          {it.size ? `(${it.size})` : ""}
+                        </div>
+                      </div>
+                      <div style={resultAdd}>+ 담기</div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 카트 */}
+          <div style={{ marginTop: 12 }}>
+            {cart.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                스캔/추가한 상품이 없습니다.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {cart.map((x) => (
+                  <div key={x.itemId} style={cartRow}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {x.name} {x.size ? `(${x.size})` : ""}
+                      </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <button onClick={() => updateCount(x.itemId, -1)}>-</button>
-                    <div style={{ minWidth: 20, textAlign: "center" }}>
-                      {x.count}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button onClick={() => updateCount(x.itemId, -1)}>-</button>
+                      <div style={{ minWidth: 20, textAlign: "center" }}>
+                        {x.count}
+                      </div>
+                      <button onClick={() => updateCount(x.itemId, +1)}>+</button>
                     </div>
-                    <button onClick={() => updateCount(x.itemId, +1)}>+</button>
+
+                    <button onClick={() => removeFromCart(x.itemId)}>✕</button>
                   </div>
+                ))}
 
-                  <button onClick={() => removeFromCart(x.itemId)}>✕</button>
-                </div>
-              ))}
-
-              <button onClick={handleConfirmOut} style={dangerBtn}>
-                판매 확정
-              </button>
-            </div>
-          )}
+                <button onClick={handleConfirmOut} style={dangerBtn}>
+                  판매 확정
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ==================== RIGHT ==================== */}
@@ -327,6 +443,20 @@ async function handleScanEnter() {
   );
 }
 
+/* ==================== helpers ==================== */
+function addOrIncCart(prev, row) {
+  const itemId = safeNum(row.itemId, 0);
+  if (!itemId) return prev;
+
+  const idx = prev.findIndex((x) => x.itemId === itemId);
+  if (idx >= 0) {
+    const next = [...prev];
+    next[idx] = { ...next[idx], count: safeNum(next[idx].count, 1) + safeNum(row.count, 1) };
+    return next;
+  }
+  return [{ ...row, itemId, count: safeNum(row.count, 1) }, ...prev];
+}
+
 /* ==================== styles ==================== */
 
 const card = {
@@ -347,6 +477,40 @@ const inputStyle = {
   borderRadius: 10,
   border: "1px solid #e5e7eb",
   fontSize: 14,
+  outline: "none",
+};
+
+const resultBox = {
+  marginTop: 8,
+  border: "1px solid #e5e7eb",
+  borderRadius: 12,
+  overflow: "hidden",
+  background: "#ffffff",
+};
+
+const resultRow = {
+  width: "100%",
+  textAlign: "left",
+  padding: "10px 12px",
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  borderTop: "1px solid #f3f4f6",
+};
+
+const resultEmpty = {
+  padding: 12,
+  fontSize: 13,
+  color: "#6b7280",
+};
+
+const resultAdd = {
+  fontSize: 12,
+  color: "#2563eb",
+  fontWeight: 800,
 };
 
 const cartRow = {
@@ -386,23 +550,23 @@ const warnBtn = {
   fontSize: 12,
   cursor: "pointer",
 };
+
 const scanToast = {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 16px",
-    marginBottom: 16,
-    borderRadius: 14,
-    border: "1px solid #e5e7eb",
-    background: "#ecfeff",
-  };
-  
-  const scanBadge = {
-    padding: "6px 10px",
-    borderRadius: 999,
-    background: "#0ea5e9",
-    color: "#ffffff",
-    fontSize: 12,
-    fontWeight: 700,
-  };
-  
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  padding: "12px 16px",
+  marginBottom: 16,
+  borderRadius: 14,
+  border: "1px solid #e5e7eb",
+  background: "#ecfeff",
+};
+
+const scanBadge = {
+  padding: "6px 10px",
+  borderRadius: 999,
+  background: "#0ea5e9",
+  color: "#ffffff",
+  fontSize: 12,
+  fontWeight: 700,
+};
