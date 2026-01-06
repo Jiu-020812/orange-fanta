@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import PriceInputModal from "../components/PriceInputModal";
 import {
   lookupItemByBarcode,
   createRecordsBatch,
   getAllRecords,
-  updateRecord,
-  getItems, 
+  getItems,
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim().toLowerCase();
@@ -31,18 +29,14 @@ export default function InPage() {
   /* -------------------- 왼쪽: 스캔 누적 -------------------- */
   const [scanValue, setScanValue] = useState("");
   const [cart, setCart] = useState([]);
-  // cart item: { itemId, name, size, imageUrl, count }
-
-  /* -------------------- 수기 검색 -------------------- */
-  const [manualQuery, setManualQuery] = useState("");
-
-  /* -------------------- 가격 모달 -------------------- */
-  const [priceModalOpen, setPriceModalOpen] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
+  // { itemId, name, size, imageUrl, count }
 
   // 방금 스캔된 상품 (강조 카드)
   const [lastScanned, setLastScanned] = useState(null);
   const lastTimerRef = useRef(null);
+
+  /* -------------------- 수기 검색 -------------------- */
+  const [manualQuery, setManualQuery] = useState("");
 
   /* ==================== 공통 ==================== */
   async function loadRecords() {
@@ -50,7 +44,8 @@ export default function InPage() {
     try {
       const data = await getAllRecords({ type: "IN" });
       const arr = Array.isArray(data) ? data : data?.records;
-      setRecords(Array.isArray(arr) ? arr : []);
+      const list = Array.isArray(arr) ? arr : [];
+      setRecords(list.filter((r) => String(r.type).toUpperCase() === "IN"));
     } catch (e) {
       console.error(e);
       alert("입고 내역을 불러오지 못했어요.");
@@ -63,7 +58,7 @@ export default function InPage() {
   async function loadItems() {
     setItemsLoading(true);
     try {
-      const data = await getItems(); 
+      const data = await getItems();
       const arr = Array.isArray(data) ? data : data?.items;
       setItems(Array.isArray(arr) ? arr : []);
     } catch (e) {
@@ -84,7 +79,6 @@ export default function InPage() {
     scanRef.current?.focus();
 
     const onClick = () => {
-      // 수기 검색창에 포커스 중이면 스캔으로 포커스 빼앗지 않기
       if (document.activeElement === manualRef.current) return;
       scanRef.current?.focus();
     };
@@ -188,7 +182,7 @@ export default function InPage() {
   /* ==================== 입고 확정 ==================== */
   async function handleConfirmIn() {
     if (cart.length === 0) {
-      alert("입고할 상품이 없습니다.");
+      alert("입고 할 상품이 없습니다.");
       return;
     }
 
@@ -197,7 +191,7 @@ export default function InPage() {
         type: "IN",
         items: cart.map((x) => ({
           itemId: x.itemId,
-          count: x.count,
+          count: Math.max(1, Math.abs(Number(x.count) || 1)), 
         })),
       });
 
@@ -205,27 +199,7 @@ export default function InPage() {
       await loadRecords();
     } catch (e) {
       console.error(e);
-      alert("입고 확정에 실패했어요.");
-    }
-  }
-
-  /* ==================== 가격 입력 ==================== */
-  async function handlePriceSubmit(price) {
-    if (!selectedRecord) return;
-
-    try {
-      await updateRecord({
-        itemId: selectedRecord.itemId,
-        id: selectedRecord.id,
-        price,
-      });
-
-      setPriceModalOpen(false);
-      setSelectedRecord(null);
-      await loadRecords();
-    } catch (e) {
-      console.error(e);
-      alert("가격 저장에 실패했어요.");
+      alert(e?.response?.data?.message || "입고 처리에 실패했어요.");
     }
   }
 
@@ -288,11 +262,11 @@ export default function InPage() {
             placeholder="바코드 스캔 후 Enter"
             autoComplete="off"
             inputMode="numeric"
-            style={{ ...inputStyle, marginBottom: 10, width: "100%" }}
+            style={{ ...inputStyle, marginBottom: 12, width: "100%" }}
           />
 
-          {/* 수기 검색 추가 */}
-          <div style={{ marginTop: 6, marginBottom: 10 }}>
+          {/*  수기 추가 섹션 */}
+          <div style={{ marginTop: 8 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>수기 검색 추가</div>
 
             <input
@@ -341,37 +315,37 @@ export default function InPage() {
           </div>
 
           {/* 카트 */}
-          {cart.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              스캔/추가한 상품이 없습니다.
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {cart.map((x) => (
-                <div key={x.itemId} style={cartRow}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600 }}>
-                      {x.name} {x.size ? `(${x.size})` : ""}
+          <div style={{ marginTop: 12 }}>
+            {cart.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                스캔/추가한 상품이 없습니다.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {cart.map((x) => (
+                  <div key={x.itemId} style={cartRow}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {x.name} {x.size ? `(${x.size})` : ""}
+                      </div>
                     </div>
-                  </div>
 
-                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                    <button onClick={() => updateCount(x.itemId, -1)}>-</button>
-                    <div style={{ minWidth: 20, textAlign: "center" }}>
-                      {x.count}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button onClick={() => updateCount(x.itemId, -1)}>-</button>
+                      <div style={{ minWidth: 20, textAlign: "center" }}>{x.count}</div>
+                      <button onClick={() => updateCount(x.itemId, +1)}>+</button>
                     </div>
-                    <button onClick={() => updateCount(x.itemId, +1)}>+</button>
+
+                    <button onClick={() => removeFromCart(x.itemId)}>✕</button>
                   </div>
+                ))}
 
-                  <button onClick={() => removeFromCart(x.itemId)}>✕</button>
-                </div>
-              ))}
-
-              <button onClick={handleConfirmIn} style={primaryBtn}>
-                입고 확정
-              </button>
-            </div>
-          )}
+                <button onClick={handleConfirmIn} style={primaryBtn}>
+                  입고 확정
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ==================== RIGHT ==================== */}
@@ -397,22 +371,6 @@ export default function InPage() {
                   </div>
                 </div>
 
-                {r.price != null ? (
-                  <div style={{ fontWeight: 700 }}>
-                    {Number(r.price).toLocaleString()}원
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setSelectedRecord(r);
-                      setPriceModalOpen(true);
-                    }}
-                    style={warnBtn}
-                  >
-                    가격 입력
-                  </button>
-                )}
-
                 <button onClick={() => navigate(`/manage/${r.itemId}`)}>
                   상세
                 </button>
@@ -421,16 +379,6 @@ export default function InPage() {
           )}
         </div>
       </div>
-
-      <PriceInputModal
-        open={priceModalOpen}
-        record={selectedRecord}
-        onClose={() => {
-          setPriceModalOpen(false);
-          setSelectedRecord(null);
-        }}
-        onSubmit={handlePriceSubmit}
-      />
     </div>
   );
 }
@@ -467,12 +415,11 @@ const cardTitle = {
   marginBottom: 12,
 };
 
-
 const inputStyle = {
-  padding: "8px 10px", // 🔻 10px 12px -> 8px 10px
+  padding: "8px 10px",
   borderRadius: 10,
   border: "1px solid #e5e7eb",
-  fontSize: 13, // 🔻 14 -> 13
+  fontSize: 13,
   outline: "none",
 };
 
@@ -509,17 +456,6 @@ const resultAdd = {
   fontWeight: 800,
 };
 
-const primaryBtn = {
-  marginTop: 12,
-  padding: "12px 16px",
-  borderRadius: 12,
-  border: "none",
-  background: "#111827",
-  color: "#ffffff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
 const cartRow = {
   display: "flex",
   alignItems: "center",
@@ -537,13 +473,14 @@ const recordRow = {
   borderBottom: "1px solid #f3f4f6",
 };
 
-const warnBtn = {
-  padding: "6px 12px",
-  borderRadius: 999,
-  border: "1px solid #f59e0b",
-  background: "#fffbeb",
-  color: "#92400e",
-  fontSize: 12,
+const primaryBtn = {
+  marginTop: 12,
+  padding: "12px 16px",
+  borderRadius: 12,
+  border: "none",
+  background: "#2563eb",
+  color: "#ffffff",
+  fontWeight: 800,
   cursor: "pointer",
 };
 

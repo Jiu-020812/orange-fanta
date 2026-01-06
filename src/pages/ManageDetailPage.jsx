@@ -78,6 +78,9 @@ export default function ManageDetailPage() {
   const [records, setRecords] = useState([]);
   const [selectedOptionId, setSelectedOptionId] = useState(null);
 
+  const [stock, setStock] = useState(0);
+  const [pendingIn, setPendingIn] = useState(0);
+
   const [toast, setToast] = useState("");
   const [editModal, setEditModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
@@ -101,30 +104,35 @@ export default function ManageDetailPage() {
     async function boot() {
       try {
         // 1) 현재 item + records + stock (v2 API)
-        const detail = await getItemDetail(numericItemId); 
-        // detail: { ok:true, item, records, stock }
-  
+        const detail = await getItemDetail(numericItemId);
+
         const itemFromApi = detail?.item ?? null;
         const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
-        const stockFromApi = detail?.stock ?? null;
+
+        const stockFromApi = detail?.stock ?? 0;
+        const pendingIn = detail?.pendingIn ?? 0;
+
   
         if (!alive) return;
   
         // selectedOptionId는 URL itemId로 고정
         setSelectedOptionId(numericItemId);
-  
-        // records 세팅
-        setRecords(
-          rawRecords.map((rec) => ({
-            id: rec.id,
-            itemId: rec.itemId,
-            type: (rec.type || "IN").toUpperCase(),
-            price: rec.price,
-            count: rec.count,
-            date: String(rec.date || "").slice(0, 10),
-            memo: rec.memo ?? "",
-          }))
-        );
+    
+          // records 세팅
+          setRecords(
+            rawRecords.map((rec) => ({
+              id: rec.id,
+              itemId: rec.itemId,
+              type: (rec.type || "IN").toUpperCase(),
+              price: rec.price,
+              count: rec.count,
+              date: String(rec.date || "").slice(0, 10),
+              memo: rec.memo ?? "",
+            }))
+          );
+
+          setStock(stockFromApi);
+          setPendingIn(pendingIn);
   
         // item이 없으면 404 등
         if (!itemFromApi?.id) {
@@ -179,6 +187,9 @@ export default function ManageDetailPage() {
   const [searchText, setSearchText] = useState("");
   const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
 
+  const [showIn, setShowIn] = useState(false);
+
+
   /*  최종 품목명 (name 라우팅 제거) */
   const decodedName = selectedOption?.name ?? "";
 
@@ -219,6 +230,9 @@ export default function ManageDetailPage() {
           memo: rec.memo ?? "",
         }))
       );
+
+      setStock(detail?.stock ?? 0);
+      setPendingIn(detail?.pendingIn ?? 0);
   
       // item 정보도 반영
       const itemFromApi = detail?.item ?? null;
@@ -328,7 +342,7 @@ export default function ManageDetailPage() {
       const updated = await updateServerItem(id, {
         size: trimmed,
         imageUrl: image || null,
-        barcode: trimmedBarcode || null, // ⭐ 추가
+        barcode: trimmedBarcode || null, 
       });
 
       setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
@@ -379,39 +393,6 @@ export default function ManageDetailPage() {
     navigate("/manage");
   };
 
-/* ======================= 재고 계산 ======================= */
-const stock = useMemo(() => {
-  const safe = Array.isArray(records) ? records : [];
-  return safe.reduce((sum, r) => {
-    const count = Number(r.count) || 0;
-
-    //  방어막: price가 있으면 구매로 간주하고 재고 계산에서 제외
-    // (레거시 데이터/실수로 type이 IN으로 저장된 구매 기록도 차단)
-    if (r.price != null && Number(r.price) >= 0) return sum;
-
-    if (r.type === "IN") return sum + count;
-    if (r.type === "OUT") return sum - count;
-    return sum; // PURCHASE / 기타는 제외
-  }, 0);
-}, [records]);
-
-/* ======================= 매입했는데 미입고 수량 ======================= */
-const pendingIn = useMemo(() => {
-  const safe = Array.isArray(records) ? records : [];
-
-  const purchased = safe
-    .filter((r) => r.type === "PURCHASE")
-    .reduce((acc, r) => acc + (Number(r.count) || 0), 0);
-
-  const inSum = safe
-    .filter((r) => r.type === "IN")
-    .reduce((acc, r) => acc + (Number(r.count) || 0), 0);
-
-  return Math.max(0, purchased - inSum);
-}, [records]);
-
-
-
   /* ======================= 기간 필터 계산 ======================= */
   const effectiveRange = useMemo(() => {
     if (rangeMode === "CUSTOM") return { from: fromDate || null, to: toDate || null };
@@ -454,6 +435,12 @@ const pendingIn = useMemo(() => {
   }, [records, effectiveRange, searchText, sortMode]);
 
   const recordsForStats = useMemo(() => filteredRecords, [filteredRecords]);
+
+  const visibleRecords = useMemo(() => {
+    if (showIn) return records;
+    return records.filter((r) => r.type !== "IN");
+  }, [records, showIn]);
+  
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -576,7 +563,7 @@ const pendingIn = useMemo(() => {
                           id: opt.id,
                           value: opt.size ?? "",
                           image: opt.imageUrl ?? "",
-                          barcode: opt.barcode ?? "", // ⭐ 추가
+                          barcode: opt.barcode ?? "", 
                         });
                       }}
                       style={{
@@ -651,7 +638,7 @@ const pendingIn = useMemo(() => {
                      style={{
                     marginLeft: 10,
                     fontSize: 13,
-                    ontWeight: 600,
+                    fontWeight: 600,
                     color: pendingIn > 0 ? "#d97706" : "#6b7280",
                    }}
                    >
@@ -791,7 +778,7 @@ const pendingIn = useMemo(() => {
                   const countValue =
                     info.count === "" || info.count == null ? 1 : Number(info.count);
                 
-                  // ✅ 핵심: UI에서 선택한 타입을 서버 타입(IN/OUT)으로 변환
+                  // 핵심: UI에서 선택한 타입을 서버 타입(IN/OUT)으로 변환
                   // info.type 이 값이 뭐로 오는지 모르니까 최대한 방어적으로 처리
                   // - "판매" / "OUT" => OUT
                   // - 나머지(매입/입고) => IN
@@ -801,15 +788,17 @@ const pendingIn = useMemo(() => {
                       ? "OUT"
                       : "IN";
                 
-                  // ✅ 가격: 빈값이면 null
+                  // 가격: 빈값이면 null
                   const priceValue =
                     info.price === "" || info.price == null ? null : Number(info.price);
+                    const finalPrice = apiType === "IN" ? null : priceValue;
+
                 
                   try {
                     const created = await createRecord({
                       itemId: selectedOptionId,
-                      type: apiType,        // 🔥 "PURCHASE" 절대 금지
-                      price: priceValue,    // 매입이면 price 있음, 입고면 null일 수 있음
+                      type: apiType,
+                      price: finalPrice,
                       count: countValue,
                       date: dateValue,
                       memo: info.memo ?? null,
@@ -835,61 +824,174 @@ const pendingIn = useMemo(() => {
                 />
               </div>
 
-              {/* 기록 리스트 */}
-              <PurchaseList
-                records={filteredRecords}
-                onDeleteRecord={async (id) => {
-                  setRecords((prev) => prev.filter((r) => r.id !== id));
+              <div style={{ marginBottom: 8 }}>
+  <label style={{ fontSize: 13, cursor: "pointer" }}>
+    <input
+      type="checkbox"
+      checked={showIn}
+      onChange={(e) => setShowIn(e.target.checked)}
+      style={{ marginRight: 6 }}
+    />
+    입고(IN) 기록 보기
+  </label>
+</div>
 
-                  try {
-                    await deleteServerRecord({ itemId: selectedOptionId, id });
-                  } catch (err) {
-                    console.error("백엔드 기록 삭제 실패", err);
-                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
-                  }
 
-                  showToast("기록 삭제 완료");
-                }}
-                onUpdateRecord={async (id, info) => {
-                  if (!selectedOptionId) return;
+             {/* 기록 리스트 */}
+<PurchaseList
+  //  가능하면 원본 records를 넘기는 게 가장 안전함
+  // filteredRecords가 PURCHASE/IN을 누락시키면 미입고/입고처리에서 꼬일 수 있음
+  records={visibleRecords}
+  onDeleteRecord={async (id) => {
+    // 화면 즉시 반영
+    setRecords((prev) => prev.filter((r) => r.id !== id));
 
-                  const dateValue = info.date || undefined;
-                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
-                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
+    try {
+      await deleteServerRecord({ itemId: selectedOptionId, id });
+      showToast("기록 삭제 완료");
+    } catch (err) {
+      console.error("백엔드 기록 삭제 실패", err);
+      window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
+    }
+  }}
+  onUpdateRecord={async (id, info) => {
+    if (!selectedOptionId) return;
 
-                  try {
-                    const updated = await updateServerRecord({
-                      itemId: selectedOptionId,
-                      id,
-                      price: priceValue ?? null,
-                      count: countValue ?? null,
-                      date: dateValue ?? null,
-                      type: info.type ?? null,
-                      memo: info.memo ?? null,
-                    });
+    // 타입 정규화 (IN/OUT/PURCHASE)
+    const norm = (t) => {
+      const x = String(t || "").toUpperCase();
+      if (x === "OUT") return "OUT";
+      if (x === "PURCHASE") return "PURCHASE";
+      return "IN";
+    };
 
-                    setRecords((prev) =>
-                      prev.map((r) =>
-                        r.id === id
-                          ? {
-                              ...r,
-                              price: updated?.price ?? (priceValue ?? r.price),
-                              count: updated?.count ?? (countValue ?? r.count),
-                              date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(0, 10),
-                              type: String(updated?.type ?? r.type ?? "IN").toUpperCase(),
-                              memo: updated?.memo ?? r.memo ?? "",
-                            }
-                          : r
-                      )
-                    );
+    let nextType = info.type != null ? norm(info.type) : undefined;
 
-                    showToast("기록 수정 완료");
-                  } catch (err) {
-                    console.error("백엔드 기록 수정 실패", err);
-                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
-                  }
-                }}
-              />
+    const dateValue = info.date || undefined;
+    const priceValue =
+      info.price === "" || info.price == null ? undefined : Number(info.price);
+    const countValue =
+      info.count === "" || info.count == null ? undefined : Number(info.count);
+
+        //  판매가만 입력하는 경우, OUT 타입 유지 (재고 + 되는 버그 방지)
+  if (priceValue != null && info.type == null) {
+    nextType = "OUT";
+  }
+
+
+    // IN은 price 무조건 null, PURCHASE는 price 필수
+    const finalPrice =
+      nextType === "IN"
+        ? null
+        : priceValue === undefined
+        ? undefined
+        : priceValue;
+
+    if (nextType === "PURCHASE") {
+      const p = finalPrice;
+      if (p == null || !Number.isFinite(Number(p)) || Number(p) <= 0) {
+        window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
+        return;
+      }
+    }
+    if (nextType === "OUT" && finalPrice != null) {
+      if (!Number.isFinite(Number(finalPrice)) || Number(finalPrice) < 0) {
+        window.alert("판매 가격이 올바르지 않습니다.");
+        return;
+      }
+    }
+    if (countValue !== undefined) {
+      if (!Number.isFinite(countValue) || countValue <= 0) {
+        window.alert("수량이 올바르지 않습니다.");
+        return;
+      }
+    }
+
+    try {
+      const updated = await updateServerRecord({
+        itemId: selectedOptionId,
+        id,
+        price: finalPrice ?? null,
+        count: countValue ?? null,
+        date: dateValue ?? null,
+        type: nextType ?? null,
+        memo: info.memo ?? null,
+      });
+
+      // UI 반영 (서버 응답 우선)
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                price:
+                  updated?.price ??
+                  (finalPrice !== undefined ? finalPrice : r.price),
+                count:
+                  updated?.count ??
+                  (countValue !== undefined ? countValue : r.count),
+                date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(
+                  0,
+                  10
+                ),
+                type: String(updated?.type ?? nextType ?? r.type ?? "IN").toUpperCase(),
+                memo: updated?.memo ?? info.memo ?? r.memo ?? "",
+              }
+            : r
+        )
+      );
+
+      showToast("기록 수정 완료");
+    } catch (err) {
+      console.error("백엔드 기록 수정 실패", err);
+      window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
+  }}
+  //  PURCHASE 옆 “입고 처리” 버튼 활성화
+  onMarkArrived={async (purchase) => {
+    if (!selectedOptionId) return;
+
+    // purchase가 PURCHASE가 아닌데 호출될 가능성 방어
+    const t = String(purchase?.type || "").toUpperCase();
+    if (t !== "PURCHASE") return;
+
+    const count = Number(purchase?.count) || 1;
+
+    try {
+      //  매입 옆 버튼 누르면 IN 레코드 추가 (price는 null)
+      await createRecord({
+        itemId: selectedOptionId,
+        type: "IN",
+        price: null,
+        count,
+        date: new Date().toISOString().slice(0, 10),
+        memo: `매입(${purchase.id}) 입고`,
+      });
+
+      //디테일 재조회로 records/stock 동기화
+      const detail = await getItemDetail(selectedOptionId);
+      const raw = Array.isArray(detail?.records) ? detail.records : [];
+
+      setRecords(
+        raw.map((rec) => ({
+          id: rec.id,
+          itemId: rec.itemId,
+          type: String(rec.type || "IN").toUpperCase(),
+          price: rec.price,
+          count: rec.count,
+          date: String(rec.date || "").slice(0, 10),
+          memo: rec.memo ?? "",
+        }))
+      );
+
+      showToast("입고 처리 완료");
+    } catch (err) {
+      console.error("입고 처리 실패", err);
+      window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
+  }}
+/>
+
 
               {/* 메모 */}
               <div

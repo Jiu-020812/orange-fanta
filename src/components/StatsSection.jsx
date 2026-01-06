@@ -11,19 +11,19 @@ import {
 } from "recharts";
 
 /**
- * A안(현재 프로젝트 상태 기준)
- * - IN: 입고 (price 없음이 일반적)
- * - PURCHASE: 매입(가격 입력 기록, price 있음)
- * - OUT: 판매(출고, price 있으면 판매가 입력됨)
+ * - IN: 입고(재고 반영, price는 항상 null이 정상)
+ * - PURCHASE: 매입(가격 필수, 재고에는 반영 X)
+ * - OUT: 판매(재고 반영, price는 선택 / 그래프는 price 있는 것만)
  *
- * 가격 미입력(매입) = (price 없는 IN 총수량) - (매입 입력 수량)
- *   - 매입 입력 수량: PURCHASE 수량 + (레거시 IN+price 수량)
+ *  미입고(= 아직 입고 안 된 매입 수량)
+ *   = PURCHASE 수량 - IN 수량
  *
- * 가격 미입력(판매) = OUT 총수량 - price 있는 OUT 수량
+ *  그래프(단가)
+ * - 매입 단가: PURCHASE(가격 있는 것)만
+ * - 판매 단가: OUT 중 price 있는 것만
  *
- * 차트(단가):
- * - 매입 단가: PURCHASE + (레거시 IN+price)
- * - 판매 단가: OUT 중 price 있는 것
+ *  레거시(IN+price)는 StatsSection에서 억지로 커버하지 않고
+ *    별도 스크립트로 PURCHASE로 마이그레이션하는 걸 권장(= B안 목표)
  */
 export default function StatsSection({ records, itemName }) {
   const safeRecords = Array.isArray(records) ? records : [];
@@ -39,7 +39,6 @@ export default function StatsSection({ records, itemName }) {
     if (mode === "CUSTOM") return;
 
     const today = toYmd(new Date());
-
     if (mode === "ALL") {
       setFrom("");
       setTo(today);
@@ -76,15 +75,23 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
+    const normType = (t) => {
+      const x = String(t || "").toUpperCase();
+      if (x === "OUT") return "OUT";
+      if (x === "PURCHASE") return "PURCHASE";
+      return "IN";
+    };
+
+    // 날짜별 집계
     const map = new Map();
 
-    // ===== 미입력 계산용 =====
-    let inQtyAll = 0; // "가격 없는" 입고 총수량(진짜 입고만)
-    let purchaseQtyAll = 0; // 매입 입력 수량(PURCHASE + 레거시 IN+price)
-    let outQtyAll = 0; // 판매(OUT) 총수량
-    let outPricedQty = 0; // 가격 입력된 판매 수량
+    // ===== 수량 집계(미입고/미입력) =====
+    let inQtyAll = 0; // IN 총 수량
+    let purchaseQtyAll = 0; // PURCHASE 총 수량
+    let outQtyAll = 0; // OUT 총 수량
+    let outPricedQty = 0; // price 있는 OUT 수량
 
-    // ===== 단가 통계 =====
+    // ===== 단가 통계(가격 입력된 것만) =====
     let purchaseTotalAmount = 0;
     let purchaseTotalQty = 0;
     let saleTotalAmount = 0;
@@ -95,11 +102,24 @@ export default function StatsSection({ records, itemName }) {
     let minSaleUnit = null;
     let maxSaleUnit = null;
 
-    // 매입 누적 처리 공통 함수 (PURCHASE + 레거시 IN+price 공용)
-    const addPurchase = (row, qty, rawPrice) => {
+    const ensureRow = (dateOnly) => {
+      if (!map.has(dateOnly)) {
+        map.set(dateOnly, {
+          dateOnly,
+          label: dateOnly.slice(5),
+          purchaseAmount: 0,
+          purchaseQty: 0,
+          saleAmount: 0,
+          saleQty: 0,
+        });
+      }
+      return map.get(dateOnly);
+    };
+
+    const addPurchase = (row, qty, amountRaw) => {
       purchaseQtyAll += qty;
 
-      const amount = toNum(rawPrice, 0);
+      const amount = toNum(amountRaw, 0);
 
       row.purchaseAmount += amount;
       row.purchaseQty += qty;
@@ -116,6 +136,22 @@ export default function StatsSection({ records, itemName }) {
       }
     };
 
+    const addSale = (row, qty, amountRaw) => {
+      const amount = toNum(amountRaw, 0);
+
+      row.saleAmount += amount;
+      row.saleQty += qty;
+
+      saleTotalAmount += amount;
+      saleTotalQty += qty;
+
+      const unit = amount / qty;
+      if (Number.isFinite(unit)) {
+        minSaleUnit = minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
+        maxSaleUnit = maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
+      }
+    };
+
     for (const r of safeRecords) {
       if (!r) continue;
       if (!inRange(r.date)) continue;
@@ -123,71 +159,41 @@ export default function StatsSection({ records, itemName }) {
       const dateOnly = toYmd(r.date);
       if (!dateOnly) continue;
 
-      const type = String(r.type || "IN").toUpperCase(); // IN / OUT / PURCHASE
+      const type = normType(r.type);
       const qty = toNum(r.count, 0);
       if (qty <= 0) continue;
 
-      if (!map.has(dateOnly)) {
-        map.set(dateOnly, {
-          dateOnly,
-          label: dateOnly.slice(5),
-          purchaseAmount: 0,
-          purchaseQty: 0,
-          saleAmount: 0,
-          saleQty: 0,
-        });
-      }
-      const row = map.get(dateOnly);
+      const row = ensureRow(dateOnly);
 
       const rawPrice = r.price;
 
-      // ===== IN =====
+      // IN: 입고 수량만 (price는 무시/정상적으로는 null)
       if (type === "IN") {
-        // ✅ 핵심 수정:
-        // IN인데 price가 있으면 "매입 기록(레거시)"로 처리하고,
-        // inQtyAll(입고 총수량)에는 포함시키지 않음.
+        inQtyAll += qty;
+        continue;
+      }
+
+      //  PURCHASE: 매입(가격 있을 때만 차트/단가)
+      if (type === "PURCHASE") {
         if (hasPrice(rawPrice)) {
           addPurchase(row, qty, rawPrice);
         } else {
-          inQtyAll += qty;
+          // 수량은 '매입'으로는 들어왔지만 가격이 없으면 통계/그래프에는 반영하지 않음
+          purchaseQtyAll += qty;
         }
         continue;
       }
 
-      // ===== PURCHASE =====
-      if (type === "PURCHASE") {
-        // 원칙적으로 price가 있어야 함 (없으면 그냥 수량만 매입 입력으로는 안 잡음)
-        if (hasPrice(rawPrice)) {
-          addPurchase(row, qty, rawPrice);
-        }
-        continue;
-      }
-
-      // ===== OUT (판매 단가 차트/통계) =====
+      //  OUT: 판매 (price 있을 때만 차트/단가)
       if (type === "OUT") {
         outQtyAll += qty;
 
         if (hasPrice(rawPrice)) {
           outPricedQty += qty;
-
-          const amount = toNum(rawPrice, 0);
-
-          row.saleAmount += amount;
-          row.saleQty += qty;
-
-          saleTotalAmount += amount;
-          saleTotalQty += qty;
-
-          const unit = amount / qty;
-          if (Number.isFinite(unit)) {
-            minSaleUnit = minSaleUnit == null ? unit : Math.min(minSaleUnit, unit);
-            maxSaleUnit = maxSaleUnit == null ? unit : Math.max(maxSaleUnit, unit);
-          }
+          addSale(row, qty, rawPrice);
         }
         continue;
       }
-
-      // 그 외 타입 무시
     }
 
     const data = Array.from(map.values())
@@ -204,19 +210,22 @@ export default function StatsSection({ records, itemName }) {
     );
 
     const avgPurchaseUnit =
-      purchaseTotalQty > 0 ? Math.round(purchaseTotalAmount / purchaseTotalQty) : null;
+      purchaseTotalQty > 0
+        ? Math.round(purchaseTotalAmount / purchaseTotalQty)
+        : null;
     const avgSaleUnit =
       saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
-    // ✅ 가격 미입력
-    // - 매입: (price 없는 입고) - (매입 입력 수량)
-    const missingPurchaseQty = Math.max(0, inQtyAll - purchaseQtyAll);
+    //  미입고(매입은 됐는데 아직 안 들어온 수량)
+    const pendingIn = Math.max(0, purchaseQtyAll - inQtyAll);
+
+    // 판매가(가격) 미입력 OUT 수량
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
 
     return {
       data,
       hasChartValue,
-      missingPurchaseQty,
+      pendingIn,
       missingSaleQty,
       avgPurchaseUnit,
       avgSaleUnit,
@@ -315,17 +324,31 @@ export default function StatsSection({ records, itemName }) {
         <button type="button" onClick={() => setMode("7")} style={pill(mode === "7")}>
           최근 7일
         </button>
-        <button type="button" onClick={() => setMode("30")} style={pill(mode === "30")}>
+        <button
+          type="button"
+          onClick={() => setMode("30")}
+          style={pill(mode === "30")}
+        >
           최근 30일
         </button>
-        <button type="button" onClick={() => setMode("90")} style={pill(mode === "90")}>
+        <button
+          type="button"
+          onClick={() => setMode("90")}
+          style={pill(mode === "90")}
+        >
           최근 90일
         </button>
-        <button type="button" onClick={() => setMode("ALL")} style={pill(mode === "ALL")}>
+        <button
+          type="button"
+          onClick={() => setMode("ALL")}
+          style={pill(mode === "ALL")}
+        >
           전체
         </button>
 
-        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>기간:</span>
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
+          기간:
+        </span>
 
         <input
           type="date"
@@ -394,7 +417,7 @@ export default function StatsSection({ records, itemName }) {
         </div>
 
         <div>
-          • 가격 미입력: 매입 <b>{computed.missingPurchaseQty}</b>개 · 판매{" "}
+          • 미입고 재고: <b>{computed.pendingIn}</b>개 · 판매가 미입력:{" "}
           <b>{computed.missingSaleQty}</b>개
         </div>
       </div>
@@ -409,7 +432,6 @@ export default function StatsSection({ records, itemName }) {
           <ResponsiveContainer>
             <BarChart
               data={computed.data}
-              // ✅ 두께는 여기서 조절
               barSize={14}
               barCategoryGap={18}
               maxBarSize={18}

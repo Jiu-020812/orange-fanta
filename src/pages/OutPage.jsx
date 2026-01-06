@@ -6,7 +6,7 @@ import {
   createRecordsBatch,
   getAllRecords,
   updateRecord,
-  getItems, 
+  getItems,
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim().toLowerCase();
@@ -21,7 +21,8 @@ export default function OutPage() {
   const manualRef = useRef(null);
 
   /* -------------------- 오른쪽: 판매 내역 -------------------- */
-  const [records, setRecords] = useState([]);
+  const [paidSales, setPaidSales] = useState([]);       // price 있는 OUT
+  const [unpricedSales, setUnpricedSales] = useState([]); // price 없는 OUT
   const [loading, setLoading] = useState(true);
 
   /* -------------------- 아이템 목록 (수기 검색용) -------------------- */
@@ -50,11 +51,18 @@ export default function OutPage() {
     try {
       const data = await getAllRecords({ type: "OUT" });
       const arr = Array.isArray(data) ? data : data?.records;
-      setRecords(Array.isArray(arr) ? arr : []);
+      const list = Array.isArray(arr) ? arr : [];
+
+      // OUT만 (안전)
+      const out = list.filter((r) => String(r.type).toUpperCase() === "OUT");
+
+      setPaidSales(out.filter((r) => r.price != null && Number(r.price) > 0));
+      setUnpricedSales(out.filter((r) => r.price == null));
     } catch (e) {
       console.error(e);
       alert("판매 내역을 불러오지 못했어요.");
-      setRecords([]);
+      setPaidSales([]);
+      setUnpricedSales([]);
     } finally {
       setLoading(false);
     }
@@ -63,7 +71,7 @@ export default function OutPage() {
   async function loadItems() {
     setItemsLoading(true);
     try {
-      const data = await getItems(); // ✅ 여기 API만 너 프로젝트에 맞게
+      const data = await getItems();
       const arr = Array.isArray(data) ? data : data?.items;
       setItems(Array.isArray(arr) ? arr : []);
     } catch (e) {
@@ -81,11 +89,9 @@ export default function OutPage() {
 
   /* -------------------- 스캔 input 포커스 -------------------- */
   useEffect(() => {
-    // 처음엔 스캔에 포커스
     scanRef.current?.focus();
 
     const onClick = () => {
-      // 수기 검색창에 포커스 중이면 스캔으로 포커스 빼앗지 않기
       if (document.activeElement === manualRef.current) return;
       scanRef.current?.focus();
     };
@@ -110,7 +116,6 @@ export default function OutPage() {
 
       const item = res.item;
 
-      // 방금 스캔된 상품 강조 카드
       setLastScanned({
         itemId: item.itemId,
         name: item.name,
@@ -123,14 +128,15 @@ export default function OutPage() {
         setLastScanned(null);
       }, 1200);
 
-      // 카트 누적 (같으면 count + 1)
-      setCart((prev) => addOrIncCart(prev, {
-        itemId: item.itemId,
-        name: item.name,
-        size: item.size,
-        imageUrl: item.imageUrl,
-        count: 1,
-      }));
+      setCart((prev) =>
+        addOrIncCart(prev, {
+          itemId: item.itemId,
+          name: item.name,
+          size: item.size,
+          imageUrl: item.imageUrl,
+          count: 1,
+        })
+      );
     } catch (e) {
       console.error(e);
       alert("바코드 조회 중 오류가 발생했어요.");
@@ -142,8 +148,6 @@ export default function OutPage() {
     const q = norm(manualQuery);
     if (!q) return [];
 
-    // ✅ items 구조가 { id, name, size, imageUrl } 라고 가정
-    //    만약 { itemId } 같은 다른 키면 아래에서 조정해줘
     return (Array.isArray(items) ? items : [])
       .filter((it) => {
         const name = norm(it.name);
@@ -154,7 +158,6 @@ export default function OutPage() {
   }, [items, manualQuery]);
 
   function addManualToCart(item) {
-    // item.id를 itemId로 쓰는 구조 가정
     const itemId = item.id ?? item.itemId;
     if (!itemId) return;
 
@@ -169,7 +172,6 @@ export default function OutPage() {
     );
 
     setManualQuery("");
-    // 담고 나면 다시 스캔 포커스(원하면)
     scanRef.current?.focus();
   }
 
@@ -200,7 +202,7 @@ export default function OutPage() {
         type: "OUT",
         items: cart.map((x) => ({
           itemId: x.itemId,
-          count: x.count,
+          count: Math.max(1, Math.abs(Number(x.count) || 1)), //  숫자/양수 강제
         })),
       });
 
@@ -219,11 +221,21 @@ export default function OutPage() {
   async function handlePriceSubmit(price) {
     if (!selectedRecord) return;
 
+    const p = price === "" || price == null ? null : Number(price);
+    if (p == null) {
+      alert("판매가를 입력해주세요.");
+      return;
+    }
+    if (!Number.isFinite(p) || p <= 0) {
+      alert("판매가는 0보다 큰 숫자여야 해요.");
+      return;
+    }
+
     try {
       await updateRecord({
         itemId: selectedRecord.itemId,
         id: selectedRecord.id,
-        price,
+        price: p,
       });
 
       setPriceModalOpen(false);
@@ -242,7 +254,6 @@ export default function OutPage() {
         📤 판매 관리
       </h2>
 
-      {/* 방금 스캔된 상품 표시 */}
       {lastScanned && (
         <div style={scanToast}>
           {lastScanned.imageUrl && (
@@ -297,7 +308,6 @@ export default function OutPage() {
             style={{ ...inputStyle, marginBottom: 12, width: "100%" }}
           />
 
-          {/*  수기 추가 섹션 */}
           <div style={{ marginTop: 8 }}>
             <div style={{ fontWeight: 700, marginBottom: 8 }}>수기 검색 추가</div>
 
@@ -388,44 +398,81 @@ export default function OutPage() {
 
           {loading ? (
             <div>불러오는 중...</div>
-          ) : records.length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              아직 판매 기록이 없습니다.
-            </div>
           ) : (
-            records.map((r) => (
-              <div key={r.id} style={recordRow}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {r.item?.name}
-                    {r.item?.size ? ` (${r.item.size})` : ""}
+            <>
+              {/* 가격 있는 판매(돈 기록) */}
+              {paidSales.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  아직 판매 기록(가격 입력 완료)이 없습니다.
+                </div>
+              ) : (
+                paidSales.map((r) => (
+                  <div key={r.id} style={recordRow}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600 }}>
+                        {r.item?.name}
+                        {r.item?.size ? ` (${r.item.size})` : ""}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        {r.date?.slice(0, 10)} · {r.count}개
+                      </div>
+                    </div>
+
+                    <div style={{ fontWeight: 700 }}>
+                      {Number(r.price).toLocaleString()}원
+                    </div>
+
+                    <button onClick={() => navigate(`/manage/${r.itemId}`)}>
+                      상세
+                    </button>
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    {r.date?.slice(0, 10)} · {r.count}개
-                  </div>
+                ))
+              )}
+
+              {/* 🟡 가격 미입력 판매 */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>
+                  🟡 판매가 미입력
+                  <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>
+                    ({unpricedSales.length})
+                  </span>
                 </div>
 
-                {r.price != null ? (
-                  <div style={{ fontWeight: 700 }}>
-                    {Number(r.price).toLocaleString()}원
+                {unpricedSales.length === 0 ? (
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    판매가 미입력 항목이 없습니다.
                   </div>
                 ) : (
-                  <button
-                    onClick={() => {
-                      setSelectedRecord(r);
-                      setPriceModalOpen(true);
-                    }}
-                    style={warnBtn}
-                  >
-                    판매가 입력
-                  </button>
-                )}
+                  unpricedSales.map((r) => (
+                    <div key={r.id} style={recordRow}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {r.item?.name}
+                          {r.item?.size ? ` (${r.item.size})` : ""}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#6b7280" }}>
+                          {r.date?.slice(0, 10)} · {r.count}개
+                        </div>
+                      </div>
 
-                <button onClick={() => navigate(`/manage/${r.itemId}`)}>
-                  상세
-                </button>
+                      <button
+                        onClick={() => {
+                          setSelectedRecord(r);
+                          setPriceModalOpen(true);
+                        }}
+                        style={warnBtn}
+                      >
+                        판매가 입력
+                      </button>
+
+                      <button onClick={() => navigate(`/manage/${r.itemId}`)}>
+                        상세
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
-            ))
+            </>
           )}
         </div>
       </div>
@@ -451,7 +498,10 @@ function addOrIncCart(prev, row) {
   const idx = prev.findIndex((x) => x.itemId === itemId);
   if (idx >= 0) {
     const next = [...prev];
-    next[idx] = { ...next[idx], count: safeNum(next[idx].count, 1) + safeNum(row.count, 1) };
+    next[idx] = {
+      ...next[idx],
+      count: safeNum(next[idx].count, 1) + safeNum(row.count, 1),
+    };
     return next;
   }
   return [{ ...row, itemId, count: safeNum(row.count, 1) }, ...prev];
