@@ -1,3 +1,4 @@
+// src/pages/ManageDetailPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
@@ -51,25 +52,11 @@ function toYmd(d) {
   }
 }
 
-function parseRecordsResponse(data) {
-  if (Array.isArray(data)) return { item: null, records: data, stock: null };
-  if (data && Array.isArray(data.records)) {
-    return {
-      item: data.item ?? null,
-      records: data.records,
-      stock: data.stock ?? null,
-    };
-  }
-  return { item: null, records: [], stock: null };
-}
-
-
 export default function ManageDetailPage() {
   const navigate = useNavigate();
   const { itemId } = useParams();
   const numericItemId = Number(itemId);
 
-  //  itemId가 이상하면 공백 대신 안내
   if (!Number.isFinite(numericItemId) || numericItemId <= 0) {
     return <div style={{ padding: 24 }}>잘못된 접근입니다. (itemId가 없습니다)</div>;
   }
@@ -87,145 +74,134 @@ export default function ManageDetailPage() {
 
   const [memoText, setMemoText] = useState("");
 
-  // 기간 필터
+  // 기간/검색/정렬
   const [rangeMode, setRangeMode] = useState("ALL"); // ALL | 7 | 30 | 90 | CUSTOM
-  const [fromDate, setFromDate] = useState(() => "");
+  const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState(() => toYmd(new Date()));
+  const [searchText, setSearchText] = useState("");
+  const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
+  const [showIn, setShowIn] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
   };
 
-  /* ---------------- 서버에서 아이템 목록 불러오기 ---------------- */
+  // ✅ records는 절대 undefined가 아니게 보장
+  const safeRecords = Array.isArray(records) ? records : [];
+  const safeItems = Array.isArray(items) ? items : [];
+
+  /* ---------------- 서버에서 item/detail + 같은 category items 불러오기 ---------------- */
   useEffect(() => {
     let alive = true;
-  
+
     async function boot() {
       try {
-        // 1) 현재 item + records + stock (v2 API)
         const detail = await getItemDetail(numericItemId);
 
         const itemFromApi = detail?.item ?? null;
         const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
 
-        const stockFromApi = detail?.stock ?? 0;
-        const pendingIn = detail?.pendingIn ?? 0;
+        console.log("✅ rawRecords from API:", rawRecords);
 
-  
         if (!alive) return;
-  
-        // selectedOptionId는 URL itemId로 고정
+
         setSelectedOptionId(numericItemId);
-    
-          // records 세팅
-          setRecords(
-            console.log("✅ rawRecords from API:", rawRecords),
 
-            rawRecords.map((rec) => ({
-              id: rec.id,
-              itemId: rec.itemId,
-              type: (rec.type || "IN").toUpperCase(),
-              price: rec.price,
-              count: rec.count,
-              date: String(rec.date || "").slice(0, 10),
-              memo: rec.memo ?? "",
-            }))
-          );
+        // ✅ setRecords에 console.log 끼워넣으면 안 됨 (그게 네가 백지 만든 원인 중 하나)
+        setRecords(
+          rawRecords.map((rec) => ({
+            id: rec.id,
+            itemId: rec.itemId,
+            type: String(rec.type || "IN").toUpperCase(),
+            price: rec.price,
+            count: rec.count,
+            date: String(rec.date || "").slice(0, 10),
+            memo: rec.memo ?? "",
+          }))
+        );
 
-          setStock(stockFromApi);
-          setPendingIn(pendingIn);
-  
-        // item이 없으면 404 등
-        if (!itemFromApi?.id) {
-          // item not found면 /manage로 보내도 됨
-          return;
-        }
-  
-        // 2) 같은 categoryId의 items만 불러오기 (카테고리 섞임 방지 핵심)
+        setStock(detail?.stock ?? 0);
+        setPendingIn(detail?.pendingIn ?? 0);
+
+        if (!itemFromApi?.id) return;
+
         const catId = itemFromApi.categoryId;
         const list = await fetchItems(catId);
-  
+
         if (!alive) return;
-  
-        // items에 "현재 item" 정보(categoryId 포함)가 확실히 들어가도록 merge
+
         const safeList = Array.isArray(list) ? list : [];
         const merged = (() => {
           const map = new Map(safeList.map((x) => [x.id, x]));
           map.set(itemFromApi.id, { ...(map.get(itemFromApi.id) || {}), ...itemFromApi });
           return Array.from(map.values());
         })();
-  
+
         setItems(merged);
       } catch (err) {
         console.error("detail boot failed:", err);
         if (!alive) return;
         setItems([]);
         setRecords([]);
+        setStock(0);
+        setPendingIn(0);
       }
     }
-  
+
     boot();
     return () => {
       alive = false;
     };
   }, [numericItemId]);
 
-  /* ---------------- 현재 선택 옵션(= item row) ---------------- */
+  /* ---------------- 현재 선택 옵션 ---------------- */
   const selectedOption = useMemo(() => {
     if (!selectedOptionId) return null;
-    return items.find((it) => it.id === selectedOptionId) || null;
-  }, [items, selectedOptionId]);
+    return safeItems.find((it) => it.id === selectedOptionId) || null;
+  }, [safeItems, selectedOptionId]);
+
+  const decodedName = selectedOption?.name ?? "";
 
   const looksLikeShoeSize = (v) => {
     const s = String(v ?? "").trim();
-    if (!s) return true; // 비어있으면 기본은 신발
+    if (!s) return true;
     const n = Number(s);
     return Number.isFinite(n) && n >= 180 && n <= 400;
   };
   const isShoes = looksLikeShoeSize(selectedOption?.size);
 
-  /*  검색/정렬 상태 — 반드시 필요 */
-  const [searchText, setSearchText] = useState("");
-  const [sortMode, setSortMode] = useState("ASC"); // ASC | DESC
-
-  const [showIn, setShowIn] = useState(false);
-
-
-  /*  최종 품목명 (name 라우팅 제거) */
-  const decodedName = selectedOption?.name ?? "";
-
   /* ---------------- 옵션 리스트 (같은 name 묶음) ---------------- */
   const options = useMemo(() => {
     const groupName = norm(selectedOption?.name);
     if (!groupName) return [];
-    return items.filter((i) => norm(i.name) === groupName);
-  }, [items, selectedOption?.name]);
+    return safeItems.filter((i) => norm(i.name) === groupName);
+  }, [safeItems, selectedOption?.name]);
 
   const representativeImageUrl = useMemo(() => {
     return options.find((opt) => opt.imageUrl)?.imageUrl || null;
   }, [options]);
 
-  /*  옵션 중복 체크 */
   const isOptionExists = (value) => {
     const trimmed = String(value ?? "").trim();
     if (!trimmed) return false;
     return options.some((opt) => norm(opt.size) === trimmed);
   };
 
-  /* ---------------- 선택 옵션 바뀌면 기록 로드 ---------------- */
+  /* ---------------- 옵션 선택 시 detail 재조회 ---------------- */
   const handleSelectOption = async (nextId) => {
     setSelectedOptionId(nextId);
     navigate(`/manage/${nextId}`, { replace: true });
-  
+
     try {
       const detail = await getItemDetail(nextId);
       const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+
       setRecords(
         rawRecords.map((rec) => ({
           id: rec.id,
           itemId: rec.itemId,
-          type: (rec.type || "IN").toUpperCase(),
+          type: String(rec.type || "IN").toUpperCase(),
           price: rec.price,
           count: rec.count,
           date: String(rec.date || "").slice(0, 10),
@@ -235,20 +211,21 @@ export default function ManageDetailPage() {
 
       setStock(detail?.stock ?? 0);
       setPendingIn(detail?.pendingIn ?? 0);
-  
-      // item 정보도 반영
+
       const itemFromApi = detail?.item ?? null;
       if (itemFromApi?.id) {
-        setItems((prev) =>
-          prev.map((it) => (it.id === itemFromApi.id ? { ...it, ...itemFromApi } : it))
-        );
+        setItems((prev) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          return arr.map((it) => (it.id === itemFromApi.id ? { ...it, ...itemFromApi } : it));
+        });
       }
     } catch (err) {
       console.error("option detail load failed:", err);
       setRecords([]);
+      setStock(0);
+      setPendingIn(0);
     }
   };
-  
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
   useEffect(() => {
@@ -259,10 +236,11 @@ export default function ManageDetailPage() {
   const handleSaveMemo = async () => {
     if (!selectedOption) return;
     try {
-      const updated = await updateServerItem(selectedOption.id, {
-        memo: memoText,
+      const updated = await updateServerItem(selectedOption.id, { memo: memoText });
+      setItems((prev) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        return arr.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it));
       });
-      setItems((prev) => prev.map((it) => (it.id === selectedOption.id ? { ...it, ...updated } : it)));
       showToast("메모 저장 완료!");
     } catch (err) {
       console.error("메모 서버 저장 실패", err);
@@ -271,11 +249,9 @@ export default function ManageDetailPage() {
   };
 
   /* ---------------- 옵션 추가 ---------------- */
-  // ⭐ barcode 추가
   const handleAddOption = async ({ value, image, barcode }) => {
     const trimmed = String(value ?? "").trim();
     const trimmedBarcode = String(barcode ?? "").trim();
-
     if (!trimmed) return;
 
     if (!decodedName) {
@@ -288,7 +264,6 @@ export default function ManageDetailPage() {
       return;
     }
 
-    // ⭐ 바코드 중복 체크(같은 name 옵션들 안에서)
     if (trimmedBarcode) {
       const dup = options.some((opt) => String(opt.barcode ?? "").trim() === trimmedBarcode);
       if (dup) {
@@ -306,8 +281,8 @@ export default function ManageDetailPage() {
         barcode: trimmedBarcode || null,
       });
 
-      setItems((prev) => [...prev, created]);
-      handleSelectOption(created.id);
+      setItems((prev) => [...(Array.isArray(prev) ? prev : []), created]);
+      await handleSelectOption(created.id);
       showToast("옵션 추가 완료");
     } catch (err) {
       console.error("옵션 서버 저장 실패", err);
@@ -319,7 +294,6 @@ export default function ManageDetailPage() {
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
-    //  barcode 포함
     const { id, value, image, barcode } = editModal;
     const trimmed = String(value ?? "").trim();
     const trimmedBarcode = String(barcode ?? "").trim();
@@ -331,7 +305,6 @@ export default function ManageDetailPage() {
       return;
     }
 
-    // ⭐ 바코드 중복 체크(같은 name 옵션들 안에서, 자기 자신 제외)
     if (trimmedBarcode) {
       const dup = options.some((opt) => opt.id !== id && String(opt.barcode ?? "").trim() === trimmedBarcode);
       if (dup) {
@@ -344,10 +317,13 @@ export default function ManageDetailPage() {
       const updated = await updateServerItem(id, {
         size: trimmed,
         imageUrl: image || null,
-        barcode: trimmedBarcode || null, 
+        barcode: trimmedBarcode || null,
       });
 
-      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...updated } : it)));
+      setItems((prev) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        return arr.map((it) => (it.id === id ? { ...it, ...updated } : it));
+      });
       setEditModal(null);
       showToast("옵션 수정 완료");
     } catch (err) {
@@ -368,7 +344,7 @@ export default function ManageDetailPage() {
       window.alert("서버에서 옵션 삭제에 실패했을 수 있어요.\n화면에서는 삭제합니다.");
     }
 
-    setItems((prev) => prev.filter((it) => it.id !== id));
+    setItems((prev) => (Array.isArray(prev) ? prev : []).filter((it) => it.id !== id));
     setRecords([]);
     if (selectedOptionId === id) setSelectedOptionId(null);
     setDeleteModal(null);
@@ -388,7 +364,7 @@ export default function ManageDetailPage() {
       window.alert("서버에서 일부 옵션 삭제에 실패했을 수 있어요.\n다시 확인해 주세요.");
     }
 
-    setItems((prev) => prev.filter((it) => norm(it.name) !== norm(decodedName)));
+    setItems((prev) => (Array.isArray(prev) ? prev : []).filter((it) => norm(it.name) !== norm(decodedName)));
     setRecords([]);
     setSelectedOptionId(null);
     showToast("품목 전체 삭제 완료");
@@ -410,7 +386,7 @@ export default function ManageDetailPage() {
 
   /* ======================= 검색/정렬 + 기간필터 적용 ======================= */
   const filteredRecords = useMemo(() => {
-    let arr = Array.isArray(records) ? [...records] : [];
+    let arr = [...safeRecords];
 
     if (effectiveRange.from) arr = arr.filter((r) => (r.date || "") >= effectiveRange.from);
     if (effectiveRange.to) arr = arr.filter((r) => (r.date || "") <= effectiveRange.to);
@@ -428,21 +404,19 @@ export default function ManageDetailPage() {
     arr.sort((a, b) => {
       const da = a.date || "";
       const db = b.date || "";
-      if (da !== db)
-        return sortMode === "DESC" ? (db > da ? 1 : -1) : da > db ? 1 : -1;
-      return sortMode === "DESC" ? b.id - a.id : a.id - b.id;
+      if (da !== db) return sortMode === "DESC" ? (db > da ? 1 : -1) : da > db ? 1 : -1;
+      return sortMode === "DESC" ? (b.id ?? 0) - (a.id ?? 0) : (a.id ?? 0) - (b.id ?? 0);
     });
 
     return arr;
-  }, [records, effectiveRange, searchText, sortMode]);
+  }, [safeRecords, effectiveRange, searchText, sortMode]);
 
-  const recordsForStats = useMemo(() => filteredRecords, [filteredRecords]);
+  const recordsForStats = filteredRecords;
 
   const visibleRecords = useMemo(() => {
-    if (showIn) return records;
-    return records.filter((r) => r.type !== "IN");
-  }, [records, showIn]);
-  
+    if (showIn) return safeRecords;
+    return safeRecords.filter((r) => String(r?.type || "").toUpperCase() !== "IN");
+  }, [safeRecords, showIn]);
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -565,7 +539,7 @@ export default function ManageDetailPage() {
                           id: opt.id,
                           value: opt.size ?? "",
                           image: opt.imageUrl ?? "",
-                          barcode: opt.barcode ?? "", 
+                          barcode: opt.barcode ?? "",
                         });
                       }}
                       style={{
@@ -631,23 +605,18 @@ export default function ManageDetailPage() {
               >
                 <div style={{ fontSize: 14, fontWeight: 700 }}>
                   현재 재고:{" "}
-                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>
-                    {stock}
-                    </span>
-                    
-                    {/* 미입고 표시 */}
-                    <span
-                     style={{
-                    marginLeft: 10,
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: pendingIn > 0 ? "#d97706" : "#6b7280",
-                   }}
-                   >
+                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>{stock}</span>
+                  <span
+                    style={{
+                      marginLeft: 10,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: pendingIn > 0 ? "#d97706" : "#6b7280",
+                    }}
+                  >
                     미입고: {pendingIn}
-                    </span>
-                    </div>
-
+                  </span>
+                </div>
               </div>
 
               {/* 기간/검색/정렬 컨트롤 */}
@@ -773,233 +742,193 @@ export default function ManageDetailPage() {
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
-  onAddRecord={async (info) => {
-    if (!selectedOptionId) return;
+                  onAddRecord={async (info) => {
+                    if (!selectedOptionId) return;
 
-    const dateValue = info.date || new Date().toISOString().slice(0, 10);
-    const countValue =
-      info.count === "" || info.count == null ? 1 : Number(info.count);
+                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
+                    const apiType = String(info.type || "IN").toUpperCase();
 
-    const apiType = String(info.type || "IN").toUpperCase();
+                    const priceValue = info.price === "" || info.price == null ? null : Number(info.price);
+                    const finalPrice = apiType === "IN" ? null : priceValue;
 
-    const priceValue =
-      info.price === "" || info.price == null ? null : Number(info.price);
+                    try {
+                      await createRecord({
+                        itemId: selectedOptionId,
+                        type: apiType,
+                        price: finalPrice,
+                        count: countValue,
+                        date: dateValue,
+                        memo: info.memo ?? null,
+                      });
 
-    const finalPrice = apiType === "IN" ? null : priceValue;
+                      const detail = await getItemDetail(selectedOptionId);
+                      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
 
-    try {
-      // 1) 서버에 저장
-      await createRecord({
-        itemId: selectedOptionId,
-        type: apiType,
-        price: finalPrice,
-        count: countValue,
-        date: dateValue,
-        memo: info.memo ?? null,
-      });
+                      setRecords(
+                        rawRecords.map((rec) => ({
+                          id: rec.id,
+                          itemId: rec.itemId,
+                          type: String(rec.type || "IN").toUpperCase(),
+                          price: rec.price,
+                          count: rec.count,
+                          date: String(rec.date || "").slice(0, 10),
+                          memo: rec.memo ?? "",
+                        }))
+                      );
 
-      // 2)  저장 성공 후 "서버에서 다시 읽기" (가장 중요)
-      const detail = await getItemDetail(selectedOptionId);
-      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+                      setStock(detail?.stock ?? 0);
+                      setPendingIn(detail?.pendingIn ?? 0);
 
-      setRecords(
-        rawRecords.map((rec) => ({
-          id: rec.id,
-          itemId: rec.itemId,
-          type: String(rec.type || "IN").toUpperCase(),
-          price: rec.price,
-          count: rec.count,
-          date: String(rec.date || "").slice(0, 10),
-          memo: rec.memo ?? "",
-        }))
-      );
-
-      setStock(detail?.stock ?? 0);
-      setPendingIn(detail?.pendingIn ?? 0);
-
-      showToast("기록 추가 완료");
-    } catch (err) {
-      console.error("백엔드 기록 저장 실패", err);
-      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
-    }
-  }}
-/>
-
+                      showToast("기록 추가 완료");
+                    } catch (err) {
+                      console.error("백엔드 기록 저장 실패", err);
+                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+                    }
+                  }}
+                />
               </div>
 
               <div style={{ marginBottom: 8 }}>
-  <label style={{ fontSize: 13, cursor: "pointer" }}>
-    <input
-      type="checkbox"
-      checked={showIn}
-      onChange={(e) => setShowIn(e.target.checked)}
-      style={{ marginRight: 6 }}
-    />
-    입고(IN) 기록 보기
-  </label>
-</div>
+                <label style={{ fontSize: 13, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={showIn}
+                    onChange={(e) => setShowIn(e.target.checked)}
+                    style={{ marginRight: 6 }}
+                  />
+                  입고(IN) 기록 보기
+                </label>
+              </div>
 
+              {/* 기록 리스트 */}
+              <PurchaseList
+                records={visibleRecords}
+                onDeleteRecord={async (id) => {
+                  // ✅ 즉시 UI 반영
+                  setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));
 
-             {/* 기록 리스트 */}
-<PurchaseList
-  //  가능하면 원본 records를 넘기는 게 가장 안전함
-  // filteredRecords가 PURCHASE/IN을 누락시키면 미입고/입고처리에서 꼬일 수 있음
-  records={visibleRecords}
-  onDeleteRecord={async (id) => {
-    // 화면 즉시 반영,콘솔
-    setRecords((prev) => {
-      const next = [...prev, newRecord];
-      console.log("🔥 기록 추가 직후 records", next);
-      return next;
-    });
-    
+                  try {
+                    // ⚠️ 너 api/items.js가 어떤 시그니처인지 몰라서, 둘 다 가능하게 처리
+                    // 1) deleteServerRecord({ itemId, id }) 형태였던 너 기존 코드 유지
+                    await deleteServerRecord({ itemId: selectedOptionId, id });
+                    showToast("기록 삭제 완료");
+                  } catch (err) {
+                    console.error("백엔드 기록 삭제 실패", err);
+                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
+                  }
+                }}
+                onUpdateRecord={async (id, info) => {
+                  if (!selectedOptionId) return;
 
-    try {
-      await deleteServerRecord({ itemId: selectedOptionId, id });
-      showToast("기록 삭제 완료");
-    } catch (err) {
-      console.error("백엔드 기록 삭제 실패", err);
-      window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
-    }
-  }}
-  onUpdateRecord={async (id, info) => {
-    if (!selectedOptionId) return;
+                  const normType = (t) => {
+                    const x = String(t || "").toUpperCase();
+                    if (x === "OUT") return "OUT";
+                    if (x === "PURCHASE") return "PURCHASE";
+                    return "IN";
+                  };
 
-    // 타입 정규화 (IN/OUT/PURCHASE)
-    const norm = (t) => {
-      const x = String(t || "").toUpperCase();
-      if (x === "OUT") return "OUT";
-      if (x === "PURCHASE") return "PURCHASE";
-      return "IN";
-    };
+                  let nextType = info.type != null ? normType(info.type) : undefined;
 
-    let nextType = info.type != null ? norm(info.type) : undefined;
+                  const dateValue = info.date || undefined;
+                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
+                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
 
-    const dateValue = info.date || undefined;
-    const priceValue =
-      info.price === "" || info.price == null ? undefined : Number(info.price);
-    const countValue =
-      info.count === "" || info.count == null ? undefined : Number(info.count);
+                  // 판매가만 넣는 경우 OUT 유지
+                  if (priceValue != null && info.type == null) {
+                    nextType = "OUT";
+                  }
 
-        //  판매가만 입력하는 경우, OUT 타입 유지 (재고 + 되는 버그 방지)
-  if (priceValue != null && info.type == null) {
-    nextType = "OUT";
-  }
+                  const finalPrice =
+                    nextType === "IN" ? null : priceValue === undefined ? undefined : priceValue;
 
+                  if (nextType === "PURCHASE") {
+                    const p = finalPrice;
+                    if (p == null || !Number.isFinite(Number(p)) || Number(p) <= 0) {
+                      window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
+                      return;
+                    }
+                  }
 
-    // IN은 price 무조건 null, PURCHASE는 price 필수
-    const finalPrice =
-      nextType === "IN"
-        ? null
-        : priceValue === undefined
-        ? undefined
-        : priceValue;
+                  try {
+                    const updatedResp = await updateServerRecord({
+                      itemId: selectedOptionId,
+                      id,
+                      price: finalPrice ?? null,
+                      count: countValue ?? null,
+                      date: dateValue ?? null,
+                      type: nextType ?? null,
+                      memo: info.memo ?? null,
+                    });
 
-    if (nextType === "PURCHASE") {
-      const p = finalPrice;
-      if (p == null || !Number.isFinite(Number(p)) || Number(p) <= 0) {
-        window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
-        return;
-      }
-    }
-    if (nextType === "OUT" && finalPrice != null) {
-      if (!Number.isFinite(Number(finalPrice)) || Number(finalPrice) < 0) {
-        window.alert("판매 가격이 올바르지 않습니다.");
-        return;
-      }
-    }
-    if (countValue !== undefined) {
-      if (!Number.isFinite(countValue) || countValue <= 0) {
-        window.alert("수량이 올바르지 않습니다.");
-        return;
-      }
-    }
+                    const updated = updatedResp?.record ?? updatedResp;
 
-    try {
-      const updated = await updateServerRecord({
-        itemId: selectedOptionId,
-        id,
-        price: finalPrice ?? null,
-        count: countValue ?? null,
-        date: dateValue ?? null,
-        type: nextType ?? null,
-        memo: info.memo ?? null,
-      });
+                    setRecords((prev) =>
+                      (Array.isArray(prev) ? prev : []).map((r) =>
+                        r.id === id
+                          ? {
+                              ...r,
+                              price: updated?.price ?? (finalPrice !== undefined ? finalPrice : r.price),
+                              count: updated?.count ?? (countValue !== undefined ? countValue : r.count),
+                              date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(0, 10),
+                              type: String(updated?.type ?? nextType ?? r.type ?? "IN").toUpperCase(),
+                              memo: updated?.memo ?? info.memo ?? r.memo ?? "",
+                            }
+                          : r
+                      )
+                    );
 
-      // UI 반영 (서버 응답 우선)
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.id === id
-            ? {
-                ...r,
-                price:
-                  updated?.price ??
-                  (finalPrice !== undefined ? finalPrice : r.price),
-                count:
-                  updated?.count ??
-                  (countValue !== undefined ? countValue : r.count),
-                date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(
-                  0,
-                  10
-                ),
-                type: String(updated?.type ?? nextType ?? r.type ?? "IN").toUpperCase(),
-                memo: updated?.memo ?? info.memo ?? r.memo ?? "",
-              }
-            : r
-        )
-      );
+                    // stock/pendingIn도 응답에 있으면 갱신
+                    if (updatedResp?.stock != null) setStock(updatedResp.stock);
+                    if (updatedResp?.pendingIn != null) setPendingIn(updatedResp.pendingIn);
 
-      showToast("기록 수정 완료");
-    } catch (err) {
-      console.error("백엔드 기록 수정 실패", err);
-      window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
-    }
-  }}
-  //  PURCHASE 옆 “입고 처리” 버튼 활성화
-  onMarkArrived={async (purchase) => {
-    if (!selectedOptionId) return;
+                    showToast("기록 수정 완료");
+                  } catch (err) {
+                    console.error("백엔드 기록 수정 실패", err);
+                    window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
+                  }
+                }}
+                onMarkArrived={async (purchase) => {
+                  if (!selectedOptionId) return;
+                  if (String(purchase?.type || "").toUpperCase() !== "PURCHASE") return;
 
-    // purchase가 PURCHASE가 아닌데 호출될 가능성 방어
-    const t = String(purchase?.type || "").toUpperCase();
-    if (t !== "PURCHASE") return;
+                  const count = Number(purchase?.count) || 1;
 
-    const count = Number(purchase?.count) || 1;
+                  try {
+                    await createRecord({
+                      itemId: selectedOptionId,
+                      type: "IN",
+                      price: null,
+                      count,
+                      date: new Date().toISOString().slice(0, 10),
+                      memo: `매입(${purchase.id}) 입고`,
+                    });
 
-    try {
-      //  매입 옆 버튼 누르면 IN 레코드 추가 (price는 null)
-      await createRecord({
-        itemId: selectedOptionId,
-        type: "IN",
-        price: null,
-        count,
-        date: new Date().toISOString().slice(0, 10),
-        memo: `매입(${purchase.id}) 입고`,
-      });
+                    const detail = await getItemDetail(selectedOptionId);
+                    const raw = Array.isArray(detail?.records) ? detail.records : [];
 
-      //디테일 재조회로 records/stock 동기화
-      const detail = await getItemDetail(selectedOptionId);
-      const raw = Array.isArray(detail?.records) ? detail.records : [];
+                    setRecords(
+                      raw.map((rec) => ({
+                        id: rec.id,
+                        itemId: rec.itemId,
+                        type: String(rec.type || "IN").toUpperCase(),
+                        price: rec.price,
+                        count: rec.count,
+                        date: String(rec.date || "").slice(0, 10),
+                        memo: rec.memo ?? "",
+                      }))
+                    );
 
-      setRecords(
-        raw.map((rec) => ({
-          id: rec.id,
-          itemId: rec.itemId,
-          type: String(rec.type || "IN").toUpperCase(),
-          price: rec.price,
-          count: rec.count,
-          date: String(rec.date || "").slice(0, 10),
-          memo: rec.memo ?? "",
-        }))
-      );
+                    setStock(detail?.stock ?? 0);
+                    setPendingIn(detail?.pendingIn ?? 0);
 
-      showToast("입고 처리 완료");
-    } catch (err) {
-      console.error("입고 처리 실패", err);
-      window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
-    }
-  }}
-/>
-
+                    showToast("입고 처리 완료");
+                  } catch (err) {
+                    console.error("입고 처리 실패", err);
+                    window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
+                  }
+                }}
+              />
 
               {/* 메모 */}
               <div
@@ -1053,20 +982,11 @@ export default function ManageDetailPage() {
       </div>
 
       {editModal && (
-        <EditOptionModal
-          isShoes={isShoes}
-          editModal={editModal}
-          setEditModal={setEditModal}
-          onSave={handleSaveEditOption}
-        />
+        <EditOptionModal isShoes={isShoes} editModal={editModal} setEditModal={setEditModal} onSave={handleSaveEditOption} />
       )}
 
       {deleteModal && (
-        <ConfirmModal
-          message="정말 이 옵션을 삭제할까요?"
-          onCancel={() => setDeleteModal(null)}
-          onConfirm={handleDeleteOption}
-        />
+        <ConfirmModal message="정말 이 옵션을 삭제할까요?" onCancel={() => setDeleteModal(null)} onConfirm={handleDeleteOption} />
       )}
     </div>
   );
@@ -1076,7 +996,7 @@ export default function ManageDetailPage() {
 function OptionAddBox({ isShoes, onAdd }) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState("");
-  const [barcode, setBarcode] = useState(""); // ⭐ 추가
+  const [barcode, setBarcode] = useState("");
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -1092,10 +1012,10 @@ function OptionAddBox({ isShoes, onAdd }) {
   };
 
   const submit = () => {
-    onAdd({ value, image, barcode }); // ⭐ barcode 같이 전달
+    onAdd({ value, image, barcode });
     setValue("");
     setImage("");
-    setBarcode(""); // ⭐ 초기화
+    setBarcode("");
   };
 
   return (
@@ -1124,7 +1044,6 @@ function OptionAddBox({ isShoes, onAdd }) {
         }}
       />
 
-      {/* ⭐ 바코드 입력 추가 */}
       <input
         type="text"
         placeholder="바코드(선택)"
@@ -1175,7 +1094,7 @@ function OptionAddBox({ isShoes, onAdd }) {
 
 /* ======================= 옵션 수정 모달 ======================= */
 function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
-  const { id, value, image, barcode } = editModal; // ⭐ barcode 추가
+  const { id, value, image, barcode } = editModal;
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -1183,7 +1102,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
 
     try {
       const compressed = await compressImage(file, 900, 900, 0.75);
-      setEditModal({ id, value, image: compressed, barcode }); // ⭐ barcode 유지
+      setEditModal({ id, value, image: compressed, barcode });
     } catch (err) {
       console.error("이미지 압축 실패", err);
       alert("이미지 처리 중 오류가 발생했어요 😢");
@@ -1217,7 +1136,6 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           placeholder={isShoes ? "사이즈" : "옵션"}
         />
 
-        {/*  바코드 수정 입력 */}
         <input
           type="text"
           value={barcode ?? ""}
