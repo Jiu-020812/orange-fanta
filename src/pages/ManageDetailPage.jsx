@@ -771,53 +771,58 @@ export default function ManageDetailPage() {
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
-                onAddRecord={async (info) => {
-                  if (!selectedOptionId) return;
-                
-                  const dateValue = info.date || new Date().toISOString().slice(0, 10);
-                  const countValue =
-                    info.count === "" || info.count == null ? 1 : Number(info.count);
-                
-                  // PURCHASE/IN/OUT 그대로 보냄
-                  const apiType = String(info.type || "IN").toUpperCase();
-                
-                  // price: IN은 항상 null, PURCHASE는 필수(폼에서 이미 검증), OUT은 선택
-                  const priceValue =
-                    info.price === "" || info.price == null ? null : Number(info.price);
-                  const finalPrice = apiType === "IN" ? null : priceValue;
-                
-                  try {
-                    const created = await createRecord({
-                      itemId: selectedOptionId,
-                      type: apiType,
-                      price: finalPrice,     
-                      count: countValue,
-                      date: dateValue,
-                      memo: info.memo ?? null,
-                    });
-                
-                    //  서버 응답 형태에 맞춰서 record 뽑기
-                    const rec = created?.record ?? created; // 백엔드가 {record}로 주는 경우 대비
-                
-                    const newRecord = {
-                      id: rec?.id ?? Math.random(),
-                      itemId: rec?.itemId ?? selectedOptionId,
-                      type: String(rec?.type ?? apiType).toUpperCase(),
-                      price: rec?.price ?? finalPrice,
-                      count: rec?.count ?? countValue,
-                      date: String(rec?.date ?? dateValue).slice(0, 10),
-                      memo: rec?.memo ?? (info.memo ?? ""),
-                    };
-                
-                    setRecords((prev) => [...prev, newRecord]);
-                    showToast("기록 추가 완료");
-                  } catch (err) {
-                    console.error("백엔드 기록 저장 실패", err);
-                    window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
-                  }
-                }}
-                
-                />
+  onAddRecord={async (info) => {
+    if (!selectedOptionId) return;
+
+    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+    const countValue =
+      info.count === "" || info.count == null ? 1 : Number(info.count);
+
+    const apiType = String(info.type || "IN").toUpperCase();
+
+    const priceValue =
+      info.price === "" || info.price == null ? null : Number(info.price);
+
+    const finalPrice = apiType === "IN" ? null : priceValue;
+
+    try {
+      // 1) 서버에 저장
+      await createRecord({
+        itemId: selectedOptionId,
+        type: apiType,
+        price: finalPrice,
+        count: countValue,
+        date: dateValue,
+        memo: info.memo ?? null,
+      });
+
+      // 2) ✅ 저장 성공 후 "서버에서 다시 읽기" (가장 중요)
+      const detail = await getItemDetail(selectedOptionId);
+      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+
+      setRecords(
+        rawRecords.map((rec) => ({
+          id: rec.id,
+          itemId: rec.itemId,
+          type: String(rec.type || "IN").toUpperCase(),
+          price: rec.price,
+          count: rec.count,
+          date: String(rec.date || "").slice(0, 10),
+          memo: rec.memo ?? "",
+        }))
+      );
+
+      setStock(detail?.stock ?? 0);
+      setPendingIn(detail?.pendingIn ?? 0);
+
+      showToast("기록 추가 완료");
+    } catch (err) {
+      console.error("백엔드 기록 저장 실패", err);
+      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
+  }}
+/>
+
               </div>
 
               <div style={{ marginBottom: 8 }}>

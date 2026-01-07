@@ -19,12 +19,15 @@ function PurchaseForm({ onAddRecord }) {
     onAddRecord({
       type,
       date,
-      price: type === "IN" ? null : price, // IN이면 null로 보내도 되고 그냥 안 보내도 됨
-      count,
+      price:
+      type === "IN" || price === "" || price == null
+        ? null
+        : Number(price),
+        count: count === "" ? 1 : Number(count),
     });
 
     // 초기화
-    if (type !== "IN") setPrice("");
+    setPrice("");
     setCount("");
   };
 
