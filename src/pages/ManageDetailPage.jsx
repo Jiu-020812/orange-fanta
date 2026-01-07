@@ -771,47 +771,42 @@ export default function ManageDetailPage() {
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
-                 onAddRecord={async (info) => {
+                onAddRecord={async (info) => {
                   if (!selectedOptionId) return;
                 
                   const dateValue = info.date || new Date().toISOString().slice(0, 10);
                   const countValue =
                     info.count === "" || info.count == null ? 1 : Number(info.count);
                 
-                  // 핵심: UI에서 선택한 타입을 서버 타입(IN/OUT)으로 변환
-                  // info.type 이 값이 뭐로 오는지 모르니까 최대한 방어적으로 처리
-                  // - "판매" / "OUT" => OUT
-                  // - 나머지(매입/입고) => IN
-                  const uiType = String(info.type ?? "").toUpperCase();
-                  const apiType =
-                    uiType === "OUT" || uiType === "SALE" || uiType === "판매"
-                      ? "OUT"
-                      : "IN";
+                  // PURCHASE/IN/OUT 그대로 보냄
+                  const apiType = String(info.type || "IN").toUpperCase();
                 
-                  // 가격: 빈값이면 null
+                  // price: IN은 항상 null, PURCHASE는 필수(폼에서 이미 검증), OUT은 선택
                   const priceValue =
                     info.price === "" || info.price == null ? null : Number(info.price);
-                    const finalPrice = apiType === "IN" ? null : priceValue;
-
+                  const finalPrice = apiType === "IN" ? null : priceValue;
                 
                   try {
                     const created = await createRecord({
                       itemId: selectedOptionId,
                       type: apiType,
-                      price: finalPrice,
+                      price: finalPrice,     
                       count: countValue,
                       date: dateValue,
                       memo: info.memo ?? null,
                     });
                 
+                    //  서버 응답 형태에 맞춰서 record 뽑기
+                    const rec = created?.record ?? created; // 백엔드가 {record}로 주는 경우 대비
+                
                     const newRecord = {
-                      id: created?.id ?? Math.random(),
-                      itemId: created?.itemId ?? selectedOptionId,
-                      type: String(created?.type ?? apiType).toUpperCase(),
-                      price: created?.price ?? priceValue,
-                      count: created?.count ?? countValue,
-                      date: String(created?.date ?? dateValue).slice(0, 10),
-                      memo: created?.memo ?? (info.memo ?? ""),
+                      id: rec?.id ?? Math.random(),
+                      itemId: rec?.itemId ?? selectedOptionId,
+                      type: String(rec?.type ?? apiType).toUpperCase(),
+                      price: rec?.price ?? finalPrice,
+                      count: rec?.count ?? countValue,
+                      date: String(rec?.date ?? dateValue).slice(0, 10),
+                      memo: rec?.memo ?? (info.memo ?? ""),
                     };
                 
                     setRecords((prev) => [...prev, newRecord]);
@@ -821,6 +816,7 @@ export default function ManageDetailPage() {
                     window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
+                
                 />
               </div>
 
