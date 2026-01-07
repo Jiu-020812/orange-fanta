@@ -120,6 +120,8 @@ export default function ManageDetailPage() {
     
           // records 세팅
           setRecords(
+            console.log("✅ rawRecords from API:", rawRecords),
+
             rawRecords.map((rec) => ({
               id: rec.id,
               itemId: rec.itemId,
@@ -796,7 +798,7 @@ export default function ManageDetailPage() {
         memo: info.memo ?? null,
       });
 
-      // 2) ✅ 저장 성공 후 "서버에서 다시 읽기" (가장 중요)
+      // 2)  저장 성공 후 "서버에서 다시 읽기" (가장 중요)
       const detail = await getItemDetail(selectedOptionId);
       const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
 
@@ -844,8 +846,13 @@ export default function ManageDetailPage() {
   // filteredRecords가 PURCHASE/IN을 누락시키면 미입고/입고처리에서 꼬일 수 있음
   records={visibleRecords}
   onDeleteRecord={async (id) => {
-    // 화면 즉시 반영
-    setRecords((prev) => prev.filter((r) => r.id !== id));
+    // 화면 즉시 반영,콘솔
+    setRecords((prev) => {
+      const next = [...prev, newRecord];
+      console.log("🔥 기록 추가 직후 records", next);
+      return next;
+    });
+    
 
     try {
       await deleteServerRecord({ itemId: selectedOptionId, id });

@@ -58,6 +58,8 @@ export default function StatsSection({ records, itemName }) {
   const effectiveShowSale = showSale || (!showPurchase && !showSale);
 
   const computed = useMemo(() => {
+    console.log("📊 StatsSection 받은 records", safeRecords);
+
     const hasPrice = (v) =>
       v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
 
