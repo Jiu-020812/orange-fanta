@@ -1,3 +1,4 @@
+// src/components/StatsSection.jsx
 import { useMemo, useState, useEffect } from "react";
 import {
   BarChart,
@@ -11,6 +12,8 @@ import {
 } from "recharts";
 
 /**
+ * ✅ 임시 레거시 커버 버전 (B안 마이그레이션 전까지)
+ *
  * - IN: 입고(재고 반영, price는 항상 null이 정상)
  * - PURCHASE: 매입(가격 필수, 재고에는 반영 X)
  * - OUT: 판매(재고 반영, price는 선택 / 그래프는 price 있는 것만)
@@ -22,8 +25,9 @@ import {
  * - 매입 단가: PURCHASE(가격 있는 것)만
  * - 판매 단가: OUT 중 price 있는 것만
  *
- *  레거시(IN+price)는 StatsSection에서 억지로 커버하지 않고
- *    별도 스크립트로 PURCHASE로 마이그레이션하는 걸 권장(= B안 목표)
+ * ✅ 레거시(IN + price>0)를 "매입(PURCHASE)"처럼 취급해서
+ *    매입 그래프/통계/미입고 계산에 포함한다.
+ *    (나중에 서버에서 IN+price -> PURCHASE로 정리되면 이 커버 로직 제거 가능)
  */
 export default function StatsSection({ records, itemName }) {
   const safeRecords = Array.isArray(records) ? records : [];
@@ -54,11 +58,34 @@ export default function StatsSection({ records, itemName }) {
     setTo(today);
   }, [mode]);
 
+  // 둘 다 OFF면 둘 다 ON처럼 동작
   const effectiveShowPurchase = showPurchase || (!showPurchase && !showSale);
   const effectiveShowSale = showSale || (!showPurchase && !showSale);
 
   const computed = useMemo(() => {
-    console.log("📊 StatsSection 받은 records", safeRecords);
+    // ✅ 디버그: 타입/레거시 상태 확인
+    // console.log(
+    //   "[CHECK]",
+    //   safeRecords.reduce((a, r) => {
+    //     const t = String(r?.type || "").toUpperCase();
+    //     a[t] = (a[t] || 0) + 1;
+    //     return a;
+    //   }, {}),
+    //   "IN+price=",
+    //   safeRecords.filter(
+    //     (r) =>
+    //       String(r?.type || "").toUpperCase() === "IN" &&
+    //       r?.price != null &&
+    //       Number(r.price) > 0
+    //   ).length,
+    //   "PURCHASE+price=",
+    //   safeRecords.filter(
+    //     (r) =>
+    //       String(r?.type || "").toUpperCase() === "PURCHASE" &&
+    //       r?.price != null &&
+    //       Number(r.price) > 0
+    //   ).length
+    // );
 
     const hasPrice = (v) =>
       v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
@@ -77,19 +104,26 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
-    const normType = (t) => {
-      const x = String(t || "").toUpperCase();
+    // ✅ 레거시 커버 포함 타입 정규화
+    // - PURCHASE / OUT 그대로
+    // - IN인데 price>0 이면 레거시 매입으로 보고 PURCHASE로 간주
+    const normType = (r) => {
+      const x = String(r?.type || "").toUpperCase();
+      const legacyPurchase =
+        x === "IN" && r?.price != null && Number(r.price) > 0;
+
       if (x === "OUT") return "OUT";
       if (x === "PURCHASE") return "PURCHASE";
+      if (legacyPurchase) return "PURCHASE";
       return "IN";
     };
 
     // 날짜별 집계
     const map = new Map();
 
-    // ===== 수량 집계(미입고/미입력) =====
+    // ===== 수량 집계 =====
     let inQtyAll = 0; // IN 총 수량
-    let purchaseQtyAll = 0; // PURCHASE 총 수량
+    let purchaseQtyAll = 0; // PURCHASE 총 수량(레거시 포함)
     let outQtyAll = 0; // OUT 총 수량
     let outPricedQty = 0; // price 있는 OUT 수량
 
@@ -161,36 +195,35 @@ export default function StatsSection({ records, itemName }) {
       const dateOnly = toYmd(r.date);
       if (!dateOnly) continue;
 
-      const type = normType(r.type);
       const qty = toNum(r.count, 0);
       if (qty <= 0) continue;
 
+      const type = normType(r);
       const row = ensureRow(dateOnly);
-
       const rawPrice = r.price;
 
-      // IN: 입고 수량만 (price는 무시/정상적으로는 null)
+      // IN: 입고 수량만 (price는 무시)
       if (type === "IN") {
         inQtyAll += qty;
         continue;
       }
 
-      //  PURCHASE: 매입(가격 있을 때만 차트/단가)
+      // PURCHASE: 매입(레거시 포함) - 가격 있을 때만 차트/단가
       if (type === "PURCHASE") {
-        if (hasPrice(rawPrice)) {
+        if (hasPrice(rawPrice) && Number(rawPrice) > 0) {
           addPurchase(row, qty, rawPrice);
         } else {
-          // 수량은 '매입'으로는 들어왔지만 가격이 없으면 통계/그래프에는 반영하지 않음
+          // 가격이 없으면 매입 수량은 잡되 그래프/통계 제외
           purchaseQtyAll += qty;
         }
         continue;
       }
 
-      //  OUT: 판매 (price 있을 때만 차트/단가)
+      // OUT: 판매 - price 있을 때만 차트/단가
       if (type === "OUT") {
         outQtyAll += qty;
 
-        if (hasPrice(rawPrice)) {
+        if (hasPrice(rawPrice) && Number(rawPrice) > 0) {
           outPricedQty += qty;
           addSale(row, qty, rawPrice);
         }
@@ -218,10 +251,10 @@ export default function StatsSection({ records, itemName }) {
     const avgSaleUnit =
       saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
-    //  미입고(매입은 됐는데 아직 안 들어온 수량)
+    // 미입고(매입 수량 - 입고 수량)
     const pendingIn = Math.max(0, purchaseQtyAll - inQtyAll);
 
-    // 판매가(가격) 미입력 OUT 수량
+    // 판매가 미입력 OUT 수량
     const missingSaleQty = Math.max(0, outQtyAll - outPricedQty);
 
     return {
