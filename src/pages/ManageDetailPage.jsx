@@ -1,5 +1,5 @@
 // src/pages/ManageDetailPage.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
 import PurchaseForm from "../components/PurchaseForm";
@@ -52,6 +52,19 @@ function toYmd(d) {
   }
 }
 
+function mapRecords(rawRecords) {
+  const arr = Array.isArray(rawRecords) ? rawRecords : [];
+  return arr.map((rec) => ({
+    id: rec.id,
+    itemId: rec.itemId,
+    type: String(rec.type || "IN").toUpperCase(),
+    price: rec.price,
+    count: rec.count,
+    date: String(rec.date || "").slice(0, 10),
+    memo: rec.memo ?? "",
+  }));
+}
+
 export default function ManageDetailPage() {
   const navigate = useNavigate();
   const { itemId } = useParams();
@@ -91,69 +104,98 @@ export default function ManageDetailPage() {
   const safeRecords = Array.isArray(records) ? records : [];
   const safeItems = Array.isArray(items) ? items : [];
 
-  /* ---------------- 서버에서 item/detail + 같은 category items 불러오기 ---------------- */
-  useEffect(() => {
-    let alive = true;
+  // ✅ 레이스 방지 토큰 (늦게 온 응답이 최신 상태 덮어쓰는 것 방지)
+  const detailSeqRef = useRef(0);
 
-    async function boot() {
+  const loadDetail = useCallback(
+    async (targetId, { loadCategoryItems = false, reason = "" } = {}) => {
+      const seq = ++detailSeqRef.current;
+
       try {
-        const detail = await getItemDetail(numericItemId);
+        const detail = await getItemDetail(targetId);
+
+        // 최신 요청 아니면 무시
+        if (seq !== detailSeqRef.current) {
+          console.warn(`[detail][stale ignored] seq=${seq} latest=${detailSeqRef.current} id=${targetId} reason=${reason}`);
+          return;
+        }
 
         const itemFromApi = detail?.item ?? null;
         const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
 
-        console.log("✅ rawRecords from API:", rawRecords);
-
-        if (!alive) return;
-
-        setSelectedOptionId(numericItemId);
-
-        // ✅ setRecords에 console.log 끼워넣으면 안 됨 (그게 네가 백지 만든 원인 중 하나)
-        setRecords(
-          rawRecords.map((rec) => ({
-            id: rec.id,
-            itemId: rec.itemId,
-            type: String(rec.type || "IN").toUpperCase(),
-            price: rec.price,
-            count: rec.count,
-            date: String(rec.date || "").slice(0, 10),
-            memo: rec.memo ?? "",
-          }))
-        );
-
+        setSelectedOptionId(targetId);
+        setRecords(mapRecords(rawRecords));
         setStock(detail?.stock ?? 0);
         setPendingIn(detail?.pendingIn ?? 0);
 
-        if (!itemFromApi?.id) return;
+        // 옵션 클릭(같은 카테고리 안)에서는 보통 items 재조회가 필요 없고,
+        // 최초 진입/새로고침(boot)에서는 items(같은 category)까지 한 번 채우는게 필요.
+        if (loadCategoryItems) {
+          if (!itemFromApi?.id) return;
 
-        const catId = itemFromApi.categoryId;
-        const list = await fetchItems(catId);
+          const catId = itemFromApi.categoryId;
+          const list = await fetchItems(catId);
 
-        if (!alive) return;
+          if (seq !== detailSeqRef.current) {
+            console.warn(
+              `[items][stale ignored] seq=${seq} latest=${detailSeqRef.current} id=${targetId} reason=${reason}`
+            );
+            return;
+          }
 
-        const safeList = Array.isArray(list) ? list : [];
-        const merged = (() => {
-          const map = new Map(safeList.map((x) => [x.id, x]));
-          map.set(itemFromApi.id, { ...(map.get(itemFromApi.id) || {}), ...itemFromApi });
-          return Array.from(map.values());
-        })();
+          const safeList = Array.isArray(list) ? list : [];
+          const merged = (() => {
+            const map = new Map(safeList.map((x) => [x.id, x]));
+            map.set(itemFromApi.id, { ...(map.get(itemFromApi.id) || {}), ...itemFromApi });
+            return Array.from(map.values());
+          })();
 
-        setItems(merged);
+          setItems(merged);
+        } else {
+          // detail.item 정보가 오면 현재 items에도 반영(있을 때만)
+          if (itemFromApi?.id) {
+            setItems((prev) => {
+              const arr = Array.isArray(prev) ? prev : [];
+              return arr.map((it) => (it.id === itemFromApi.id ? { ...it, ...itemFromApi } : it));
+            });
+          }
+        }
       } catch (err) {
-        console.error("detail boot failed:", err);
-        if (!alive) return;
-        setItems([]);
+        console.error(`[detail][error] seq=${seq} id=${targetId} reason=${reason}`, err);
+
+        // 최신 요청일 때만 화면 초기화 (stale 에러가 최신 상태를 비우는 걸 막음)
+        if (seq !== detailSeqRef.current) return;
+
+        // boot에서만 items까지 싹 비우고, 옵션 클릭/후처리에서는 records/재고만 비우는게 덜 거슬림
+        if (loadCategoryItems) setItems([]);
         setRecords([]);
         setStock(0);
         setPendingIn(0);
       }
-    }
+    },
+    []
+  );
 
-    boot();
+  /* ---------------- 서버에서 item/detail + 같은 category items 불러오기 ---------------- */
+  useEffect(() => {
+    let alive = true;
+
+    (async () => {
+      // loadDetail 내부는 seq로 stale 방지.
+      // 여기서는 "언마운트 이후 setState 방지"만 보조로 체크.
+      try {
+        await loadDetail(numericItemId, { loadCategoryItems: true, reason: "boot" });
+      } finally {
+        if (!alive) return;
+      }
+    })();
+
     return () => {
       alive = false;
+      // (선택) 언마운트 시점에 seq를 올려서 이후 응답 무시 강화
+      detailSeqRef.current += 1;
     };
-  }, [numericItemId]);
+  }, [numericItemId, loadDetail]);
 
   /* ---------------- 현재 선택 옵션 ---------------- */
   const selectedOption = useMemo(() => {
@@ -193,38 +235,8 @@ export default function ManageDetailPage() {
     setSelectedOptionId(nextId);
     navigate(`/manage/${nextId}`, { replace: true });
 
-    try {
-      const detail = await getItemDetail(nextId);
-      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
-
-      setRecords(
-        rawRecords.map((rec) => ({
-          id: rec.id,
-          itemId: rec.itemId,
-          type: String(rec.type || "IN").toUpperCase(),
-          price: rec.price,
-          count: rec.count,
-          date: String(rec.date || "").slice(0, 10),
-          memo: rec.memo ?? "",
-        }))
-      );
-
-      setStock(detail?.stock ?? 0);
-      setPendingIn(detail?.pendingIn ?? 0);
-
-      const itemFromApi = detail?.item ?? null;
-      if (itemFromApi?.id) {
-        setItems((prev) => {
-          const arr = Array.isArray(prev) ? prev : [];
-          return arr.map((it) => (it.id === itemFromApi.id ? { ...it, ...itemFromApi } : it));
-        });
-      }
-    } catch (err) {
-      console.error("option detail load failed:", err);
-      setRecords([]);
-      setStock(0);
-      setPendingIn(0);
-    }
+    // ✅ 여기서 직접 setRecords 하지 말고 loadDetail로 통일 (레이스 방지)
+    await loadDetail(nextId, { loadCategoryItems: false, reason: "select-option" });
   };
 
   /* ---------------- 메모: 서버 Item.memo 기반 ---------------- */
@@ -762,23 +774,8 @@ export default function ManageDetailPage() {
                         memo: info.memo ?? null,
                       });
 
-                      const detail = await getItemDetail(selectedOptionId);
-                      const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
-
-                      setRecords(
-                        rawRecords.map((rec) => ({
-                          id: rec.id,
-                          itemId: rec.itemId,
-                          type: String(rec.type || "IN").toUpperCase(),
-                          price: rec.price,
-                          count: rec.count,
-                          date: String(rec.date || "").slice(0, 10),
-                          memo: rec.memo ?? "",
-                        }))
-                      );
-
-                      setStock(detail?.stock ?? 0);
-                      setPendingIn(detail?.pendingIn ?? 0);
+                      // ✅ 레이스 방지된 공용 로더 사용
+                      await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "after-create" });
 
                       showToast("기록 추가 완료");
                     } catch (err) {
@@ -839,8 +836,7 @@ export default function ManageDetailPage() {
                     nextType = "OUT";
                   }
 
-                  const finalPrice =
-                    nextType === "IN" ? null : priceValue === undefined ? undefined : priceValue;
+                  const finalPrice = nextType === "IN" ? null : priceValue === undefined ? undefined : priceValue;
 
                   if (nextType === "PURCHASE") {
                     const p = finalPrice;
@@ -904,23 +900,8 @@ export default function ManageDetailPage() {
                       memo: `매입(${purchase.id}) 입고`,
                     });
 
-                    const detail = await getItemDetail(selectedOptionId);
-                    const raw = Array.isArray(detail?.records) ? detail.records : [];
-
-                    setRecords(
-                      raw.map((rec) => ({
-                        id: rec.id,
-                        itemId: rec.itemId,
-                        type: String(rec.type || "IN").toUpperCase(),
-                        price: rec.price,
-                        count: rec.count,
-                        date: String(rec.date || "").slice(0, 10),
-                        memo: rec.memo ?? "",
-                      }))
-                    );
-
-                    setStock(detail?.stock ?? 0);
-                    setPendingIn(detail?.pendingIn ?? 0);
+                    // ✅ 레이스 방지된 공용 로더 사용
+                    await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "mark-arrived" });
 
                     showToast("입고 처리 완료");
                   } catch (err) {
@@ -982,7 +963,12 @@ export default function ManageDetailPage() {
       </div>
 
       {editModal && (
-        <EditOptionModal isShoes={isShoes} editModal={editModal} setEditModal={setEditModal} onSave={handleSaveEditOption} />
+        <EditOptionModal
+          isShoes={isShoes}
+          editModal={editModal}
+          setEditModal={setEditModal}
+          onSave={handleSaveEditOption}
+        />
       )}
 
       {deleteModal && (
