@@ -100,11 +100,11 @@ export default function ManageDetailPage() {
     setTimeout(() => setToast(""), 2000);
   };
 
-  // ✅ records는 절대 undefined가 아니게 보장
+  //  records는 절대 undefined가 아니게 보장
   const safeRecords = Array.isArray(records) ? records : [];
   const safeItems = Array.isArray(items) ? items : [];
 
-  // ✅ 레이스 방지 토큰 (늦게 온 응답이 최신 상태 덮어쓰는 것 방지)
+  // 레이스 방지 토큰 (늦게 온 응답이 최신 상태 덮어쓰는 것 방지)
   const detailSeqRef = useRef(0);
 
   const loadDetail = useCallback(
@@ -122,6 +122,11 @@ export default function ManageDetailPage() {
 
         const itemFromApi = detail?.item ?? null;
         const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
+         
+        //콘솔추가
+        console.log(
+          `[detail][apply] seq=${seq} id=${targetId} reason=${reason} records=${rawRecords.length}`
+        );
 
         setSelectedOptionId(targetId);
         setRecords(mapRecords(rawRecords));
@@ -168,6 +173,12 @@ export default function ManageDetailPage() {
 
         // boot에서만 items까지 싹 비우고, 옵션 클릭/후처리에서는 records/재고만 비우는게 덜 거슬림
         if (loadCategoryItems) setItems([]);
+
+        //콘솔 추가
+        console.warn(
+          `[detail][apply-empty-by-error] seq=${seq} id=${targetId} reason=${reason} err=${String(err?.message || err)}`
+        );
+        
         setRecords([]);
         setStock(0);
         setPendingIn(0);
@@ -900,7 +911,7 @@ export default function ManageDetailPage() {
                       memo: `매입(${purchase.id}) 입고`,
                     });
 
-                    // ✅ 레이스 방지된 공용 로더 사용
+                    // 레이스 방지된 공용 로더 사용
                     await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "mark-arrived" });
 
                     showToast("입고 처리 완료");
