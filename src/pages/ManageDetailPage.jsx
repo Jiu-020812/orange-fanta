@@ -1205,7 +1205,7 @@ function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
           placeholder={isShoes ? "사이즈" : "옵션"}
         />
 
-        {/* ⭐ 바코드 수정 입력 */}
+        {/*  바코드 수정 입력 */}
         <input
           type="text"
           value={barcode ?? ""}
