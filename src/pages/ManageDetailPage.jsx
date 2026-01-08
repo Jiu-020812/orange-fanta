@@ -56,7 +56,8 @@ function mapRecords(rawRecords) {
   return arr.map((rec) => ({
     id: rec.id,
     itemId: rec.itemId,
-    type: String(rec.type || "IN").toUpperCase(),
+    // ✅ 서버가 type 누락해도 IN으로 떨어지지 않게 (안전)
+    type: String(rec.type || "PURCHASE").toUpperCase(),
     price: rec.price,
     count: rec.count,
     date: String(rec.date || "").slice(0, 10),
@@ -99,11 +100,11 @@ export default function ManageDetailPage() {
     setTimeout(() => setToast(""), 2000);
   };
 
-  //  records는 절대 undefined가 아니게 보장
+  // records/items safe
   const safeRecords = Array.isArray(records) ? records : [];
   const safeItems = Array.isArray(items) ? items : [];
 
-  // 레이스 방지 토큰 (늦게 온 응답이 최신 상태 덮어쓰는 것 방지)
+  // 레이스 방지 토큰
   const detailSeqRef = useRef(0);
 
   const loadDetail = useCallback(
@@ -115,14 +116,15 @@ export default function ManageDetailPage() {
 
         // 최신 요청 아니면 무시
         if (seq !== detailSeqRef.current) {
-          console.warn(`[detail][stale ignored] seq=${seq} latest=${detailSeqRef.current} id=${targetId} reason=${reason}`);
+          console.warn(
+            `[detail][stale ignored] seq=${seq} latest=${detailSeqRef.current} id=${targetId} reason=${reason}`
+          );
           return;
         }
 
         const itemFromApi = detail?.item ?? null;
         const rawRecords = Array.isArray(detail?.records) ? detail.records : [];
-         
-        //콘솔추가
+
         console.log(
           "[RAW-CHECK]",
           "id=" + targetId,
@@ -141,8 +143,6 @@ export default function ManageDetailPage() {
         setStock(detail?.stock ?? 0);
         setPendingIn(detail?.pendingIn ?? 0);
 
-        // 옵션 클릭(같은 카테고리 안)에서는 보통 items 재조회가 필요 없고,
-        // 최초 진입/새로고침(boot)에서는 items(같은 category)까지 한 번 채우는게 필요.
         if (loadCategoryItems) {
           if (!itemFromApi?.id) return;
 
@@ -159,13 +159,15 @@ export default function ManageDetailPage() {
           const safeList = Array.isArray(list) ? list : [];
           const merged = (() => {
             const map = new Map(safeList.map((x) => [x.id, x]));
-            map.set(itemFromApi.id, { ...(map.get(itemFromApi.id) || {}), ...itemFromApi });
+            map.set(itemFromApi.id, {
+              ...(map.get(itemFromApi.id) || {}),
+              ...itemFromApi,
+            });
             return Array.from(map.values());
           })();
 
           setItems(merged);
         } else {
-          // detail.item 정보가 오면 현재 items에도 반영(있을 때만)
           if (itemFromApi?.id) {
             setItems((prev) => {
               const arr = Array.isArray(prev) ? prev : [];
@@ -176,15 +178,13 @@ export default function ManageDetailPage() {
       } catch (err) {
         console.error(`[detail][error] seq=${seq} id=${targetId} reason=${reason}`, err);
 
-        // 최신 요청일 때만 화면 초기화 (stale 에러가 최신 상태를 비우는 걸 막음)
         if (seq !== detailSeqRef.current) return;
-
-        // boot에서만 items까지 싹 비우고, 옵션 클릭/후처리에서는 records/재고만 비우는게 덜 거슬림
         if (loadCategoryItems) setItems([]);
 
-        //콘솔 추가
         console.warn(
-          `[detail][apply-empty-by-error] seq=${seq} id=${targetId} reason=${reason} err=${String(err?.message || err)}`
+          `[detail][apply-empty-by-error] seq=${seq} id=${targetId} reason=${reason} err=${String(
+            err?.message || err
+          )}`
         );
 
         setRecords([]);
@@ -200,8 +200,6 @@ export default function ManageDetailPage() {
     let alive = true;
 
     (async () => {
-      // loadDetail 내부는 seq로 stale 방지.
-      // 여기서는 "언마운트 이후 setState 방지"만 보조로 체크.
       try {
         await loadDetail(numericItemId, { loadCategoryItems: true, reason: "boot" });
       } finally {
@@ -211,7 +209,6 @@ export default function ManageDetailPage() {
 
     return () => {
       alive = false;
-      // (선택) 언마운트 시점에 seq를 올려서 이후 응답 무시 강화
       detailSeqRef.current += 1;
     };
   }, [numericItemId, loadDetail]);
@@ -253,8 +250,6 @@ export default function ManageDetailPage() {
   const handleSelectOption = async (nextId) => {
     setSelectedOptionId(nextId);
     navigate(`/manage/${nextId}`, { replace: true });
-
-    // 여기서 직접 setRecords 하지 말고 loadDetail로 통일 (레이스 방지)
     await loadDetail(nextId, { loadCategoryItems: false, reason: "select-option" });
   };
 
@@ -337,7 +332,9 @@ export default function ManageDetailPage() {
     }
 
     if (trimmedBarcode) {
-      const dup = options.some((opt) => opt.id !== id && String(opt.barcode ?? "").trim() === trimmedBarcode);
+      const dup = options.some(
+        (opt) => opt.id !== id && String(opt.barcode ?? "").trim() === trimmedBarcode
+      );
       if (dup) {
         window.alert("이미 등록된 바코드입니다.");
         return;
@@ -425,7 +422,7 @@ export default function ManageDetailPage() {
     const q = norm(searchText).toLowerCase();
     if (q) {
       arr = arr.filter((r) => {
-        const hay = [r.date, String(r.price ?? ""), String(r.count ?? ""), r.type || "IN", r.memo || ""]
+        const hay = [r.date, String(r.price ?? ""), String(r.count ?? ""), r.type || "", r.memo || ""]
           .join(" ")
           .toLowerCase();
         return hay.includes(q);
@@ -443,11 +440,6 @@ export default function ManageDetailPage() {
   }, [safeRecords, effectiveRange, searchText, sortMode]);
 
   const recordsForStats = filteredRecords;
-
-  const visibleRecords = useMemo(() => {
-    if (showIn) return safeRecords;
-    return safeRecords.filter((r) => String(r?.type || "").toUpperCase() !== "IN");
-  }, [safeRecords, showIn]);
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
@@ -777,24 +769,44 @@ export default function ManageDetailPage() {
                     if (!selectedOptionId) return;
 
                     const dateValue = info.date || new Date().toISOString().slice(0, 10);
-                    const countValue = info.count === "" || info.count == null ? 1 : Number(info.count);
-                    const apiType = String(info.type || "IN").toUpperCase();
+                    const countValue =
+                      info.count === "" || info.count == null ? 1 : Number(info.count);
 
-                    const priceValue = info.price === "" || info.price == null ? null : Number(info.price);
-                    const finalPrice = apiType === "IN" ? null : priceValue;
+                    // ✅ 핵심: default를 IN이 아니라 PURCHASE로 + IN 자체 차단
+                    const raw = String(info.type || "PURCHASE").toUpperCase();
+                    const apiType = raw === "OUT" ? "OUT" : "PURCHASE";
+
+                    const priceValue =
+                      info.price === "" || info.price == null ? null : Number(info.price);
+
+                    // ✅ 검증
+                    if (apiType === "PURCHASE") {
+                      if (priceValue == null || !Number.isFinite(priceValue) || priceValue <= 0) {
+                        window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
+                        return;
+                      }
+                    }
+                    if (apiType === "OUT") {
+                      if (priceValue != null && (!Number.isFinite(priceValue) || priceValue < 0)) {
+                        window.alert("판매(OUT) 가격이 올바르지 않습니다.");
+                        return;
+                      }
+                    }
 
                     try {
                       await createRecord({
                         itemId: selectedOptionId,
                         type: apiType,
-                        price: finalPrice,
+                        price: priceValue, // PURCHASE/OUT만
                         count: countValue,
                         date: dateValue,
                         memo: info.memo ?? null,
                       });
 
-                      //  레이스 방지된 공용 로더 사용
-                      await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "after-create" });
+                      await loadDetail(selectedOptionId, {
+                        loadCategoryItems: false,
+                        reason: "after-create",
+                      });
 
                       showToast("기록 추가 완료");
                     } catch (err) {
@@ -819,15 +831,12 @@ export default function ManageDetailPage() {
 
               {/* 기록 리스트 */}
               <PurchaseList
-                records={safeRecords}
+                records={safeRecords} // ✅ 전체 넘겨야 showIn 토글/입고연결 계산이 됨
                 showIn={showIn}
                 onDeleteRecord={async (id) => {
-                  //  즉시 UI 반영
                   setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));
 
                   try {
-                    // api/items.js가 어떤 시그니처인지 몰라서, 둘 다 가능하게 처리
-                    // 1) deleteServerRecord({ itemId, id }) 형태였던 너 기존 코드 유지
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                     showToast("기록 삭제 완료");
                   } catch (err) {
@@ -848,15 +857,18 @@ export default function ManageDetailPage() {
                   let nextType = info.type != null ? normType(info.type) : undefined;
 
                   const dateValue = info.date || undefined;
-                  const priceValue = info.price === "" || info.price == null ? undefined : Number(info.price);
-                  const countValue = info.count === "" || info.count == null ? undefined : Number(info.count);
+                  const priceValue =
+                    info.price === "" || info.price == null ? undefined : Number(info.price);
+                  const countValue =
+                    info.count === "" || info.count == null ? undefined : Number(info.count);
 
                   // 판매가만 넣는 경우 OUT 유지
                   if (priceValue != null && info.type == null) {
                     nextType = "OUT";
                   }
 
-                  const finalPrice = nextType === "IN" ? null : priceValue === undefined ? undefined : priceValue;
+                  const finalPrice =
+                    nextType === "IN" ? null : priceValue === undefined ? undefined : priceValue;
 
                   if (nextType === "PURCHASE") {
                     const p = finalPrice;
@@ -887,14 +899,13 @@ export default function ManageDetailPage() {
                               price: updated?.price ?? (finalPrice !== undefined ? finalPrice : r.price),
                               count: updated?.count ?? (countValue !== undefined ? countValue : r.count),
                               date: String(updated?.date ?? dateValue ?? r.date ?? "").slice(0, 10),
-                              type: String(updated?.type ?? nextType ?? r.type ?? "IN").toUpperCase(),
+                              type: String(updated?.type ?? nextType ?? r.type ?? "PURCHASE").toUpperCase(),
                               memo: updated?.memo ?? info.memo ?? r.memo ?? "",
                             }
                           : r
                       )
                     );
 
-                    // stock/pendingIn도 응답에 있으면 갱신
                     if (updatedResp?.stock != null) setStock(updatedResp.stock);
                     if (updatedResp?.pendingIn != null) setPendingIn(updatedResp.pendingIn);
 
@@ -907,10 +918,10 @@ export default function ManageDetailPage() {
                 onMarkArrived={async (purchase, arrivedCount) => {
                   if (!selectedOptionId) return;
                   if (String(purchase?.type || "").toUpperCase() !== "PURCHASE") return;
-                
+
                   const count = Number(arrivedCount) || 1;
                   if (!Number.isFinite(count) || count <= 0) return;
-                
+
                   try {
                     await createRecord({
                       itemId: selectedOptionId,
@@ -920,7 +931,7 @@ export default function ManageDetailPage() {
                       date: new Date().toISOString().slice(0, 10),
                       memo: `매입(${purchase.id}) 입고`,
                     });
-                
+
                     await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "after-arrive" });
                     showToast("입고 처리 완료");
                   } catch (err) {
@@ -928,8 +939,6 @@ export default function ManageDetailPage() {
                     window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
-                
-                
               />
 
               {/* 메모 */}
@@ -993,7 +1002,11 @@ export default function ManageDetailPage() {
       )}
 
       {deleteModal && (
-        <ConfirmModal message="정말 이 옵션을 삭제할까요?" onCancel={() => setDeleteModal(null)} onConfirm={handleDeleteOption} />
+        <ConfirmModal
+          message="정말 이 옵션을 삭제할까요?"
+          onCancel={() => setDeleteModal(null)}
+          onConfirm={handleDeleteOption}
+        />
       )}
     </div>
   );
