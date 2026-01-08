@@ -1,42 +1,70 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function PurchaseForm({ onAddRecord }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [type, setType] = useState("PURCHASE"); // PURCHASE | OUT
+  //  IN 제거: PURCHASE / OUT만
+  const [type, setType] = useState("PURCHASE");
   const [date, setDate] = useState(today);
   const [price, setPrice] = useState("");
   const [count, setCount] = useState("");
 
+  // 타입 바뀔 때 price 기본 UX 정리(선택)
+  useEffect(() => {
+    // 판매는 가격 선택 가능이니 비우진 않음
+    if (type === "PURCHASE" && price === "") {
+      // 그대로 둠
+    }
+  }, [type]); // eslint-disable-line
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (typeof onAddRecord !== "function") return;
 
-    const t = String(type || "").toUpperCase();
+    const t = String(type || "PURCHASE").toUpperCase() === "OUT" ? "OUT" : "PURCHASE";
 
-    if (t === "PURCHASE") {
-      const p = Number(price);
-      if (!Number.isFinite(p) || p <= 0) return; // 매입은 가격 필수
-    } else {
-      // OUT은 가격 선택
-      if (price !== "" && price != null) {
-        const p = Number(price);
-        if (!Number.isFinite(p) || p < 0) return;
-      }
+    const c = count === "" || count == null ? 1 : Number(count);
+    if (!Number.isFinite(c) || c <= 0) {
+      alert("수량은 1 이상으로 입력해 주세요.");
+      return;
     }
 
-    onAddRecord({
-      type: t,
-      date,
-      price: price === "" || price == null ? null : Number(price),
-      count: count === "" || count == null ? 1 : Number(count),
-    });
+    // PURCHASE는 가격 필수
+    if (t === "PURCHASE") {
+      const p = price === "" || price == null ? null : Number(price);
+      if (p == null || !Number.isFinite(p) || p <= 0) {
+        alert("매입은 가격을 반드시 입력해야 합니다.");
+        return;
+      }
 
+      onAddRecord({ type: "PURCHASE", date, price: p, count: c });
+      setPrice("");
+      setCount("");
+      return;
+    }
+
+    // OUT는 가격 선택(없으면 null로)
+    const p = price === "" || price == null ? null : Number(price);
+    if (p != null && (!Number.isFinite(p) || p < 0)) {
+      alert("판매 가격이 올바르지 않습니다.");
+      return;
+    }
+
+    onAddRecord({ type: "OUT", date, price: p, count: c });
     setPrice("");
     setCount("");
   };
 
   return (
-    <div style={{ marginBottom: 16, padding: 12, borderRadius: 12, border: "1px solid #e5e7eb", backgroundColor: "#fff" }}>
+    <div
+      style={{
+        marginBottom: 16,
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        backgroundColor: "#fff",
+      }}
+    >
       <form
         onSubmit={handleSubmit}
         style={{
@@ -48,7 +76,7 @@ function PurchaseForm({ onAddRecord }) {
       >
         <select
           value={type}
-          onChange={(e) => setType(String(e.target.value || "").toUpperCase())}
+          onChange={(e) => setType(e.target.value)}
           style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         >
           <option value="PURCHASE">매입</option>
@@ -65,7 +93,7 @@ function PurchaseForm({ onAddRecord }) {
         <input
           type="number"
           min="0"
-          placeholder={type === "OUT" ? "판매 금액(총액, 선택)" : "매입 금액(총액)"}
+          placeholder={type === "PURCHASE" ? "매입 금액(총액)" : "판매 금액(총액, 선택)"}
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}

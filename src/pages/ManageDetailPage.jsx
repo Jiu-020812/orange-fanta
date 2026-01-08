@@ -56,7 +56,7 @@ function mapRecords(rawRecords) {
   return arr.map((rec) => ({
     id: rec.id,
     itemId: rec.itemId,
-    // ✅ 서버가 type 누락해도 IN으로 떨어지지 않게 (안전)
+    //  서버가 type 누락해도 IN으로 떨어지지 않게 (안전)
     type: String(rec.type || "PURCHASE").toUpperCase(),
     price: rec.price,
     count: rec.count,
@@ -772,14 +772,14 @@ export default function ManageDetailPage() {
                     const countValue =
                       info.count === "" || info.count == null ? 1 : Number(info.count);
 
-                    // ✅ 핵심: default를 IN이 아니라 PURCHASE로 + IN 자체 차단
+                    //  핵심: default를 IN이 아니라 PURCHASE로 + IN 자체 차단
                     const raw = String(info.type || "PURCHASE").toUpperCase();
                     const apiType = raw === "OUT" ? "OUT" : "PURCHASE";
 
                     const priceValue =
                       info.price === "" || info.price == null ? null : Number(info.price);
 
-                    // ✅ 검증
+                    // 검증
                     if (apiType === "PURCHASE") {
                       if (priceValue == null || !Number.isFinite(priceValue) || priceValue <= 0) {
                         window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
@@ -831,7 +831,7 @@ export default function ManageDetailPage() {
 
               {/* 기록 리스트 */}
               <PurchaseList
-                records={safeRecords} // ✅ 전체 넘겨야 showIn 토글/입고연결 계산이 됨
+                records={safeRecords} //  전체 넘겨야 showIn 토글/입고연결 계산이 됨
                 showIn={showIn}
                 onDeleteRecord={async (id) => {
                   setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));

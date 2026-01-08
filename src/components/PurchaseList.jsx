@@ -36,7 +36,7 @@ function parseArrivedPurchaseId(memo) {
 function TypeBadge({ type }) {
   const t = normType(type);
 
-  // ✅ OUT -> 판매, PURCHASE -> 매입, IN -> 입고
+  //  OUT -> 판매, PURCHASE -> 매입, IN -> 입고
   const label = t === "OUT" ? "판매" : t === "PURCHASE" ? "매입" : "입고";
 
   const theme =
@@ -82,7 +82,7 @@ export default function PurchaseList({
 }) {
   const safeRecords = Array.isArray(records) ? records : [];
 
-  // ✅ PURCHASE별로 "이미 입고된 수량" 합계 (IN memo로 연결) — 항상 전체 records로 계산
+  //  PURCHASE별로 "이미 입고된 수량" 합계 (IN memo로 연결) — 항상 전체 records로 계산
   const arrivedCountByPurchaseId = useMemo(() => {
     const map = new Map(); // purchaseId -> sum(count)
 
@@ -106,7 +106,7 @@ export default function PurchaseList({
     return Math.max(0, total - arrived);
   };
 
-  // ✅ 화면 표시용 필터: showIn에 따라 IN만 토글
+  //  화면 표시용 필터: showIn에 따라 IN만 토글
   const displayRecords = useMemo(() => {
     return safeRecords
       .filter((r) => {
