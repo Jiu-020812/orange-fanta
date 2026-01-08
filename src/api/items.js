@@ -25,22 +25,68 @@ function toISODateOnly(d) {
   }
 }
 
+//  FIX: PURCHASE 포함
 function normType(t) {
-  return t === "OUT" ? "OUT" : "IN";
+  const v = String(t ?? "").trim().toUpperCase();
+  if (v === "IN" || v === "OUT" || v === "PURCHASE") return v;
+  return "IN";
 }
 
-function unwrapArray(data) {
-  if (Array.isArray(data)) return data;
-  if (data && Array.isArray(data.items)) return data.items;
-  if (data && Array.isArray(data.records)) return data.records;
-  return [];
+// ======================= Records =======================
+
+// GET /api/items/:itemId/records
+export async function getRecords(itemId) {
+  const numericItemId = safeNumber(itemId);
+  if (!numericItemId) throw new Error("getRecords: invalid itemId");
+
+  const res = await api.get(`/api/items/${numericItemId}/records`);
+  if (res.data && Array.isArray(res.data.records)) return res.data.records;
+  return unwrapArray(res.data);
 }
 
-function unwrapObject(data) {
-  if (data && data.item && typeof data.item === "object") return data.item;
-  if (data && data.record && typeof data.record === "object") return data.record;
-  return data;
+// POST /api/items/:itemId/records
+export async function createRecord({
+  itemId,
+  price,
+  count,
+  date,
+  type = "IN",
+  memo = null,
+}) {
+  const numericItemId = safeNumber(itemId);
+  if (!numericItemId) throw new Error("createRecord: invalid itemId");
+
+  const res = await api.post(`/api/items/${numericItemId}/records`, {
+    price: safeNumber(price, null),
+    count: safeNumber(count, 1) ?? 1,
+    date: toISODateOnly(date) ?? undefined,
+    type: normType(type), // 이제 PURCHASE가 그대로 전달됨
+    ...(memo != null ? { memo: String(memo) } : {}),
+  });
+
+  return unwrapObject(res.data);
 }
+
+// PUT /api/items/:itemId/records
+export async function updateRecord({ itemId, id, price, count, date, type, memo }) {
+  const numericItemId = safeNumber(itemId);
+  const numericId = safeNumber(id);
+  if (!numericItemId) throw new Error("updateRecord: invalid itemId");
+  if (!numericId) throw new Error("updateRecord: invalid id");
+
+  const body = {
+    id: numericId,
+    ...(price !== undefined ? { price: safeNumber(price, null) } : {}),
+    ...(count !== undefined ? { count: safeNumber(count, null) } : {}),
+    ...(date !== undefined ? { date: toISODateOnly(date) } : {}),
+    ...(type !== undefined ? { type: normType(type) } : {}), // ✅ PURCHASE 허용
+    ...(memo !== undefined ? { memo: memo ? String(memo) : null } : {}),
+  };
+
+  const res = await api.put(`/api/items/${numericItemId}/records`, body);
+  return unwrapObject(res.data);
+}
+
 
 // ======================= Categories =======================
 
