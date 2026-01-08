@@ -208,5 +208,25 @@ export async function lookupItemByBarcode(barcode) {
   return res.data;
 }
 
+// ======================= Batch IN / OUT =======================
+
+// POST /api/records/batch
+export async function createRecordsBatch({ type = "IN", items }) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("createRecordsBatch: items required");
+  }
+
+  const res = await api.post("/api/records/batch", {
+    type,
+    items: items.map((x) => ({
+      itemId: Number(x.itemId),
+      count: Number(x.count ?? 1),
+    })),
+  });
+
+  return res.data;
+}
+
+
 
 export default api;
