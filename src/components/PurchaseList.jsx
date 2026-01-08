@@ -23,10 +23,10 @@ function calcUnit(price, count) {
   const p = Number(price);
   const c = Number(count);
   if (!Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return null;
-  return Math.round(p / c);
+  return Math.round(p / c); // price는 총액, 단가는 price/count
 }
 
-// ✅ "매입(123) 입고" 에서 123 뽑기
+// "매입(123) 입고" 에서 123 뽑기
 function parseArrivedPurchaseId(memo) {
   const s = String(memo ?? "");
   const m = s.match(/매입\((\d+)\)\s*입고/);
@@ -65,21 +65,30 @@ function TypeBadge({ type }) {
 
 /**
  * props
- * - records: [{ id, itemId, type, price, count, date, memo }]
+ * - records: 화면에 보여줄 기록들(필터될 수 있음)
+ * - allRecords: arrived 계산용 전체 records (IN 포함)  ← 추가됨
  * - onDeleteRecord(id)
  * - onUpdateRecord(id, patch)
- * - onMarkArrived(purchaseRecord, arrivedCount)  ✅ 변경: arrivedCount를 같이 넘김
+ * - onMarkArrived(purchaseRecord, arrivedCount)
  */
-function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }) {
+function PurchaseList({
+  records,
+  allRecords,
+  onDeleteRecord,
+  onUpdateRecord,
+  onMarkArrived,
+}) {
   const safeRecords = Array.isArray(records) ? records : [];
+  const safeAllRecords = Array.isArray(allRecords) ? allRecords : safeRecords;
 
-  // ✅ PURCHASE별로 "이미 입고된 수량" 계산 (IN 레코드 memo로 연결)
+  //  PURCHASE별 "이미 입고된 수량" 계산 (IN 레코드 memo로 연결) — allRecords(IN 포함)로 계산!
   const arrivedCountByPurchaseId = useMemo(() => {
     const map = new Map(); // purchaseId -> arrivedQty sum
 
-    for (const r of safeRecords) {
+    for (const r of safeAllRecords) {
       if (!r) continue;
       if (normType(r.type) !== "IN") continue;
+
       const pid = parseArrivedPurchaseId(r.memo);
       if (!pid) continue;
 
@@ -89,7 +98,14 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
       map.set(pid, (map.get(pid) || 0) + qty);
     }
     return map;
-  }, [safeRecords]);
+  }, [safeAllRecords]);
+
+  // 남은 수량 계산 (PURCHASE 레코드 기준)
+  const getRemain = (purchaseRecord) => {
+    const total = Number(purchaseRecord?.count) || 0;
+    const arrived = arrivedCountByPurchaseId.get(Number(purchaseRecord?.id)) || 0;
+    return Math.max(0, total - arrived);
+  };
 
   // 돈 기록만 보여주기: PURCHASE(가격 있음) + OUT(가격 있음)
   const moneyRecords = useMemo(() => {
@@ -97,8 +113,8 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
       .filter((r) => {
         const t = normType(r.type);
         const hasPrice = r.price != null && Number(r.price) > 0;
-        if (t === "PURCHASE") return hasPrice;
-        if (t === "OUT") return hasPrice;
+        if (t === "PURCHASE") return hasPrice; // 매입은 가격 필수
+        if (t === "OUT") return hasPrice; // 판매는 가격 있을 때만
         return false;
       })
       .sort((a, b) => {
@@ -128,9 +144,9 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
   const [editType, setEditType] = useState("PURCHASE");
   const [editMemo, setEditMemo] = useState("");
 
-  // ✅ 부분입고 모달
+  // 부분입고 모달
   const [arriveModal, setArriveModal] = useState(null);
-  // { purchaseId, maxRemain, defaultCount }
+  // { record, maxRemain, value }
 
   const startEdit = (record) => {
     setEditingId(record.id);
@@ -155,6 +171,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
 
     const t = normType(editType);
 
+    // 매입은 가격 필수
     if (t === "PURCHASE") {
       const p = editPrice === "" || editPrice == null ? null : Number(editPrice);
       if (p == null || !Number.isFinite(p) || p <= 0) {
@@ -163,6 +180,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
       }
     }
 
+    // OUT은 가격 선택(있으면 >=0)
     if (t === "OUT" && editPrice !== "" && editPrice != null) {
       const p = Number(editPrice);
       if (!Number.isFinite(p) || p < 0) {
@@ -182,9 +200,10 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
     cancelEdit();
   };
 
-  // ✅ 입고 처리 실행 (전량/부분)
+  // 입고 처리 실행 (전량/부분)
   const doArrive = (purchaseRecord, arrivedCount) => {
     if (typeof onMarkArrived !== "function") return;
+
     const remain = getRemain(purchaseRecord);
     const n = Number(arrivedCount);
 
@@ -198,13 +217,6 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
     }
 
     onMarkArrived(purchaseRecord, n);
-  };
-
-  // ✅ 남은 수량 계산
-  const getRemain = (purchaseRecord) => {
-    const total = Number(purchaseRecord?.count) || 0;
-    const arrived = arrivedCountByPurchaseId.get(Number(purchaseRecord?.id)) || 0;
-    return Math.max(0, total - arrived);
   };
 
   return (
@@ -236,11 +248,13 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
             const isOut = type === "OUT";
             const isPurchase = type === "PURCHASE";
 
-            const unit = isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
+            const unit =
+              isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
 
-            // ✅ PURCHASE: 남은 입고 수량 계산해서 표시 + 버튼 조건에 사용
+            //PURCHASE 진행 상태(남은 수량)
             const remain = isPurchase ? getRemain(r) : 0;
-            const arrived = isPurchase ? (Number(r.count) || 0) - remain : 0;
+            const total = isPurchase ? (Number(r.count) || 0) : 0;
+            const arrived = isPurchase ? Math.max(0, total - remain) : 0;
             const done = isPurchase && remain === 0;
 
             return (
@@ -257,6 +271,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                   gap: 10,
                 }}
               >
+                {/* 왼쪽 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {isEditing ? (
                     <>
@@ -368,11 +383,11 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                           </span>
                         ) : null}
 
-                        {/* ✅ PURCHASE 진행 상태 표시 */}
+                        {/*  PURCHASE 진행 상태 표시 */}
                         {isPurchase ? (
                           <span style={{ color: done ? "#166534" : "#d97706", fontWeight: 700 }}>
                             {" "}
-                            · 입고 {arrived} / {r.count ?? 1} (남은 {remain})
+                            · 입고 {arrived} / {total} (남은 {remain})
                           </span>
                         ) : null}
 
@@ -382,6 +397,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                   )}
                 </div>
 
+                {/* 오른쪽 버튼 */}
                 <div style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
                   {isEditing ? (
                     <>
@@ -418,13 +434,12 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                     </>
                   ) : (
                     <>
-                      {/* ✅ PURCHASE일 때만 + 남은 수량 있을 때만 버튼 표시 */}
+                      {/*  PURCHASE일 때만: remaining(남은 수량) > 0 이면 버튼 표시 */}
                       {type === "PURCHASE" && typeof onMarkArrived === "function" && remain > 0 ? (
                         <>
-                          {/* 전량 입고(디폴트) */}
                           <button
                             type="button"
-                            onClick={() => doArrive(r, remain)}
+                            onClick={() => doArrive(r, remain)} // 일괄입고
                             style={{
                               padding: "4px 8px",
                               borderRadius: 6,
@@ -438,23 +453,21 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                             일괄입고
                           </button>
 
-                          {/* 부분 입고 */}
                           <button
                             type="button"
                             onClick={() =>
                               setArriveModal({
-                                purchaseId: r.id,
-                                maxRemain: remain,
-                                defaultCount: remain,
                                 record: r,
+                                maxRemain: remain,
+                                value: "1",
                               })
                             }
                             style={{
                               padding: "4px 8px",
                               borderRadius: 6,
-                              border: "1px solid #f59e0b",
-                              backgroundColor: "#fffbeb",
-                              color: "#b45309",
+                              border: "1px solid #16a34a",
+                              backgroundColor: "#ffffff",
+                              color: "#166534",
                               fontSize: 12,
                               cursor: "pointer",
                             }}
@@ -490,7 +503,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
         </div>
       )}
 
-      {/*부분입고 모달 */}
+      {/*  부분입고 모달 */}
       {arriveModal && (
         <div
           style={{
@@ -524,17 +537,8 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
               type="number"
               min={1}
               max={arriveModal.maxRemain}
-              value={arriveModal.defaultCount}
-              onChange={(e) =>
-                setArriveModal((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        defaultCount: e.target.value,
-                      }
-                    : prev
-                )
-              }
+              value={arriveModal.value}
+              onChange={(e) => setArriveModal((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
               style={{
                 width: "100%",
                 height: 34,
@@ -563,7 +567,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
               <button
                 type="button"
                 onClick={() => {
-                  const n = Number(arriveModal.defaultCount);
+                  const n = Number(arriveModal.value);
                   doArrive(arriveModal.record, n);
                   setArriveModal(null);
                 }}

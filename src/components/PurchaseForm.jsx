@@ -11,19 +11,29 @@ function PurchaseForm({ onAddRecord }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // - PURCHASE: price 필수
-    // - IN: price 입력 안 받음(무시)
-    // - OUT: price 선택
-    if (type === "PURCHASE" && !price) return;
+    // count 정규화(최소 1)
+    const cRaw = count === "" || count == null ? 1 : Number(count);
+    const c = Math.max(1, Number.isFinite(cRaw) ? cRaw : 1);
+
+    // price 정규화
+    const pRaw = price === "" || price == null ? null : Number(price);
+
+    // PURCHASE는 price > 0 필수
+    if (type === "PURCHASE") {
+      const p = Number(pRaw);
+      if (!Number.isFinite(p) || p <= 0) return;
+    }
+
+    // OUT은 price 선택 (있으면 >=0 정도만 최소 검증)
+    if (type === "OUT" && pRaw != null) {
+      if (!Number.isFinite(pRaw) || pRaw < 0) return;
+    }
 
     onAddRecord({
       type,
       date,
-      price:
-      type === "IN" || price === "" || price == null
-        ? null
-        : Number(price),
-        count: count === "" ? 1 : Number(count),
+      price: type === "IN" ? null : pRaw,
+      count: c,
     });
 
     // 초기화
@@ -32,7 +42,15 @@ function PurchaseForm({ onAddRecord }) {
   };
 
   return (
-    <div style={{ marginBottom: 16, padding: 12, borderRadius: 12, border: "1px solid #e5e7eb", backgroundColor: "#fff" }}>
+    <div
+      style={{
+        marginBottom: 16,
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        backgroundColor: "#fff",
+      }}
+    >
       <form
         onSubmit={handleSubmit}
         style={{
@@ -44,8 +62,17 @@ function PurchaseForm({ onAddRecord }) {
       >
         <select
           value={type}
-          onChange={(e) => setType(e.target.value)}
-          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
+          onChange={(e) => {
+            const next = e.target.value;
+            setType(next);
+            if (next === "IN") setPrice("");
+          }}
+          style={{
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+          }}
         >
           <option value="PURCHASE">매입</option>
           <option value="IN">입고</option>
@@ -56,7 +83,12 @@ function PurchaseForm({ onAddRecord }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
+          style={{
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+          }}
         />
 
         <input
@@ -72,7 +104,12 @@ function PurchaseForm({ onAddRecord }) {
           value={type === "IN" ? "" : price}
           disabled={type === "IN"}
           onChange={(e) => setPrice(e.target.value)}
-          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
+          style={{
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+          }}
         />
 
         <input
@@ -81,7 +118,12 @@ function PurchaseForm({ onAddRecord }) {
           placeholder="개수"
           value={count}
           onChange={(e) => setCount(e.target.value)}
-          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
+          style={{
+            padding: 8,
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+            background: "#fff",
+          }}
         />
 
         <button
@@ -90,7 +132,8 @@ function PurchaseForm({ onAddRecord }) {
             padding: "8px 16px",
             borderRadius: 8,
             border: "none",
-            backgroundColor: type === "OUT" ? "#ef4444" : type === "IN" ? "#10b981" : "#3b82f6",
+            backgroundColor:
+              type === "OUT" ? "#ef4444" : type === "IN" ? "#10b981" : "#3b82f6",
             color: "#fff",
             cursor: "pointer",
             whiteSpace: "nowrap",

@@ -793,7 +793,7 @@ export default function ManageDetailPage() {
                         memo: info.memo ?? null,
                       });
 
-                      // ✅ 레이스 방지된 공용 로더 사용
+                      //  레이스 방지된 공용 로더 사용
                       await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "after-create" });
 
                       showToast("기록 추가 완료");
@@ -819,13 +819,13 @@ export default function ManageDetailPage() {
 
               {/* 기록 리스트 */}
               <PurchaseList
-                records={visibleRecords}
+                records={safeRecords}
                 onDeleteRecord={async (id) => {
-                  // ✅ 즉시 UI 반영
+                  //  즉시 UI 반영
                   setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));
 
                   try {
-                    // ⚠️ 너 api/items.js가 어떤 시그니처인지 몰라서, 둘 다 가능하게 처리
+                    // api/items.js가 어떤 시그니처인지 몰라서, 둘 다 가능하게 처리
                     // 1) deleteServerRecord({ itemId, id }) 형태였던 너 기존 코드 유지
                     await deleteServerRecord({ itemId: selectedOptionId, id });
                     showToast("기록 삭제 완료");
@@ -908,6 +908,7 @@ export default function ManageDetailPage() {
                   if (String(purchase?.type || "").toUpperCase() !== "PURCHASE") return;
                 
                   const count = Number(arrivedCount) || 1;
+                  if (!Number.isFinite(count) || count <= 0) return;
                 
                   try {
                     await createRecord({
@@ -919,30 +920,14 @@ export default function ManageDetailPage() {
                       memo: `매입(${purchase.id}) 입고`,
                     });
                 
-                    const detail = await getItemDetail(selectedOptionId);
-                    const raw = Array.isArray(detail?.records) ? detail.records : [];
-                
-                    setRecords(
-                      raw.map((rec) => ({
-                        id: rec.id,
-                        itemId: rec.itemId,
-                        type: String(rec.type || "IN").toUpperCase(),
-                        price: rec.price,
-                        count: rec.count,
-                        date: String(rec.date || "").slice(0, 10),
-                        memo: rec.memo ?? "",
-                      }))
-                    );
-                
-                    setStock(detail?.stock ?? 0);
-                    setPendingIn(detail?.pendingIn ?? 0);
-                
+                    await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "after-arrive" });
                     showToast("입고 처리 완료");
                   } catch (err) {
                     console.error("입고 처리 실패", err);
                     window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
+                
                 
               />
 
