@@ -764,7 +764,7 @@ export default function ManageDetailPage() {
               >
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
-                
+
                 <PurchaseForm
   onAddRecord={async (info) => {
     if (!selectedOptionId) return;
@@ -823,14 +823,19 @@ export default function ManageDetailPage() {
                 records={safeRecords} //  전체 넘겨야 showIn 토글/입고연결 계산이 됨
                 showIn={showIn}
                 onDeleteRecord={async (id) => {
-                  setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));
-
+                  if (!selectedOptionId) return;
+                
                   try {
-                    await deleteServerRecord({ itemId: selectedOptionId, id });
+                    const resp = await deleteServerRecord({ itemId: selectedOptionId, id });
+                
+                    if (Array.isArray(resp?.records)) setRecords(resp.records);
+                    if (resp?.stock != null) setStock(resp.stock);
+                    if (resp?.pendingIn != null) setPendingIn(resp.pendingIn);
+                
                     showToast("기록 삭제 완료");
                   } catch (err) {
                     console.error("백엔드 기록 삭제 실패", err);
-                    window.alert("서버에서 기록 삭제 실패 😢\n화면만 먼저 반영됐을 수 있어요.");
+                    window.alert("서버에서 기록 삭제 실패 😢");
                   }
                 }}
                 onUpdateRecord={async (id, info) => {

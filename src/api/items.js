@@ -22,10 +22,6 @@ function toISODateOnly(d) {
   return new Date(d).toISOString().slice(0, 10);
 }
 
-/**
- * 🔥 핵심 수정 포인트
- * - PURCHASE를 IN으로 바꾸지 않는다
- */
 function normType(t) {
   const v = String(t ?? "").toUpperCase();
   if (v === "IN") return "IN";
