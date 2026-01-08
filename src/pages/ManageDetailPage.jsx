@@ -903,12 +903,12 @@ export default function ManageDetailPage() {
                     window.alert("서버에 기록 수정 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
-                onMarkArrived={async (purchase) => {
+                onMarkArrived={async (purchase, arrivedCount) => {
                   if (!selectedOptionId) return;
                   if (String(purchase?.type || "").toUpperCase() !== "PURCHASE") return;
-
-                  const count = Number(purchase?.count) || 1;
-
+                
+                  const count = Number(arrivedCount) || 1;
+                
                   try {
                     await createRecord({
                       itemId: selectedOptionId,
@@ -918,16 +918,32 @@ export default function ManageDetailPage() {
                       date: new Date().toISOString().slice(0, 10),
                       memo: `매입(${purchase.id}) 입고`,
                     });
-
-                    // 레이스 방지된 공용 로더 사용
-                    await loadDetail(selectedOptionId, { loadCategoryItems: false, reason: "mark-arrived" });
-
+                
+                    const detail = await getItemDetail(selectedOptionId);
+                    const raw = Array.isArray(detail?.records) ? detail.records : [];
+                
+                    setRecords(
+                      raw.map((rec) => ({
+                        id: rec.id,
+                        itemId: rec.itemId,
+                        type: String(rec.type || "IN").toUpperCase(),
+                        price: rec.price,
+                        count: rec.count,
+                        date: String(rec.date || "").slice(0, 10),
+                        memo: rec.memo ?? "",
+                      }))
+                    );
+                
+                    setStock(detail?.stock ?? 0);
+                    setPendingIn(detail?.pendingIn ?? 0);
+                
                     showToast("입고 처리 완료");
                   } catch (err) {
                     console.error("입고 처리 실패", err);
                     window.alert("입고 처리 실패 😢\n잠시 후 다시 시도해 주세요.");
                   }
                 }}
+                
               />
 
               {/* 메모 */}

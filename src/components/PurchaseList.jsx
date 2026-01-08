@@ -23,7 +23,14 @@ function calcUnit(price, count) {
   const p = Number(price);
   const c = Number(count);
   if (!Number.isFinite(p) || !Number.isFinite(c) || c <= 0) return null;
-  return Math.round(p / c); // price는 총액, 단가는 price/count
+  return Math.round(p / c);
+}
+
+// ✅ "매입(123) 입고" 에서 123 뽑기
+function parseArrivedPurchaseId(memo) {
+  const s = String(memo ?? "");
+  const m = s.match(/매입\((\d+)\)\s*입고/);
+  return m ? Number(m[1]) : null;
 }
 
 function TypeBadge({ type }) {
@@ -32,22 +39,10 @@ function TypeBadge({ type }) {
   const label = t === "OUT" ? "판매" : t === "PURCHASE" ? "매입" : "입고";
   const theme =
     t === "OUT"
-      ? {
-          borderColor: "#fecaca",
-          backgroundColor: "#fee2e2",
-          color: "#991b1b",
-        }
+      ? { borderColor: "#fecaca", backgroundColor: "#fee2e2", color: "#991b1b" }
       : t === "PURCHASE"
-      ? {
-          borderColor: "#bbf7d0",
-          backgroundColor: "#dcfce7",
-          color: "#166534",
-        }
-      : {
-          borderColor: "#bfdbfe",
-          backgroundColor: "#eff6ff",
-          color: "#1d4ed8",
-        };
+      ? { borderColor: "#bbf7d0", backgroundColor: "#dcfce7", color: "#166534" }
+      : { borderColor: "#bfdbfe", backgroundColor: "#eff6ff", color: "#1d4ed8" };
 
   return (
     <span
@@ -72,24 +67,41 @@ function TypeBadge({ type }) {
  * props
  * - records: [{ id, itemId, type, price, count, date, memo }]
  * - onDeleteRecord(id)
- * - onUpdateRecord(id, patch)  // { date, price, count, type, memo }
- * - onMarkArrived(record)     // (선택) PURCHASE 옆 "입고 처리" 버튼
+ * - onUpdateRecord(id, patch)
+ * - onMarkArrived(purchaseRecord, arrivedCount)  ✅ 변경: arrivedCount를 같이 넘김
  */
 function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }) {
   const safeRecords = Array.isArray(records) ? records : [];
 
-  //  돈 기록만 보여주기: PURCHASE(가격 있음) + OUT(가격 있음)
+  // ✅ PURCHASE별로 "이미 입고된 수량" 계산 (IN 레코드 memo로 연결)
+  const arrivedCountByPurchaseId = useMemo(() => {
+    const map = new Map(); // purchaseId -> arrivedQty sum
+
+    for (const r of safeRecords) {
+      if (!r) continue;
+      if (normType(r.type) !== "IN") continue;
+      const pid = parseArrivedPurchaseId(r.memo);
+      if (!pid) continue;
+
+      const qty = Number(r.count) || 0;
+      if (qty <= 0) continue;
+
+      map.set(pid, (map.get(pid) || 0) + qty);
+    }
+    return map;
+  }, [safeRecords]);
+
+  // 돈 기록만 보여주기: PURCHASE(가격 있음) + OUT(가격 있음)
   const moneyRecords = useMemo(() => {
     return safeRecords
       .filter((r) => {
         const t = normType(r.type);
         const hasPrice = r.price != null && Number(r.price) > 0;
-        if (t === "PURCHASE") return hasPrice; // 매입은 가격 필수
-        if (t === "OUT") return hasPrice; // 판매는 가격 있을 때만
-        return false; // IN(입고)은 숨김
+        if (t === "PURCHASE") return hasPrice;
+        if (t === "OUT") return hasPrice;
+        return false;
       })
       .sort((a, b) => {
-        // 날짜 내림차순 + id 내림차순
         const da = String(a.date || "");
         const db = String(b.date || "");
         if (da === db) return Number(b.id) - Number(a.id);
@@ -113,8 +125,12 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
   const [editDate, setEditDate] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editCount, setEditCount] = useState("");
-  const [editType, setEditType] = useState("PURCHASE"); 
+  const [editType, setEditType] = useState("PURCHASE");
   const [editMemo, setEditMemo] = useState("");
+
+  // ✅ 부분입고 모달
+  const [arriveModal, setArriveModal] = useState(null);
+  // { purchaseId, maxRemain, defaultCount }
 
   const startEdit = (record) => {
     setEditingId(record.id);
@@ -139,7 +155,6 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
 
     const t = normType(editType);
 
-    //  매입은 가격 필수
     if (t === "PURCHASE") {
       const p = editPrice === "" || editPrice == null ? null : Number(editPrice);
       if (p == null || !Number.isFinite(p) || p <= 0) {
@@ -148,7 +163,6 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
       }
     }
 
-    // OUT은 가격이 있을 때만 돈 기록이지만, 수정 시에는 비워도 허용(원하면 막아도 됨)
     if (t === "OUT" && editPrice !== "" && editPrice != null) {
       const p = Number(editPrice);
       if (!Number.isFinite(p) || p < 0) {
@@ -166,6 +180,31 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
     });
 
     cancelEdit();
+  };
+
+  // ✅ 입고 처리 실행 (전량/부분)
+  const doArrive = (purchaseRecord, arrivedCount) => {
+    if (typeof onMarkArrived !== "function") return;
+    const remain = getRemain(purchaseRecord);
+    const n = Number(arrivedCount);
+
+    if (!Number.isFinite(n) || n <= 0) {
+      alert("입고 수량을 1 이상으로 입력해 주세요.");
+      return;
+    }
+    if (n > remain) {
+      alert(`남은 수량(${remain}개)보다 많이 입고할 수 없어요.`);
+      return;
+    }
+
+    onMarkArrived(purchaseRecord, n);
+  };
+
+  // ✅ 남은 수량 계산
+  const getRemain = (purchaseRecord) => {
+    const total = Number(purchaseRecord?.count) || 0;
+    const arrived = arrivedCountByPurchaseId.get(Number(purchaseRecord?.id)) || 0;
+    return Math.max(0, total - arrived);
   };
 
   return (
@@ -197,11 +236,12 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
             const isOut = type === "OUT";
             const isPurchase = type === "PURCHASE";
 
-            //  매입(PURCHASE)만 단가 표시
-            const unit =
-              isPurchase && r.price != null
-                ? calcUnit(r.price, r.count ?? 1)
-                : null;
+            const unit = isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
+
+            // ✅ PURCHASE: 남은 입고 수량 계산해서 표시 + 버튼 조건에 사용
+            const remain = isPurchase ? getRemain(r) : 0;
+            const arrived = isPurchase ? (Number(r.count) || 0) - remain : 0;
+            const done = isPurchase && remain === 0;
 
             return (
               <div
@@ -217,7 +257,6 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                   gap: 10,
                 }}
               >
-                {/* 왼쪽: 내용 or 입력폼 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {isEditing ? (
                     <>
@@ -261,11 +300,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                           type="number"
                           value={editPrice}
                           onChange={(e) => setEditPrice(e.target.value)}
-                          placeholder={
-                            normType(editType) === "OUT"
-                              ? "판매 금액(총액)"
-                              : "매입 금액(총액)"
-                          }
+                          placeholder={normType(editType) === "OUT" ? "판매 금액(총액)" : "매입 금액(총액)"}
                           style={{
                             width: 140,
                             padding: "4px 6px",
@@ -306,14 +341,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                     </>
                   ) : (
                     <>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          alignItems: "center",
-                          marginBottom: 2,
-                        }}
-                      >
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
                         <TypeBadge type={type} />
 
                         <div
@@ -327,8 +355,7 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {r.date} · {isOut ? "판매" : "매입"}{" "}
-                          {formatNumber(r.price)}원
+                          {r.date} · {isOut ? "판매" : "매입"} {formatNumber(r.price)}원
                         </div>
                       </div>
 
@@ -340,23 +367,22 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                             · 단가 {formatNumber(unit)}원
                           </span>
                         ) : null}
-                        {r.memo ? (
-                          <span style={{ color: "#374151" }}> · 메모: {r.memo}</span>
+
+                        {/* ✅ PURCHASE 진행 상태 표시 */}
+                        {isPurchase ? (
+                          <span style={{ color: done ? "#166534" : "#d97706", fontWeight: 700 }}>
+                            {" "}
+                            · 입고 {arrived} / {r.count ?? 1} (남은 {remain})
+                          </span>
                         ) : null}
+
+                        {r.memo ? <span style={{ color: "#374151" }}> · 메모: {r.memo}</span> : null}
                       </div>
                     </>
                   )}
                 </div>
 
-                {/* 오른쪽: 버튼들 */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <div style={{ display: "flex", gap: 6, alignItems: "center", whiteSpace: "nowrap" }}>
                   {isEditing ? (
                     <>
                       <button
@@ -392,23 +418,50 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                     </>
                   ) : (
                     <>
-                      {/* PURCHASE일 때만 (선택) 입고 처리 버튼 */}
-                      {type === "PURCHASE" && typeof onMarkArrived === "function" ? (
-                        <button
-                          type="button"
-                          onClick={() => onMarkArrived(r)}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 6,
-                            border: "1px solid #16a34a",
-                            backgroundColor: "#dcfce7",
-                            color: "#166534",
-                            fontSize: 12,
-                            cursor: "pointer",
-                          }}
-                        >
-                          입고 처리
-                        </button>
+                      {/* ✅ PURCHASE일 때만 + 남은 수량 있을 때만 버튼 표시 */}
+                      {type === "PURCHASE" && typeof onMarkArrived === "function" && remain > 0 ? (
+                        <>
+                          {/* 전량 입고(디폴트) */}
+                          <button
+                            type="button"
+                            onClick={() => doArrive(r, remain)}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              border: "1px solid #16a34a",
+                              backgroundColor: "#dcfce7",
+                              color: "#166534",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            일괄입고
+                          </button>
+
+                          {/* 부분 입고 */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setArriveModal({
+                                purchaseId: r.id,
+                                maxRemain: remain,
+                                defaultCount: remain,
+                                record: r,
+                              })
+                            }
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              border: "1px solid #f59e0b",
+                              backgroundColor: "#fffbeb",
+                              color: "#b45309",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            부분입고
+                          </button>
+                        </>
                       ) : null}
 
                       <button
@@ -427,15 +480,106 @@ function PurchaseList({ records, onDeleteRecord, onUpdateRecord, onMarkArrived }
                         수정
                       </button>
 
-                      <DeleteButton onClick={() => onDeleteRecord(r.id)}>
-                        삭제
-                      </DeleteButton>
+                      <DeleteButton onClick={() => onDeleteRecord(r.id)}>삭제</DeleteButton>
                     </>
                   )}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/*부분입고 모달 */}
+      {arriveModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 999,
+          }}
+          onClick={() => setArriveModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              background: "white",
+              borderRadius: 14,
+              padding: 18,
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: 10 }}>부분 입고</div>
+            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 10 }}>
+              남은 수량: <b>{arriveModal.maxRemain}</b>개
+            </div>
+
+            <input
+              type="number"
+              min={1}
+              max={arriveModal.maxRemain}
+              value={arriveModal.defaultCount}
+              onChange={(e) =>
+                setArriveModal((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        defaultCount: e.target.value,
+                      }
+                    : prev
+                )
+              }
+              style={{
+                width: "100%",
+                height: 34,
+                padding: "0 10px",
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+              }}
+            />
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={() => setArriveModal(null)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #e5e7eb",
+                  background: "#f3f4f6",
+                  cursor: "pointer",
+                }}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const n = Number(arriveModal.defaultCount);
+                  doArrive(arriveModal.record, n);
+                  setArriveModal(null);
+                }}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#16a34a",
+                  color: "white",
+                  cursor: "pointer",
+                }}
+              >
+                입고 처리
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

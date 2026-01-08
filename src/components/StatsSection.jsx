@@ -11,29 +11,18 @@ import {
 } from "recharts";
 
 /**
- *  임시 레거시 커버 버전 (B안 마이그레이션 전까지)
  *
- * - IN: 입고(재고 반영, price는 항상 null이 정상)
+ * - IN: 입고(재고 반영, price는 항상 null)
  * - PURCHASE: 매입(가격 필수, 재고에는 반영 X)
  * - OUT: 판매(재고 반영, price는 선택 / 그래프는 price 있는 것만)
  *
- *  미입고(= 아직 입고 안 된 매입 수량)
- *   = PURCHASE 수량 - IN 수량
+ * 미입고 = PURCHASE 수량 - IN 수량
  *
- *  그래프(단가)
- * - 매입 단가: PURCHASE(가격 있는 것)만
- * - 판매 단가: OUT 중 price 있는 것만
- *
- * 레거시(IN + price>0)를 "매입(PURCHASE)"처럼 취급해서
- *    매입 그래프/통계/미입고 계산에 포함한다.
- *    (나중에 서버에서 IN+price -> PURCHASE로 정리되면 이 커버 로직 제거 가능)
+ * 그래프(단가, price는 "총액"으로 가정)
+ * - 매입 단가: PURCHASE(price>0)만
+ * - 판매 단가: OUT(price>0)만
  */
 export default function StatsSection({ records, itemName }) {
-
-  <div style={{padding:8, background:"#fffbeb", border:"1px solid #f59e0b"}}>
-  StatsSection mounted ✅
-</div>
-
   const safeRecords = Array.isArray(records) ? records : [];
 
   const [showPurchase, setShowPurchase] = useState(true);
@@ -43,6 +32,7 @@ export default function StatsSection({ records, itemName }) {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState(() => toYmd(new Date()));
 
+  // quick range → from/to 자동 세팅
   useEffect(() => {
     if (mode === "CUSTOM") return;
 
@@ -67,32 +57,7 @@ export default function StatsSection({ records, itemName }) {
   const effectiveShowSale = showSale || (!showPurchase && !showSale);
 
   const computed = useMemo(() => {
-    // ✅ 디버그: 타입/레거시 상태 확인
-    // console.log(
-    //   "[CHECK]",
-    //   safeRecords.reduce((a, r) => {
-    //     const t = String(r?.type || "").toUpperCase();
-    //     a[t] = (a[t] || 0) + 1;
-    //     return a;
-    //   }, {}),
-    //   "IN+price=",
-    //   safeRecords.filter(
-    //     (r) =>
-    //       String(r?.type || "").toUpperCase() === "IN" &&
-    //       r?.price != null &&
-    //       Number(r.price) > 0
-    //   ).length,
-    //   "PURCHASE+price=",
-    //   safeRecords.filter(
-    //     (r) =>
-    //       String(r?.type || "").toUpperCase() === "PURCHASE" &&
-    //       r?.price != null &&
-    //       Number(r.price) > 0
-    //   ).length
-    // );
-
-    const hasPrice = (v) =>
-      v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const hasPrice = (v) => v != null && Number.isFinite(Number(v)) && Number(v) > 0;
 
     const toNum = (v, fallback = 0) => {
       const n = Number(v);
@@ -108,17 +73,10 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
-    // 레거시 커버 포함 타입 정규화
-    // - PURCHASE / OUT 그대로
-    // - IN인데 price>0 이면 레거시 매입으로 보고 PURCHASE로 간주
-    const normType = (r) => {
-      const x = String(r?.type || "").toUpperCase();
-      const legacyPurchase =
-        x === "IN" && r?.price != null && Number(r.price) > 0;
-
+    const normType = (t) => {
+      const x = String(t || "").toUpperCase();
       if (x === "OUT") return "OUT";
       if (x === "PURCHASE") return "PURCHASE";
-      if (legacyPurchase) return "PURCHASE";
       return "IN";
     };
 
@@ -127,7 +85,7 @@ export default function StatsSection({ records, itemName }) {
 
     // ===== 수량 집계 =====
     let inQtyAll = 0; // IN 총 수량
-    let purchaseQtyAll = 0; // PURCHASE 총 수량(레거시 포함)
+    let purchaseQtyAll = 0; // PURCHASE 총 수량
     let outQtyAll = 0; // OUT 총 수량
     let outPricedQty = 0; // price 있는 OUT 수량
 
@@ -160,7 +118,6 @@ export default function StatsSection({ records, itemName }) {
       purchaseQtyAll += qty;
 
       const amount = toNum(amountRaw, 0);
-
       row.purchaseAmount += amount;
       row.purchaseQty += qty;
 
@@ -169,16 +126,13 @@ export default function StatsSection({ records, itemName }) {
 
       const unit = amount / qty;
       if (Number.isFinite(unit)) {
-        minPurchaseUnit =
-          minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
-        maxPurchaseUnit =
-          maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
+        minPurchaseUnit = minPurchaseUnit == null ? unit : Math.min(minPurchaseUnit, unit);
+        maxPurchaseUnit = maxPurchaseUnit == null ? unit : Math.max(maxPurchaseUnit, unit);
       }
     };
 
     const addSale = (row, qty, amountRaw) => {
       const amount = toNum(amountRaw, 0);
-
       row.saleAmount += amount;
       row.saleQty += qty;
 
@@ -202,33 +156,29 @@ export default function StatsSection({ records, itemName }) {
       const qty = toNum(r.count, 0);
       if (qty <= 0) continue;
 
-      const type = normType(r);
-      const row = ensureRow(dateOnly);
+      const type = normType(r.type);
       const rawPrice = r.price;
 
-      // IN: 입고 수량만 (price는 무시)
+      // IN: 입고 수량만
       if (type === "IN") {
         inQtyAll += qty;
         continue;
       }
 
-      // PURCHASE: 매입(레거시 포함) - 가격 있을 때만 차트/단가
+      // PURCHASE: 매입(가격 있을 때만 그래프/통계)
       if (type === "PURCHASE") {
-        if (hasPrice(rawPrice) && Number(rawPrice) > 0) {
-          addPurchase(row, qty, rawPrice);
-        } else {
-          // 가격이 없으면 매입 수량은 잡되 그래프/통계 제외
-          purchaseQtyAll += qty;
-        }
+        const row = ensureRow(dateOnly);
+        if (hasPrice(rawPrice)) addPurchase(row, qty, rawPrice);
+        else purchaseQtyAll += qty; // 가격 없으면 수량만 잡음(드물지만 방어)
         continue;
       }
 
-      // OUT: 판매 - price 있을 때만 차트/단가
+      // OUT: 판매(가격 있을 때만 그래프/통계)
       if (type === "OUT") {
         outQtyAll += qty;
-
-        if (hasPrice(rawPrice) && Number(rawPrice) > 0) {
+        if (hasPrice(rawPrice)) {
           outPricedQty += qty;
+          const row = ensureRow(dateOnly);
           addSale(row, qty, rawPrice);
         }
         continue;
@@ -239,8 +189,7 @@ export default function StatsSection({ records, itemName }) {
       .sort((a, b) => (a.dateOnly > b.dateOnly ? 1 : -1))
       .map((d) => ({
         label: d.label,
-        purchaseUnit:
-          d.purchaseQty > 0 ? Math.round(d.purchaseAmount / d.purchaseQty) : null,
+        purchaseUnit: d.purchaseQty > 0 ? Math.round(d.purchaseAmount / d.purchaseQty) : null,
         saleUnit: d.saleQty > 0 ? Math.round(d.saleAmount / d.saleQty) : null,
       }));
 
@@ -249,11 +198,8 @@ export default function StatsSection({ records, itemName }) {
     );
 
     const avgPurchaseUnit =
-      purchaseTotalQty > 0
-        ? Math.round(purchaseTotalAmount / purchaseTotalQty)
-        : null;
-    const avgSaleUnit =
-      saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
+      purchaseTotalQty > 0 ? Math.round(purchaseTotalAmount / purchaseTotalQty) : null;
+    const avgSaleUnit = saleTotalQty > 0 ? Math.round(saleTotalAmount / saleTotalQty) : null;
 
     // 미입고(매입 수량 - 입고 수량)
     const pendingIn = Math.max(0, purchaseQtyAll - inQtyAll);
@@ -301,8 +247,7 @@ export default function StatsSection({ records, itemName }) {
           const v = p.value;
           return (
             <div key={p.dataKey} style={{ opacity: 0.95 }}>
-              {name}:{" "}
-              {Number.isFinite(Number(v)) ? `${Number(v).toLocaleString()}원` : "-"}
+              {name}: {Number.isFinite(Number(v)) ? `${Number(v).toLocaleString()}원` : "-"}
             </div>
           );
         })}
@@ -320,74 +265,29 @@ export default function StatsSection({ records, itemName }) {
       }}
     >
       {/* 타이틀 + 토글 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 10,
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>
           📊 단가 그래프 {itemName ? `- ${itemName}` : ""}
         </h2>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            onClick={() => setShowPurchase((v) => !v)}
-            style={chipBtn(showPurchase)}
-          >
+          <button type="button" onClick={() => setShowPurchase((v) => !v)} style={chipBtn(showPurchase)}>
             매입
           </button>
-          <button
-            type="button"
-            onClick={() => setShowSale((v) => !v)}
-            style={chipBtn(showSale)}
-          >
+          <button type="button" onClick={() => setShowSale((v) => !v)} style={chipBtn(showSale)}>
             판매
           </button>
         </div>
       </div>
 
       {/* 기간 컨트롤 */}
-      <div
-        style={{
-          marginTop: 10,
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-          alignItems: "center",
-        }}
-      >
-        <button type="button" onClick={() => setMode("7")} style={pill(mode === "7")}>
-          최근 7일
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("30")}
-          style={pill(mode === "30")}
-        >
-          최근 30일
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("90")}
-          style={pill(mode === "90")}
-        >
-          최근 90일
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("ALL")}
-          style={pill(mode === "ALL")}
-        >
-          전체
-        </button>
+      <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+        <button type="button" onClick={() => setMode("7")} style={pill(mode === "7")}>최근 7일</button>
+        <button type="button" onClick={() => setMode("30")} style={pill(mode === "30")}>최근 30일</button>
+        <button type="button" onClick={() => setMode("90")} style={pill(mode === "90")}>최근 90일</button>
+        <button type="button" onClick={() => setMode("ALL")} style={pill(mode === "ALL")}>전체</button>
 
-        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>
-          기간:
-        </span>
+        <span style={{ fontSize: 12, color: "#6b7280", marginLeft: 6 }}>기간:</span>
 
         <input
           type="date"
@@ -411,25 +311,12 @@ export default function StatsSection({ records, itemName }) {
       </div>
 
       {/* 요약 */}
-      <div
-        style={{
-          marginTop: 10,
-          fontSize: 12,
-          color: "#6b7280",
-          lineHeight: 1.6,
-        }}
-      >
-        <div>
-          • 적용 기간: <b>{periodText}</b>
-        </div>
+      <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280", lineHeight: 1.6 }}>
+        <div>• 적용 기간: <b>{periodText}</b></div>
 
         <div>
           • 평균 매입 단가:{" "}
-          <b>
-            {computed.avgPurchaseUnit != null
-              ? `${computed.avgPurchaseUnit.toLocaleString()}원`
-              : "-"}
-          </b>
+          <b>{computed.avgPurchaseUnit != null ? `${computed.avgPurchaseUnit.toLocaleString()}원` : "-"}</b>
           {computed.avgPurchaseUnit != null && (
             <span>
               {" "}
@@ -441,11 +328,7 @@ export default function StatsSection({ records, itemName }) {
 
         <div>
           • 평균 판매 단가:{" "}
-          <b>
-            {computed.avgSaleUnit != null
-              ? `${computed.avgSaleUnit.toLocaleString()}원`
-              : "-"}
-          </b>
+          <b>{computed.avgSaleUnit != null ? `${computed.avgSaleUnit.toLocaleString()}원` : "-"}</b>
           {computed.avgSaleUnit != null && (
             <span>
               {" "}
@@ -456,8 +339,7 @@ export default function StatsSection({ records, itemName }) {
         </div>
 
         <div>
-          • 미입고 재고: <b>{computed.pendingIn}</b>개 · 판매가 미입력:{" "}
-          <b>{computed.missingSaleQty}</b>개
+          • 미입고 재고: <b>{computed.pendingIn}</b>개 · 판매가 미입력: <b>{computed.missingSaleQty}</b>개
         </div>
       </div>
 
@@ -481,13 +363,8 @@ export default function StatsSection({ records, itemName }) {
               <YAxis />
               <Tooltip content={<CustomTooltip />} />
               <Legend />
-
-              {effectiveShowPurchase && (
-                <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />
-              )}
-              {effectiveShowSale && (
-                <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />
-              )}
+              {effectiveShowPurchase && <Bar dataKey="purchaseUnit" name="매입 단가" fill="#79ABFF" />}
+              {effectiveShowSale && <Bar dataKey="saleUnit" name="판매 단가" fill="#FF7ECA" />}
             </BarChart>
           </ResponsiveContainer>
         </div>
