@@ -36,7 +36,9 @@ function parseArrivedPurchaseId(memo) {
 function TypeBadge({ type }) {
   const t = normType(type);
 
+  // ✅ OUT -> 판매, PURCHASE -> 매입, IN -> 입고
   const label = t === "OUT" ? "판매" : t === "PURCHASE" ? "매입" : "입고";
+
   const theme =
     t === "OUT"
       ? { borderColor: "#fecaca", backgroundColor: "#fee2e2", color: "#991b1b" }
@@ -65,27 +67,26 @@ function TypeBadge({ type }) {
 
 /**
  * props
- * - records: 화면에 보여줄 기록들(필터될 수 있음)
- * - allRecords: arrived 계산용 전체 records (IN 포함)  ← 추가됨
+ * - records: 전체 records (IN 포함 원본)
+ * - showIn: boolean (IN 표시 토글)
  * - onDeleteRecord(id)
  * - onUpdateRecord(id, patch)
  * - onMarkArrived(purchaseRecord, arrivedCount)
  */
-function PurchaseList({
+export default function PurchaseList({
   records,
-  allRecords,
+  showIn,
   onDeleteRecord,
   onUpdateRecord,
   onMarkArrived,
 }) {
   const safeRecords = Array.isArray(records) ? records : [];
-  const safeAllRecords = Array.isArray(allRecords) ? allRecords : safeRecords;
 
-  //  PURCHASE별 "이미 입고된 수량" 계산 (IN 레코드 memo로 연결) — allRecords(IN 포함)로 계산!
+  // ✅ PURCHASE별로 "이미 입고된 수량" 합계 (IN memo로 연결) — 항상 전체 records로 계산
   const arrivedCountByPurchaseId = useMemo(() => {
-    const map = new Map(); // purchaseId -> arrivedQty sum
+    const map = new Map(); // purchaseId -> sum(count)
 
-    for (const r of safeAllRecords) {
+    for (const r of safeRecords) {
       if (!r) continue;
       if (normType(r.type) !== "IN") continue;
 
@@ -93,50 +94,50 @@ function PurchaseList({
       if (!pid) continue;
 
       const qty = Number(r.count) || 0;
-      if (qty <= 0) continue;
-
-      map.set(pid, (map.get(pid) || 0) + qty);
+      if (qty > 0) map.set(pid, (map.get(pid) || 0) + qty);
     }
-    return map;
-  }, [safeAllRecords]);
 
-  // 남은 수량 계산 (PURCHASE 레코드 기준)
+    return map;
+  }, [safeRecords]);
+
   const getRemain = (purchaseRecord) => {
     const total = Number(purchaseRecord?.count) || 0;
     const arrived = arrivedCountByPurchaseId.get(Number(purchaseRecord?.id)) || 0;
     return Math.max(0, total - arrived);
   };
 
-  // 돈 기록만 보여주기: PURCHASE(가격 있음) + OUT(가격 있음)
-  const moneyRecords = useMemo(() => {
+  // ✅ 화면 표시용 필터: showIn에 따라 IN만 토글
+  const displayRecords = useMemo(() => {
     return safeRecords
       .filter((r) => {
         const t = normType(r.type);
         const hasPrice = r.price != null && Number(r.price) > 0;
-        if (t === "PURCHASE") return hasPrice; // 매입은 가격 필수
-        if (t === "OUT") return hasPrice; // 판매는 가격 있을 때만
+
+        if (t === "IN") return !!showIn;       // 체크했을 때만 IN 표시
+        if (t === "PURCHASE") return hasPrice; // 매입은 가격 있는 것만
+        if (t === "OUT") return hasPrice;      // 판매도 가격 있는 것만
         return false;
       })
       .sort((a, b) => {
         const da = String(a.date || "");
         const db = String(b.date || "");
         if (da === db) return Number(b.id) - Number(a.id);
-        return db.localeCompare(da);
+        return db.localeCompare(da); // 최신 날짜 먼저
       });
-  }, [safeRecords]);
+  }, [safeRecords, showIn]);
 
-  const count = moneyRecords.length;
+  const count = displayRecords.length;
 
   const purchaseCount = useMemo(
-    () => moneyRecords.filter((r) => normType(r.type) === "PURCHASE").length,
-    [moneyRecords]
+    () => displayRecords.filter((r) => normType(r.type) === "PURCHASE").length,
+    [displayRecords]
   );
   const saleCount = useMemo(
-    () => moneyRecords.filter((r) => normType(r.type) === "OUT").length,
-    [moneyRecords]
+    () => displayRecords.filter((r) => normType(r.type) === "OUT").length,
+    [displayRecords]
   );
 
-  // 수정 중인 기록 정보
+  // 수정 상태
   const [editingId, setEditingId] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editPrice, setEditPrice] = useState("");
@@ -171,7 +172,7 @@ function PurchaseList({
 
     const t = normType(editType);
 
-    // 매입은 가격 필수
+    // PURCHASE는 price 필수
     if (t === "PURCHASE") {
       const p = editPrice === "" || editPrice == null ? null : Number(editPrice);
       if (p == null || !Number.isFinite(p) || p <= 0) {
@@ -180,7 +181,7 @@ function PurchaseList({
       }
     }
 
-    // OUT은 가격 선택(있으면 >=0)
+    // OUT은 price 선택(있으면 >=0)
     if (t === "OUT" && editPrice !== "" && editPrice != null) {
       const p = Number(editPrice);
       if (!Number.isFinite(p) || p < 0) {
@@ -238,20 +239,18 @@ function PurchaseList({
 
       {count === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 14 }}>
-          아직 기록이 없습니다. (가격이 입력된 매입/판매만 표시됩니다)
+          아직 기록이 없습니다. (가격이 입력된 매입/판매{showIn ? "/입고" : ""}만 표시됩니다)
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {moneyRecords.map((r) => {
+          {displayRecords.map((r) => {
             const isEditing = r.id === editingId;
             const type = normType(r.type);
             const isOut = type === "OUT";
             const isPurchase = type === "PURCHASE";
 
-            const unit =
-              isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
+            const unit = isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
 
-            //PURCHASE 진행 상태(남은 수량)
             const remain = isPurchase ? getRemain(r) : 0;
             const total = isPurchase ? (Number(r.count) || 0) : 0;
             const arrived = isPurchase ? Math.max(0, total - remain) : 0;
@@ -297,6 +296,7 @@ function PurchaseList({
                         >
                           <option value="PURCHASE">매입</option>
                           <option value="OUT">판매</option>
+                          {/* IN은 여기서 수정 선택지로 안 둠 */}
                         </select>
 
                         <input
@@ -370,12 +370,14 @@ function PurchaseList({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {r.date} · {isOut ? "판매" : "매입"} {formatNumber(r.price)}원
+                          {r.date} · {isOut ? "판매" : isPurchase ? "매입" : "입고"}{" "}
+                          {type === "IN" ? "" : `${formatNumber(r.price)}원`}
                         </div>
                       </div>
 
                       <div style={{ fontSize: 13, color: "#6b7280" }}>
                         수량 {r.count ?? 1}개
+
                         {unit != null ? (
                           <span style={{ color: "#111827", fontWeight: 700 }}>
                             {" "}
@@ -383,7 +385,7 @@ function PurchaseList({
                           </span>
                         ) : null}
 
-                        {/*  PURCHASE 진행 상태 표시 */}
+                        {/* PURCHASE 진행 상태 표시 */}
                         {isPurchase ? (
                           <span style={{ color: done ? "#166534" : "#d97706", fontWeight: 700 }}>
                             {" "}
@@ -434,7 +436,7 @@ function PurchaseList({
                     </>
                   ) : (
                     <>
-                      {/*  PURCHASE일 때만: remaining(남은 수량) > 0 이면 버튼 표시 */}
+                      {/* PURCHASE일 때만: remaining > 0 이면 입고 버튼 */}
                       {type === "PURCHASE" && typeof onMarkArrived === "function" && remain > 0 ? (
                         <>
                           <button
@@ -503,7 +505,7 @@ function PurchaseList({
         </div>
       )}
 
-      {/*  부분입고 모달 */}
+      {/* 부분입고 모달 */}
       {arriveModal && (
         <div
           style={{
@@ -538,7 +540,9 @@ function PurchaseList({
               min={1}
               max={arriveModal.maxRemain}
               value={arriveModal.value}
-              onChange={(e) => setArriveModal((prev) => (prev ? { ...prev, value: e.target.value } : prev))}
+              onChange={(e) =>
+                setArriveModal((prev) => (prev ? { ...prev, value: e.target.value } : prev))
+              }
               style={{
                 width: "100%",
                 height: 34,
@@ -589,5 +593,3 @@ function PurchaseList({
     </div>
   );
 }
-
-export default PurchaseList;

@@ -820,6 +820,7 @@ export default function ManageDetailPage() {
               {/* 기록 리스트 */}
               <PurchaseList
                 records={safeRecords}
+                showIn={showIn}
                 onDeleteRecord={async (id) => {
                   //  즉시 UI 반영
                   setRecords((prev) => (Array.isArray(prev) ? prev : []).filter((r) => r.id !== id));
