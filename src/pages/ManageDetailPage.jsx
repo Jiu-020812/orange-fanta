@@ -765,56 +765,44 @@ export default function ManageDetailPage() {
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
                 <PurchaseForm
-                  onAddRecord={async (info) => {
-                    if (!selectedOptionId) return;
+  onAddRecord={async (info) => {
+    if (!selectedOptionId) return;
 
-                    const dateValue = info.date || new Date().toISOString().slice(0, 10);
-                    const countValue =
-                      info.count === "" || info.count == null ? 1 : Number(info.count);
+    const dateValue = info.date || new Date().toISOString().slice(0, 10);
+    const countValue =
+      info.count === "" || info.count == null ? 1 : Number(info.count);
 
-                    //  핵심: default를 IN이 아니라 PURCHASE로 + IN 자체 차단
-                    const raw = String(info.type || "PURCHASE").toUpperCase();
-                    const apiType = raw === "OUT" ? "OUT" : "PURCHASE";
+    const apiType =
+      info.type === "OUT"
+        ? "OUT"
+        : "PURCHASE"; // ✅ IN 절대 안 보냄
 
-                    const priceValue =
-                      info.price === "" || info.price == null ? null : Number(info.price);
+    const priceValue =
+      info.price === "" || info.price == null ? null : Number(info.price);
 
-                    // 검증
-                    if (apiType === "PURCHASE") {
-                      if (priceValue == null || !Number.isFinite(priceValue) || priceValue <= 0) {
-                        window.alert("매입(PURCHASE)은 가격을 반드시 입력해야 합니다.");
-                        return;
-                      }
-                    }
-                    if (apiType === "OUT") {
-                      if (priceValue != null && (!Number.isFinite(priceValue) || priceValue < 0)) {
-                        window.alert("판매(OUT) 가격이 올바르지 않습니다.");
-                        return;
-                      }
-                    }
+    try {
+      await createRecord({
+        itemId: selectedOptionId,
+        type: apiType,
+        price: apiType === "OUT" ? priceValue : priceValue, // PURCHASE는 price 필수
+        count: countValue,
+        date: dateValue,
+        memo: null,
+      });
 
-                    try {
-                      await createRecord({
-                        itemId: selectedOptionId,
-                        type: apiType,
-                        price: priceValue, // PURCHASE/OUT만
-                        count: countValue,
-                        date: dateValue,
-                        memo: info.memo ?? null,
-                      });
+      await loadDetail(selectedOptionId, {
+        loadCategoryItems: false,
+        reason: "after-create",
+      });
 
-                      await loadDetail(selectedOptionId, {
-                        loadCategoryItems: false,
-                        reason: "after-create",
-                      });
+      showToast("기록 추가 완료");
+    } catch (err) {
+      console.error("백엔드 기록 저장 실패", err);
+      alert("서버에 기록 저장 실패 😢");
+    }
+  }}
+/>
 
-                      showToast("기록 추가 완료");
-                    } catch (err) {
-                      console.error("백엔드 기록 저장 실패", err);
-                      window.alert("서버에 기록 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
-                    }
-                  }}
-                />
               </div>
 
               <div style={{ marginBottom: 8 }}>
