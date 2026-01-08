@@ -124,7 +124,16 @@ export default function ManageDetailPage() {
          
         //콘솔추가
         console.log(
-          `[detail][apply] seq=${seq} id=${targetId} reason=${reason} records=${rawRecords.length}`
+          "[RAW-CHECK]",
+          "id=" + targetId,
+          "reason=" + reason,
+          rawRecords.map((r) => ({
+            id: r.id,
+            type: String(r.type || "").toUpperCase(),
+            price: r.price,
+            count: r.count,
+            date: String(r.date || "").slice(0, 10),
+          }))
         );
 
         setSelectedOptionId(targetId);
@@ -245,7 +254,7 @@ export default function ManageDetailPage() {
     setSelectedOptionId(nextId);
     navigate(`/manage/${nextId}`, { replace: true });
 
-    // ✅ 여기서 직접 setRecords 하지 말고 loadDetail로 통일 (레이스 방지)
+    // 여기서 직접 setRecords 하지 말고 loadDetail로 통일 (레이스 방지)
     await loadDetail(nextId, { loadCategoryItems: false, reason: "select-option" });
   };
 
