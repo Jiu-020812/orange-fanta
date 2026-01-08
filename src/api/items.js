@@ -109,9 +109,6 @@ export async function getRecords(itemId) {
   return unwrapArray(res.data.records);
 }
 
-/**
- * 기록 생성 (🔥 PURCHASE 정상 전달)
- */
 export async function createRecord({
   itemId,
   type = "IN",
@@ -121,7 +118,7 @@ export async function createRecord({
   memo,
 }) {
   const res = await api.post(`/api/items/${itemId}/records`, {
-    type: normType(type),          // ✅ PURCHASE 유지
+    type: normType(type),          
     price: safeNumber(price, null),
     count: safeNumber(count, 1),
     date: toISODateOnly(date),
@@ -195,5 +192,21 @@ export async function getAllRecords({ type, priceMissing } = {}) {
   });
   return unwrapArray(res.data.records);
 }
+
+// ======================= Barcode =======================
+
+// GET /api/items/lookup?barcode=xxxx
+export async function lookupItemByBarcode(barcode) {
+  const bc = String(barcode ?? "").trim();
+  if (!bc) return { ok: false, message: "barcode required" };
+
+  const res = await api.get("/api/items/lookup", {
+    params: { barcode: bc },
+  });
+
+  // 응답: { ok:true, item } | { ok:false, message }
+  return res.data;
+}
+
 
 export default api;
