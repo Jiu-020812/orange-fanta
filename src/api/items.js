@@ -206,19 +206,6 @@ export async function lookupItemByBarcode(barcode) {
   return res.data;
 }
 
-// ======================= Records =======================
-
-// GET /api/items/:itemId/records
-export async function getRecords(itemId) {
-  const numericItemId = safeNumber(itemId);
-  if (!numericItemId) throw new Error("getRecords: invalid itemId");
-
-  const res = await api.get(`/api/items/${numericItemId}/records`);
-
-  if (res.data && Array.isArray(res.data.records)) return res.data.records;
-  return unwrapArray(res.data);
-}
-
 // POST /api/items/:itemId/records
 export async function createRecord({ itemId, price, count, date, type = "IN", memo = null }) {
   const numericItemId = safeNumber(itemId);
