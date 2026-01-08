@@ -5,277 +5,187 @@ const API_BASE =
 
 const api = axios.create({
   baseURL: API_BASE,
-  withCredentials: true, // 쿠키(token) 인증
+  withCredentials: true,
 });
 
-// ---------------------- 유틸 ----------------------
+/* ===================== utils ===================== */
+
 function safeNumber(v, fallback = null) {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
 }
 
 function toISODateOnly(d) {
-  try {
-    if (!d) return null;
-    const s = String(d);
-    if (s.length >= 10) return s.slice(0, 10);
-    return new Date(d).toISOString().slice(0, 10);
-  } catch {
-    return null;
-  }
+  if (!d) return undefined;
+  const s = String(d);
+  if (s.length >= 10) return s.slice(0, 10);
+  return new Date(d).toISOString().slice(0, 10);
 }
 
-//  FIX: PURCHASE 포함
+/**
+ * 🔥 핵심 수정 포인트
+ * - PURCHASE를 IN으로 바꾸지 않는다
+ */
 function normType(t) {
-  const v = String(t ?? "").trim().toUpperCase();
-  if (v === "IN" || v === "OUT" || v === "PURCHASE") return v;
+  const v = String(t ?? "").toUpperCase();
+  if (v === "IN") return "IN";
+  if (v === "OUT") return "OUT";
+  if (v === "PURCHASE") return "PURCHASE";
   return "IN";
 }
 
-// ======================= Records =======================
-
-// GET /api/items/:itemId/records
-export async function getRecords(itemId) {
-  const numericItemId = safeNumber(itemId);
-  if (!numericItemId) throw new Error("getRecords: invalid itemId");
-
-  const res = await api.get(`/api/items/${numericItemId}/records`);
-  if (res.data && Array.isArray(res.data.records)) return res.data.records;
-  return unwrapArray(res.data);
+function unwrapArray(data) {
+  if (Array.isArray(data)) return data;
+  if (data?.records && Array.isArray(data.records)) return data.records;
+  if (data?.items && Array.isArray(data.items)) return data.items;
+  return [];
 }
 
-// POST /api/items/:itemId/records
-export async function createRecord({
-  itemId,
-  price,
-  count,
-  date,
-  type = "IN",
-  memo = null,
-}) {
-  const numericItemId = safeNumber(itemId);
-  if (!numericItemId) throw new Error("createRecord: invalid itemId");
-
-  const res = await api.post(`/api/items/${numericItemId}/records`, {
-    price: safeNumber(price, null),
-    count: safeNumber(count, 1) ?? 1,
-    date: toISODateOnly(date) ?? undefined,
-    type: normType(type), // 이제 PURCHASE가 그대로 전달됨
-    ...(memo != null ? { memo: String(memo) } : {}),
-  });
-
-  return unwrapObject(res.data);
+function unwrapObject(data) {
+  if (data?.item) return data.item;
+  if (data?.record) return data.record;
+  return data;
 }
 
-// PUT /api/items/:itemId/records
-export async function updateRecord({ itemId, id, price, count, date, type, memo }) {
-  const numericItemId = safeNumber(itemId);
-  const numericId = safeNumber(id);
-  if (!numericItemId) throw new Error("updateRecord: invalid itemId");
-  if (!numericId) throw new Error("updateRecord: invalid id");
+/* ===================== categories ===================== */
 
-  const body = {
-    id: numericId,
-    ...(price !== undefined ? { price: safeNumber(price, null) } : {}),
-    ...(count !== undefined ? { count: safeNumber(count, null) } : {}),
-    ...(date !== undefined ? { date: toISODateOnly(date) } : {}),
-    ...(type !== undefined ? { type: normType(type) } : {}), // ✅ PURCHASE 허용
-    ...(memo !== undefined ? { memo: memo ? String(memo) : null } : {}),
-  };
-
-  const res = await api.put(`/api/items/${numericItemId}/records`, body);
-  return unwrapObject(res.data);
-}
-
-
-// ======================= Categories =======================
-
-// GET /api/categories
 export async function getCategories() {
   const res = await api.get("/api/categories");
   return unwrapArray(res.data);
 }
 
-// POST /api/categories  body: { name, sortOrder? }
 export async function createCategory({ name, sortOrder } = {}) {
-  const n = String(name ?? "").trim();
-  if (!n) throw new Error("createCategory: name required");
-
   const res = await api.post("/api/categories", {
-    name: n,
-    ...(sortOrder != null ? { sortOrder: Number(sortOrder) } : {}),
+    name: String(name).trim(),
+    ...(sortOrder != null ? { sortOrder } : {}),
   });
-
-  // 백엔드는 category 객체를 그대로 내려줌
   return unwrapObject(res.data);
 }
 
-// PATCH /api/categories/:id  body: { name?, sortOrder? }
-export async function updateCategory(id, patch = {}) {
-  const numericId = safeNumber(id);
-  if (!numericId) throw new Error("updateCategory: invalid id");
-
-  const nextPatch = { ...patch };
-
-  if ("name" in nextPatch) {
-    nextPatch.name = String(nextPatch.name ?? "").trim();
-  }
-  if ("sortOrder" in nextPatch && nextPatch.sortOrder != null) {
-    nextPatch.sortOrder = Number(nextPatch.sortOrder);
-  }
-
-  const res = await api.patch(`/api/categories/${numericId}`, nextPatch);
+export async function updateCategory(id, patch) {
+  const res = await api.patch(`/api/categories/${id}`, patch);
   return unwrapObject(res.data);
 }
 
-// DELETE /api/categories/:id
 export async function deleteCategory(id) {
-  const numericId = safeNumber(id);
-  if (!numericId) throw new Error("deleteCategory: invalid id");
-
-  await api.delete(`/api/categories/${numericId}`);
+  await api.delete(`/api/categories/${id}`);
 }
 
-// ======================= Items =======================
+/* ===================== items ===================== */
 
-// GET /api/items?categoryId=123
 export async function getItems(categoryId) {
-  const cid = Number(categoryId);
   const params =
-    Number.isFinite(cid) && cid > 0 ? { params: { categoryId: cid } } : undefined;
-
+    categoryId != null ? { params: { categoryId } } : undefined;
   const res = await api.get("/api/items", params);
   return unwrapArray(res.data);
 }
 
-// GET /api/items/:itemId/records  (v2 detail)
 export async function getItemDetail(itemId) {
-  const numericItemId = safeNumber(itemId);
-  if (!numericItemId) throw new Error("getItemDetail: invalid itemId");
-
-  const res = await api.get(`/api/items/${numericItemId}/records`);
-  return res.data; // { ok:true, item, records, stock, timing }
+  const res = await api.get(`/api/items/${itemId}/records`);
+  return res.data; // { ok, item, records, stock, pendingIn }
 }
 
-// POST /api/items  body: { name, size, categoryId, barcode?, imageUrl? }
-export async function createItem({ name, size, categoryId, barcode, imageUrl }) {
-  const res = await api.post("/api/items", {
-    name,
-    size,
-    categoryId: safeNumber(categoryId, null),
-    barcode: barcode ?? null,
-    imageUrl: imageUrl ?? null,
-  });
+export async function createItem(data) {
+  const res = await api.post("/api/items", data);
   return unwrapObject(res.data);
 }
 
-// PUT /api/items/:id  (barcode/categoryId 수정 가능)
 export async function updateItem(id, patch) {
-  const numericId = safeNumber(id);
-  if (!numericId) throw new Error("updateItem: invalid id");
-
-  const nextPatch = { ...patch };
-  if ("categoryId" in nextPatch) {
-    const cid = safeNumber(nextPatch.categoryId, null);
-    nextPatch.categoryId = cid;
-  }
-
-  const res = await api.put(`/api/items/${numericId}`, nextPatch);
+  const res = await api.put(`/api/items/${id}`, patch);
   return unwrapObject(res.data);
 }
 
-// DELETE /api/items/:id
 export async function deleteItem(id) {
-  const numericId = safeNumber(id);
-  if (!numericId) throw new Error("deleteItem: invalid id");
-
-  await api.delete(`/api/items/${numericId}`);
+  await api.delete(`/api/items/${id}`);
 }
 
-// ======================= Barcode =======================
+/* ===================== records ===================== */
 
-// GET /api/items/lookup?barcode=xxxx
-export async function lookupItemByBarcode(barcode) {
-  if (!barcode) return { ok: false };
-
-  const res = await api.get("/api/items/lookup", {
-    params: { barcode },
-  });
-
-  // 응답: { ok:true, item } | { ok:false }
-  return res.data;
+/**
+ * 특정 item 기록 조회
+ */
+export async function getRecords(itemId) {
+  const res = await api.get(`/api/items/${itemId}/records`);
+  return unwrapArray(res.data.records);
 }
 
-// POST /api/items/:itemId/records
-export async function createRecord({ itemId, price, count, date, type = "IN", memo = null }) {
-  const numericItemId = safeNumber(itemId);
-  if (!numericItemId) throw new Error("createRecord: invalid itemId");
-
-  const res = await api.post(`/api/items/${numericItemId}/records`, {
+/**
+ * 기록 생성 (🔥 PURCHASE 정상 전달)
+ */
+export async function createRecord({
+  itemId,
+  type = "IN",
+  price,
+  count,
+  date,
+  memo,
+}) {
+  const res = await api.post(`/api/items/${itemId}/records`, {
+    type: normType(type),          // ✅ PURCHASE 유지
     price: safeNumber(price, null),
-    count: safeNumber(count, 1) ?? 1,
-    date: toISODateOnly(date) ?? undefined,
-    type: normType(type),
-    ...(memo != null ? { memo: String(memo) } : {}),
+    count: safeNumber(count, 1),
+    date: toISODateOnly(date),
+    ...(memo != null ? { memo } : {}),
   });
 
   return unwrapObject(res.data);
 }
 
-// PUT /api/items/:itemId/records
-export async function updateRecord({ itemId, id, price, count, date, type, memo }) {
-  const numericItemId = safeNumber(itemId);
-  const numericId = safeNumber(id);
-  if (!numericItemId) throw new Error("updateRecord: invalid itemId");
-  if (!numericId) throw new Error("updateRecord: invalid id");
-
-  const body = {
-    id: numericId,
-    ...(price != null ? { price: safeNumber(price, null) } : {}),
-    ...(count != null ? { count: safeNumber(count, null) } : {}),
-    ...(date != null ? { date: toISODateOnly(date) } : {}),
+/**
+ * 기록 수정
+ */
+export async function updateRecord({
+  itemId,
+  id,
+  type,
+  price,
+  count,
+  date,
+  memo,
+}) {
+  const res = await api.put(`/api/items/${itemId}/records`, {
+    id,
     ...(type != null ? { type: normType(type) } : {}),
-    ...(memo != null ? { memo: memo ? String(memo) : null } : {}),
-  };
+    ...(price !== undefined ? { price } : {}),
+    ...(count !== undefined ? { count } : {}),
+    ...(date !== undefined ? { date: toISODateOnly(date) } : {}),
+    ...(memo !== undefined ? { memo } : {}),
+  });
 
-  const res = await api.put(`/api/items/${numericItemId}/records`, body);
   return unwrapObject(res.data);
 }
 
-// DELETE /api/items/:itemId/records?id=123
+/**
+ * 기록 삭제
+ */
 export async function deleteRecord({ itemId, id }) {
-  const numericItemId = safeNumber(itemId);
-  const numericId = safeNumber(id);
-  if (!numericItemId) throw new Error("deleteRecord: invalid itemId");
-  if (!numericId) throw new Error("deleteRecord: invalid id");
-
-  await api.delete(`/api/items/${numericItemId}/records`, {
-    params: { id: numericId },
+  await api.delete(`/api/items/${itemId}/records`, {
+    params: { id },
   });
 }
 
-// ======================= Batch IN / OUT =======================
+/* ===================== purchase arrive ===================== */
 
-// POST /api/records/batch
-export async function createRecordsBatch({ type = "IN", items }) {
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("createRecordsBatch: items required");
-  }
-
-  const res = await api.post("/api/records/batch", {
-    type: normType(type),
-    items: items.map((x) => ({
-      itemId: safeNumber(x.itemId),
-      count: safeNumber(x.count, 1) ?? 1,
-    })),
-  });
+export async function arrivePurchase({
+  purchaseId,
+  count,
+  date,
+  memo,
+}) {
+  const res = await api.post(
+    `/api/purchases/${purchaseId}/arrive`,
+    {
+      ...(count != null ? { count } : {}),
+      ...(date != null ? { date: toISODateOnly(date) } : {}),
+      ...(memo != null ? { memo } : {}),
+    }
+  );
 
   return res.data;
 }
 
-// ======================= 전체 기록 =======================
+/* ===================== all records ===================== */
 
-// 입출고 페이지용
 export async function getAllRecords({ type, priceMissing } = {}) {
   const res = await api.get("/api/records", {
     params: {
@@ -283,7 +193,7 @@ export async function getAllRecords({ type, priceMissing } = {}) {
       ...(priceMissing ? { priceMissing: 1 } : {}),
     },
   });
-  return res.data?.records ?? [];
+  return unwrapArray(res.data.records);
 }
 
 export default api;
