@@ -764,6 +764,7 @@ export default function ManageDetailPage() {
               >
                 <div style={{ fontWeight: 700, marginBottom: 8 }}>🧾 기록 추가</div>
 
+                
                 <PurchaseForm
   onAddRecord={async (info) => {
     if (!selectedOptionId) return;
@@ -775,7 +776,7 @@ export default function ManageDetailPage() {
     const apiType =
       info.type === "OUT"
         ? "OUT"
-        : "PURCHASE"; // ✅ IN 절대 안 보냄
+        : "PURCHASE";
 
     const priceValue =
       info.price === "" || info.price == null ? null : Number(info.price);
