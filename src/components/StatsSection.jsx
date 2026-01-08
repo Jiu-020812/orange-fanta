@@ -1,4 +1,3 @@
-// src/components/StatsSection.jsx
 import { useMemo, useState, useEffect } from "react";
 import {
   BarChart,
@@ -12,7 +11,7 @@ import {
 } from "recharts";
 
 /**
- * ✅ 임시 레거시 커버 버전 (B안 마이그레이션 전까지)
+ *  임시 레거시 커버 버전 (B안 마이그레이션 전까지)
  *
  * - IN: 입고(재고 반영, price는 항상 null이 정상)
  * - PURCHASE: 매입(가격 필수, 재고에는 반영 X)
@@ -25,11 +24,16 @@ import {
  * - 매입 단가: PURCHASE(가격 있는 것)만
  * - 판매 단가: OUT 중 price 있는 것만
  *
- * ✅ 레거시(IN + price>0)를 "매입(PURCHASE)"처럼 취급해서
+ * 레거시(IN + price>0)를 "매입(PURCHASE)"처럼 취급해서
  *    매입 그래프/통계/미입고 계산에 포함한다.
  *    (나중에 서버에서 IN+price -> PURCHASE로 정리되면 이 커버 로직 제거 가능)
  */
 export default function StatsSection({ records, itemName }) {
+
+  <div style={{padding:8, background:"#fffbeb", border:"1px solid #f59e0b"}}>
+  StatsSection mounted ✅
+</div>
+
   const safeRecords = Array.isArray(records) ? records : [];
 
   const [showPurchase, setShowPurchase] = useState(true);
@@ -104,7 +108,7 @@ export default function StatsSection({ records, itemName }) {
       return true;
     };
 
-    // ✅ 레거시 커버 포함 타입 정규화
+    // 레거시 커버 포함 타입 정규화
     // - PURCHASE / OUT 그대로
     // - IN인데 price>0 이면 레거시 매입으로 보고 PURCHASE로 간주
     const normType = (r) => {

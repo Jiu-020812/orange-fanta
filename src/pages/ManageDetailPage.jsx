@@ -1,4 +1,3 @@
-// src/pages/ManageDetailPage.jsx
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
@@ -178,7 +177,7 @@ export default function ManageDetailPage() {
         console.warn(
           `[detail][apply-empty-by-error] seq=${seq} id=${targetId} reason=${reason} err=${String(err?.message || err)}`
         );
-        
+
         setRecords([]);
         setStock(0);
         setPendingIn(0);
