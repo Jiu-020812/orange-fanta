@@ -3,7 +3,7 @@ import { useState } from "react";
 function PurchaseForm({ onAddRecord }) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [type, setType] = useState("PURCHASE");
+  const [type, setType] = useState("PURCHASE"); // PURCHASE | OUT
   const [date, setDate] = useState(today);
   const [price, setPrice] = useState("");
   const [count, setCount] = useState("");
@@ -13,13 +13,21 @@ function PurchaseForm({ onAddRecord }) {
 
     const t = String(type || "").toUpperCase();
 
-    // PURCHASE는 price 필수
-    if (t === "PURCHASE" && (price === "" || price == null)) return;
+    if (t === "PURCHASE") {
+      const p = Number(price);
+      if (!Number.isFinite(p) || p <= 0) return; // 매입은 가격 필수
+    } else {
+      // OUT은 가격 선택
+      if (price !== "" && price != null) {
+        const p = Number(price);
+        if (!Number.isFinite(p) || p < 0) return;
+      }
+    }
 
     onAddRecord({
       type: t,
       date,
-      price: t === "IN" ? null : (price === "" || price == null ? null : Number(price)),
+      price: price === "" || price == null ? null : Number(price),
       count: count === "" || count == null ? 1 : Number(count),
     });
 
@@ -40,16 +48,10 @@ function PurchaseForm({ onAddRecord }) {
       >
         <select
           value={type}
-          onChange={(e) => {
-            const next = String(e.target.value || "").toUpperCase();
-            setType(next);
-            // IN으로 바꾸면 금액은 의미 없으니 확실히 비워버리기
-            if (next === "IN") setPrice("");
-          }}
+          onChange={(e) => setType(String(e.target.value || "").toUpperCase())}
           style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         >
           <option value="PURCHASE">매입</option>
-          <option value="IN">입고</option>
           <option value="OUT">판매</option>
         </select>
 
@@ -63,15 +65,8 @@ function PurchaseForm({ onAddRecord }) {
         <input
           type="number"
           min="0"
-          placeholder={
-            String(type).toUpperCase() === "PURCHASE"
-              ? "매입 금액(총액)"
-              : String(type).toUpperCase() === "OUT"
-              ? "판매 금액(총액, 선택)"
-              : "입고는 금액 없음"
-          }
-          value={String(type).toUpperCase() === "IN" ? "" : price}
-          disabled={String(type).toUpperCase() === "IN"}
+          placeholder={type === "OUT" ? "판매 금액(총액, 선택)" : "매입 금액(총액)"}
+          value={price}
           onChange={(e) => setPrice(e.target.value)}
           style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         />
@@ -91,13 +86,13 @@ function PurchaseForm({ onAddRecord }) {
             padding: "8px 16px",
             borderRadius: 8,
             border: "none",
-            backgroundColor: String(type).toUpperCase() === "OUT" ? "#ef4444" : String(type).toUpperCase() === "IN" ? "#10b981" : "#3b82f6",
+            backgroundColor: type === "OUT" ? "#ef4444" : "#3b82f6",
             color: "#fff",
             cursor: "pointer",
             whiteSpace: "nowrap",
           }}
         >
-          {String(type).toUpperCase() === "OUT" ? "판매 추가" : String(type).toUpperCase() === "IN" ? "입고 추가" : "매입 추가"}
+          {type === "OUT" ? "판매 추가" : "매입 추가"}
         </button>
       </form>
     </div>
