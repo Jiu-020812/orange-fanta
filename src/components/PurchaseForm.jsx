@@ -11,46 +11,24 @@ function PurchaseForm({ onAddRecord }) {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // count 정규화(최소 1)
-    const cRaw = count === "" || count == null ? 1 : Number(count);
-    const c = Math.max(1, Number.isFinite(cRaw) ? cRaw : 1);
+    const t = String(type || "").toUpperCase();
 
-    // price 정규화
-    const pRaw = price === "" || price == null ? null : Number(price);
-
-    // PURCHASE는 price > 0 필수
-    if (type === "PURCHASE") {
-      const p = Number(pRaw);
-      if (!Number.isFinite(p) || p <= 0) return;
-    }
-
-    // OUT은 price 선택 (있으면 >=0 정도만 최소 검증)
-    if (type === "OUT" && pRaw != null) {
-      if (!Number.isFinite(pRaw) || pRaw < 0) return;
-    }
+    // PURCHASE는 price 필수
+    if (t === "PURCHASE" && (price === "" || price == null)) return;
 
     onAddRecord({
-      type,
+      type: t,
       date,
-      price: type === "IN" ? null : pRaw,
-      count: c,
+      price: t === "IN" ? null : (price === "" || price == null ? null : Number(price)),
+      count: count === "" || count == null ? 1 : Number(count),
     });
 
-    // 초기화
     setPrice("");
     setCount("");
   };
 
   return (
-    <div
-      style={{
-        marginBottom: 16,
-        padding: 12,
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        backgroundColor: "#fff",
-      }}
-    >
+    <div style={{ marginBottom: 16, padding: 12, borderRadius: 12, border: "1px solid #e5e7eb", backgroundColor: "#fff" }}>
       <form
         onSubmit={handleSubmit}
         style={{
@@ -63,16 +41,12 @@ function PurchaseForm({ onAddRecord }) {
         <select
           value={type}
           onChange={(e) => {
-            const next = e.target.value;
+            const next = String(e.target.value || "").toUpperCase();
             setType(next);
+            // IN으로 바꾸면 금액은 의미 없으니 확실히 비워버리기
             if (next === "IN") setPrice("");
           }}
-          style={{
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-            background: "#fff",
-          }}
+          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         >
           <option value="PURCHASE">매입</option>
           <option value="IN">입고</option>
@@ -83,33 +57,23 @@ function PurchaseForm({ onAddRecord }) {
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          style={{
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-            background: "#fff",
-          }}
+          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         />
 
         <input
           type="number"
           min="0"
           placeholder={
-            type === "PURCHASE"
+            String(type).toUpperCase() === "PURCHASE"
               ? "매입 금액(총액)"
-              : type === "OUT"
+              : String(type).toUpperCase() === "OUT"
               ? "판매 금액(총액, 선택)"
               : "입고는 금액 없음"
           }
-          value={type === "IN" ? "" : price}
-          disabled={type === "IN"}
+          value={String(type).toUpperCase() === "IN" ? "" : price}
+          disabled={String(type).toUpperCase() === "IN"}
           onChange={(e) => setPrice(e.target.value)}
-          style={{
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-            background: "#fff",
-          }}
+          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         />
 
         <input
@@ -118,12 +82,7 @@ function PurchaseForm({ onAddRecord }) {
           placeholder="개수"
           value={count}
           onChange={(e) => setCount(e.target.value)}
-          style={{
-            padding: 8,
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-            background: "#fff",
-          }}
+          style={{ padding: 8, borderRadius: 8, border: "1px solid #d1d5db", background: "#fff" }}
         />
 
         <button
@@ -132,14 +91,13 @@ function PurchaseForm({ onAddRecord }) {
             padding: "8px 16px",
             borderRadius: 8,
             border: "none",
-            backgroundColor:
-              type === "OUT" ? "#ef4444" : type === "IN" ? "#10b981" : "#3b82f6",
+            backgroundColor: String(type).toUpperCase() === "OUT" ? "#ef4444" : String(type).toUpperCase() === "IN" ? "#10b981" : "#3b82f6",
             color: "#fff",
             cursor: "pointer",
             whiteSpace: "nowrap",
           }}
         >
-          {type === "OUT" ? "판매 추가" : type === "IN" ? "입고 추가" : "매입 추가"}
+          {String(type).toUpperCase() === "OUT" ? "판매 추가" : String(type).toUpperCase() === "IN" ? "입고 추가" : "매입 추가"}
         </button>
       </form>
     </div>
