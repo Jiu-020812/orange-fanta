@@ -20,8 +20,40 @@ export default function LoginPage() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
+  //  이메일 인증 필요 상태인지(에러로 판단)
+  const needVerify = error.includes("이메일 인증");
+
   // 이메일 인증 완료 배너
   const verified = new URLSearchParams(location.search).get("verified") === "1";
+
+  //  인증 메일 재전송
+  async function handleResendVerify() {
+    if (!email) {
+      setError("인증 메일을 다시 받으려면 이메일을 먼저 입력해주세요.");
+      return;
+    }
+
+    setError("");
+    setNotice("📨 인증 메일을 다시 보내는 중...");
+
+    try {
+      await api.post(
+        "/api/auth/resend-verify",
+        { email },
+        { withCredentials: true }
+      );
+
+      setNotice(
+        "📧 인증 메일을 다시 보냈어요.\n메일함(스팸함 포함)을 확인해주세요."
+      );
+    } catch (e) {
+      setNotice("");
+      setError(
+        e?.response?.data?.message ||
+          "인증 메일 재전송에 실패했습니다. 잠시 후 다시 시도해주세요."
+      );
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -43,7 +75,7 @@ export default function LoginPage() {
         return;
       }
 
-      //  회원가입 (자동 로그인 X)
+      // 회원가입 (자동 로그인 X)
       const r = await signup({ email, password, name });
 
       setMode("login");
@@ -57,7 +89,7 @@ export default function LoginPage() {
       if (err.status === 403 && err.message.includes("이메일")) {
         setError(
           "이메일 인증이 완료되지 않았습니다.\n" +
-          "가입하신 이메일(스팸함 포함)을 확인한 뒤 인증을 완료해주세요."
+            "가입하신 이메일(스팸함 포함)을 확인한 뒤 인증을 완료해주세요."
         );
       } else {
         setError(err.message || "오류가 발생했습니다.");
@@ -100,7 +132,11 @@ export default function LoginPage() {
         >
           <button
             type="button"
-            onClick={() => setMode("login")}
+            onClick={() => {
+              setMode("login");
+              setError("");
+              setNotice("");
+            }}
             style={{
               flex: 1,
               padding: "10px 0",
@@ -116,7 +152,11 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => setMode("signup")}
+            onClick={() => {
+              setMode("signup");
+              setError("");
+              setNotice("");
+            }}
             style={{
               flex: 1,
               padding: "10px 0",
@@ -148,7 +188,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* 회원가입 후 안내 */}
+        {/* 회원가입 후 안내 / 재전송 성공 안내 */}
         {notice && (
           <div
             style={{
@@ -162,7 +202,7 @@ export default function LoginPage() {
               whiteSpace: "pre-line",
             }}
           >
-            📧 {notice}
+            {notice}
           </div>
         )}
 
@@ -184,6 +224,27 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* 이메일 인증 필요할 때 재전송 버튼 */}
+        {mode === "login" && needVerify && (
+          <button
+            type="button"
+            onClick={handleResendVerify}
+            style={{
+              width: "100%",
+              padding: "10px 0",
+              borderRadius: 12,
+              border: "1px solid #fed7aa",
+              background: "#fff7ed",
+              color: "#9a3412",
+              fontWeight: 800,
+              cursor: "pointer",
+              marginBottom: 12,
+            }}
+          >
+            인증 메일 다시 보내기
+          </button>
+        )}
+
         {/* 폼 */}
         <form onSubmit={handleSubmit}>
           {mode === "signup" && (
@@ -192,7 +253,12 @@ export default function LoginPage() {
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                style={{
+                  width: "100%",
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                }}
               />
             </div>
           )}
@@ -204,7 +270,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+              }}
             />
           </div>
 
@@ -215,7 +286,12 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+              }}
             />
           </div>
 
@@ -230,6 +306,7 @@ export default function LoginPage() {
               background: "#111827",
               color: "#fff",
               fontWeight: 600,
+              cursor: "pointer",
             }}
           >
             {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
