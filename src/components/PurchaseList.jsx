@@ -389,7 +389,7 @@ export default function PurchaseList({
                         {isPurchase ? (
                           <span style={{ color: done ? "#166534" : "#d97706", fontWeight: 700 }}>
                             {" "}
-                            · 입고 {arrived} / {total} (남은 {remain})
+                            · 입고 {arrived} / {total} ( 남은 수량 {remain})
                           </span>
                         ) : null}
 
