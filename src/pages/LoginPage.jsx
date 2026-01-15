@@ -267,6 +267,7 @@ export default function LoginPage() {
             <label style={{ fontSize: 13 }}>이메일</label>
             <input
               type="email"
+              placeholder="example@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -283,6 +284,7 @@ export default function LoginPage() {
             <label style={{ fontSize: 13 }}>비밀번호</label>
             <input
               type="password"
+               placeholder="abcd1234!"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
