@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
         <button
           type="button"
           onClick={() => navigate("/login")}
-          style={{ marginTop: 14, width: "100%", padding: "10px 0", borderRadius: 12, border: "1px solid #e5e7eb", background: "white", cursor: "pointer", fontWeight: 800 }}
+          style={{ marginTop: 14, width: "100%", padding: "10px 0", borderRadius: 12, border: "1px solid #e5e7eb", background: "white", color: "black", cursor: "pointer", fontWeight: 800 }}
         >
           로그인으로 돌아가기
         </button>
