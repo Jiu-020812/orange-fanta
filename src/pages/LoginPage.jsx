@@ -171,22 +171,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => navigate("/forgot-password")}
-          style={{
-          marginTop: 10,
-          background: "transparent",
-          border: "none",
-          color: "#2563eb",
-          cursor: "pointer",
-          fontSize: 13,
-          textDecoration: "underline",
-          }}
-          >
-            비밀번호를 잊으셨나요?
-            </button>
-
         {/* 인증 완료 배너 */}
         {verified && (
           <div
@@ -329,6 +313,26 @@ export default function LoginPage() {
           >
             {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
           </button>
+
+          {mode === "login" && (
+        <div style={{ marginTop: 10, textAlign: "center" }}>
+       <button
+        type="button"
+        onClick={() => navigate("/forgot-password")}
+        style={{
+        background: "transparent",
+        border: "none",
+        color: "#2563eb",
+        cursor: "pointer",
+        fontSize: 13,
+        textDecoration: "underline",
+        padding: 0,
+      }}
+    >
+      비밀번호를 잊으셨나요?
+    </button>
+  </div>
+)}
         </form>
       </div>
     </div>
