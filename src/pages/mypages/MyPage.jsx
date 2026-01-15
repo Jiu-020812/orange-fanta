@@ -14,6 +14,11 @@ export default function MyPage() {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState(null);
 
+  // 회원탈퇴 모달
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const [name, setName] = useState("");
 
   const [currentPassword, setCurrentPassword] = useState("");
@@ -68,12 +73,8 @@ export default function MyPage() {
   async function saveName() {
     const trimmed = String(name ?? "").trim();
 
-    if (trimmed.length < 2) {
-      return alert("닉네임은 2자 이상이어야 합니다.");
-    }
-    if (trimmed.length > 20) {
-      return alert("닉네임은 20자 이하로 해주세요.");
-    }
+    if (trimmed.length < 2) return alert("닉네임은 2자 이상이어야 합니다.");
+    if (trimmed.length > 20) return alert("닉네임은 20자 이하로 해주세요.");
 
     try {
       const res = await axios.patch(
@@ -95,23 +96,15 @@ export default function MyPage() {
 
   /* ================== 비밀번호 변경 ================== */
   async function changePassword() {
-    if (!currentPassword) {
-      return alert("현재 비밀번호를 입력해 주세요.");
-    }
-    if (!pwPolicyOk) {
+    if (!currentPassword) return alert("현재 비밀번호를 입력해 주세요.");
+    if (!pwPolicyOk)
       return alert("비밀번호는 8자 이상이며 숫자와 특수문자를 포함해야 합니다.");
-    }
-    if (!pwMatchOk) {
-      return alert("새 비밀번호 확인이 일치하지 않습니다.");
-    }
+    if (!pwMatchOk) return alert("새 비밀번호 확인이 일치하지 않습니다.");
 
     try {
       const res = await axios.patch(
         `${API_BASE}/api/me/password`,
-        {
-          currentPassword,
-          newPassword,
-        },
+        { currentPassword, newPassword },
         { withCredentials: true }
       );
 
@@ -128,42 +121,34 @@ export default function MyPage() {
     }
   }
 
-  /* ================== 회원탈퇴 ================== */
+  /* ================== 회원탈퇴 실행 ================== */
   async function handleDeleteAccount() {
-    if (!currentPassword) {
-      alert("회원탈퇴를 진행하려면 현재 비밀번호를 먼저 입력해 주세요.");
+    if (!deletePassword) {
+      alert("탈퇴를 진행하려면 비밀번호를 입력해주세요.");
       return;
     }
 
-    const ok1 = window.confirm(
-      "정말 회원탈퇴 하시겠어요?\n모든 데이터(카테고리/상품/기록)가 삭제됩니다."
-    );
-    if (!ok1) return;
-
-    const ok2 = window.confirm(
-      "마지막 확인: 삭제 후 복구할 수 없습니다.\n정말 탈퇴할까요?"
-    );
-    if (!ok2) return;
+    const ok = window.confirm("마지막 확인: 삭제 후 복구할 수 없습니다. 정말 탈퇴할까요?");
+    if (!ok) return;
 
     try {
+      setDeleteLoading(true);
+
       await axios.delete(`${API_BASE}/api/me`, {
         withCredentials: true,
-        data: { password: currentPassword }, 
+        data: { password: deletePassword }, 
       });
 
-      // 로컬 토큰(있으면) 제거
-      window.localStorage.removeItem("authToken");
+      localStorage.removeItem("authToken");
+      showToast("회원탈퇴가 완료되었습니다.");
 
-      // 쿠키는 서버가 clearCookie 해줄 것
-      showToast("회원탈퇴 완료. 이용해주셔서 감사합니다.");
-
-      // 로그인으로 이동
       setTimeout(() => {
         window.location.href = "/login";
-      }, 300);
+      }, 400);
     } catch (err) {
-      const msg = err?.response?.data?.message || "회원탈퇴 실패";
-      alert(msg);
+      alert(err?.response?.data?.message || "회원탈퇴 실패");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -178,6 +163,7 @@ export default function MyPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
+      {/* 토스트 */}
       {toast && (
         <div
           style={{
@@ -265,7 +251,7 @@ export default function MyPage() {
         <div style={{ display: "grid", gap: 10 }}>
           <input
             type="password"
-            placeholder="현재 비밀번호 (회원탈퇴에도 사용됩니다)"
+            placeholder="현재 비밀번호"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
@@ -349,13 +335,22 @@ export default function MyPage() {
         <div style={{ fontSize: 14, fontWeight: 800, color: "#991b1b" }}>
           회원탈퇴
         </div>
-        <div style={{ marginTop: 8, fontSize: 13, color: "#7f1d1d", lineHeight: 1.5 }}>
-          • 탈퇴 시 카테고리/상품/기록 등 모든 데이터가 삭제됩니다.<br />
+        <div
+          style={{
+            marginTop: 8,
+            fontSize: 13,
+            color: "#7f1d1d",
+            lineHeight: 1.5,
+          }}
+        >
+          • 탈퇴 시 카테고리/상품/기록 등 모든 데이터가 삭제됩니다.
+          <br />
           • 삭제 후 복구할 수 없습니다.
         </div>
 
         <button
-          onClick={handleDeleteAccount}
+          type="button"
+          onClick={() => setDeleteOpen(true)}
           style={{
             marginTop: 12,
             width: "100%",
@@ -387,8 +382,136 @@ export default function MyPage() {
           fontSize: 13,
         }}
       >
-       돌아가기
+        돌아가기
       </button>
+
+      {/* ================== 회원탈퇴 모달 ================== */}
+      {deleteOpen && (
+        <div
+          onClick={() => {
+            if (!deleteLoading) {
+              setDeleteOpen(false);
+              setDeletePassword("");
+            }
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              borderRadius: 16,
+              background: "white",
+              boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+              padding: 18,
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 900, color: "#991b1b" }}>
+              정말 회원탈퇴 하시겠어요?
+            </div>
+
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 13,
+                color: "#374151",
+                lineHeight: 1.6,
+              }}
+            >
+              아래 항목이 모두 삭제됩니다:
+              <div style={{ marginTop: 8, paddingLeft: 14 }}>
+                • 카테고리
+                <br />
+                • 상품(아이템)
+                <br />
+                • 입고/출고/매입 기록
+                <br />
+              </div>
+              <div style={{ marginTop: 8, color: "#991b1b", fontWeight: 800 }}>
+                삭제 후 복구할 수 없습니다.
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14 }}>
+              <label
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: "block",
+                  marginBottom: 6,
+                }}
+              >
+                비밀번호 확인
+              </label>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="현재 비밀번호를 입력해주세요"
+                autoComplete="current-password"
+                disabled={deleteLoading}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => {
+                  setDeleteOpen(false);
+                  setDeletePassword("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  background: "white",
+                  cursor: "pointer",
+                  fontWeight: 800,
+                }}
+              >
+                취소
+              </button>
+
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={handleDeleteAccount}
+                style={{
+                  flex: 1,
+                  padding: "10px 0",
+                  borderRadius: 12,
+                  border: "none",
+                  background: "#dc2626",
+                  color: "white",
+                  cursor: "pointer",
+                  fontWeight: 900,
+                }}
+              >
+                {deleteLoading ? "삭제 중..." : "회원탈퇴"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
