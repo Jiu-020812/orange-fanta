@@ -128,6 +128,45 @@ export default function MyPage() {
     }
   }
 
+  /* ================== 회원탈퇴 ================== */
+  async function handleDeleteAccount() {
+    if (!currentPassword) {
+      alert("회원탈퇴를 진행하려면 현재 비밀번호를 먼저 입력해 주세요.");
+      return;
+    }
+
+    const ok1 = window.confirm(
+      "정말 회원탈퇴 하시겠어요?\n모든 데이터(카테고리/상품/기록)가 삭제됩니다."
+    );
+    if (!ok1) return;
+
+    const ok2 = window.confirm(
+      "마지막 확인: 삭제 후 복구할 수 없습니다.\n정말 탈퇴할까요?"
+    );
+    if (!ok2) return;
+
+    try {
+      await axios.delete(`${API_BASE}/api/me`, {
+        withCredentials: true,
+        data: { password: currentPassword }, 
+      });
+
+      // 로컬 토큰(있으면) 제거
+      window.localStorage.removeItem("authToken");
+
+      // 쿠키는 서버가 clearCookie 해줄 것
+      showToast("회원탈퇴 완료. 이용해주셔서 감사합니다.");
+
+      // 로그인으로 이동
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 300);
+    } catch (err) {
+      const msg = err?.response?.data?.message || "회원탈퇴 실패";
+      alert(msg);
+    }
+  }
+
   /* ================== 렌더 ================== */
   if (loading) {
     return <div style={{ padding: 24 }}>로딩 중...</div>;
@@ -158,9 +197,7 @@ export default function MyPage() {
         </div>
       )}
 
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>
-        마이페이지
-      </h2>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>마이페이지</h2>
 
       <div style={{ color: "#64748b", marginTop: 6, fontSize: 13 }}>
         이메일: <b>{me.email}</b>
@@ -228,7 +265,7 @@ export default function MyPage() {
         <div style={{ display: "grid", gap: 10 }}>
           <input
             type="password"
-            placeholder="현재 비밀번호"
+            placeholder="현재 비밀번호 (회원탈퇴에도 사용됩니다)"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             autoComplete="current-password"
@@ -299,21 +336,58 @@ export default function MyPage() {
         </button>
       </div>
 
+      {/* ================== 회원탈퇴 ================== */}
+      <div
+        style={{
+          marginTop: 14,
+          padding: 16,
+          borderRadius: 12,
+          border: "1px solid #fee2e2",
+          background: "#fff1f2",
+        }}
+      >
+        <div style={{ fontSize: 14, fontWeight: 800, color: "#991b1b" }}>
+          회원탈퇴
+        </div>
+        <div style={{ marginTop: 8, fontSize: 13, color: "#7f1d1d", lineHeight: 1.5 }}>
+          • 탈퇴 시 카테고리/상품/기록 등 모든 데이터가 삭제됩니다.<br />
+          • 삭제 후 복구할 수 없습니다.
+        </div>
+
+        <button
+          onClick={handleDeleteAccount}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            padding: "12px 0",
+            borderRadius: 12,
+            border: "1px solid #fecaca",
+            background: "#fee2e2",
+            color: "#991b1b",
+            cursor: "pointer",
+            fontWeight: 900,
+            fontSize: 13,
+          }}
+        >
+          회원탈퇴 진행하기
+        </button>
+      </div>
+
       <button
         onClick={() => navigate("/manage")}
         style={{
           marginTop: 16,
           padding: "8px 14px",
           borderRadius: 10,
-          border: "1px solidhsl(262, 13.50%, 52.00%)",
+          border: "1px solid hsl(262, 13.50%, 52.00%)",
           background: "#f8fafc",
-          color : "black" ,
+          color: "black",
           cursor: "pointer",
           fontWeight: 700,
           fontSize: 13,
         }}
       >
-        관리로 돌아가기
+       돌아가기
       </button>
     </div>
   );
