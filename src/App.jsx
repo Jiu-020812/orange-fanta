@@ -10,8 +10,9 @@ import MigratePage from "./pages/MigratePage";
 import MyPage from "./pages/mypages/MyPage";
 import InPage from "./pages/InPage.jsx";
 import OutPage from "./pages/OutPage.jsx";
-
 import TopNav from "./components/TopNav.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 function App() {
   const location = useLocation();
