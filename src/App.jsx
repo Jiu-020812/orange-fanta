@@ -46,6 +46,10 @@ function App() {
             <Route path="/in" element={<InPage />} />
             <Route path="/out" element={<OutPage />} />
 
+             {/* ================= 비밀번호 재설정 ================= */}
+           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+           <Route path="/reset-password" element={<ResetPasswordPage />} />
+
             {/* 마이그레이션 */}
             <Route path="/migrate" element={<MigratePage />} />
           </Route>
@@ -64,9 +68,6 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         
-        {/* ================= 비밀번호 재설정 ================= */}
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </main>
     </div>
   );
