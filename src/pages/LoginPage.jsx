@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { login, signup } from "../api/auth";  
 import api from "../api/items";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const verified = new URLSearchParams(location.search).get("verified") === "1";
+  const [notice, setNotice] = useState("");
 
   //  로그인 / 회원가입 모드
   const [mode, setMode] = useState("login"); // login | signup
@@ -20,41 +23,55 @@ export default function LoginPage() {
 
  
     // 로그인 / 회원가입 처리
-  async function handleSubmit(e) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      let result;
-
-      if (mode === "login") {
-        // 로그인
-        result = await login({ email, password });
-      } else {
-        // 회원가입 후 자동 로그인
-        result = await signup({ email, password, name });
+    async function handleSubmit(e) {
+      e.preventDefault();
+      setError("");
+      setNotice("");
+      setLoading(true);
+    
+      try {
+        if (mode === "login") {
+          const result = await login({ email, password });
+    
+          if (result && result.token) {
+            const token = result.token;
+            api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+            window.localStorage.setItem("authToken", token);
+          }
+    
+          navigate("/");
+          return;
+        }
+    
+        //  회원가입 (자동 로그인 X)
+        const result = await signup({ email, password, name });
+    
+        // 서버가 message를 주면 그걸 우선 사용
+        setNotice(
+          result?.message ||
+            "회원가입이 완료되었습니다.\n가입하신 이메일로 인증 메일을 보냈어요. 이메일 인증 후 로그인할 수 있습니다."
+        );
+    
+        // 로그인 모드로 전환 + 비번 입력은 남겨도 되고 지워도 됨(여기서는 지움 추천)
+        setMode("login");
+        setPassword("");
+      } catch (err) {
+        // 이메일 인증이 필요할 때 더 친절하게
+        const status = err?.status || err?.response?.status;
+        const msg = err?.message || err?.response?.data?.message || "";
+    
+        if (status === 403 && msg.includes("이메일 인증")) {
+          setError(
+            "이메일 인증이 완료되지 않았습니다.\n가입하신 이메일(스팸함 포함)에서 인증을 완료한 뒤 로그인해주세요."
+          );
+        } else {
+          setError(msg || "오류가 발생했습니다.");
+        }
+      } finally {
+        setLoading(false);
       }
-
-      // 🔑 서버에서 내려준 토큰 있으면 axios + localStorage에 저장
-      if (result && result.token) {
-        const token = result.token;
-
-        // 앞으로의 모든 api 요청에 Authorization 헤더 추가
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-
-        // 새로고침 후에도 유지되도록 저장
-        window.localStorage.setItem("authToken", token);
-      }
-
-      // 성공 → 홈으로 이동
-      navigate("/");
-    } catch (err) {
-      setError(err.message || "오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
     }
-  }
+    
 
   return (
     <div
@@ -77,6 +94,44 @@ export default function LoginPage() {
           boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
         }}
       >
+
+        {/* 인증 완료 배너 */}
+{verified && (
+  <div
+    style={{
+      padding: "10px 12px",
+      borderRadius: 8,
+      background: "#ecfdf5",
+      border: "1px solid #a7f3d0",
+      color: "#065f46",
+      fontSize: 13,
+      marginBottom: 12,
+      lineHeight: 1.4,
+    }}
+  >
+     이메일 인증이 완료되었습니다. 이제 로그인해주세요.
+  </div>
+)}
+
+{/* 회원가입 완료 안내 */}
+{notice && (
+  <div
+    style={{
+      padding: "10px 12px",
+      borderRadius: 8,
+      background: "#fff7ed",
+      border: "1px solid #fed7aa",
+      color: "#9a3412",
+      fontSize: 13,
+      marginBottom: 12,
+      lineHeight: 1.4,
+      whiteSpace: "pre-line",
+    }}
+  >
+    📧 {notice}
+  </div>
+)}
+
         {/* -------------------------------------
             상단 탭 (로그인 / 회원가입)
         -------------------------------------- */}
@@ -90,6 +145,7 @@ export default function LoginPage() {
           }}
         >
           <button
+            type="button"    
             onClick={() => setMode("login")}
             style={{
               flex: 1,
@@ -105,6 +161,7 @@ export default function LoginPage() {
           </button>
 
           <button
+            type="button"  
             onClick={() => setMode("signup")}
             style={{
               flex: 1,
@@ -219,7 +276,7 @@ export default function LoginPage() {
               ? "처리 중..."
               : mode === "login"
               ? "로그인"
-              : "회원가입 후 로그인"}
+              : "회원가입"}
           </button>
         </form>
       </div>
