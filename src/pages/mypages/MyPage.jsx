@@ -483,6 +483,7 @@ export default function MyPage() {
                   padding: "10px 0",
                   borderRadius: 12,
                   border: "1px solid #e5e7eb",
+                  color: black,
                   background: "white",
                   cursor: "pointer",
                   fontWeight: 800,
