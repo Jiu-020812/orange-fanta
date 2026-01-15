@@ -62,6 +62,10 @@ function App() {
           {/* ================= fallback ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        
+        {/* ================= 비밀번호 재설정 ================= */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </main>
     </div>
   );
