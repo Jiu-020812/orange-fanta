@@ -26,6 +26,10 @@ function App() {
         <Routes>
           {/* ================= 공개 ================= */}
           <Route path="/login" element={<LoginPage />} />
+          {/* ================= 비밀번호 재설정 ================= */}
+           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+           <Route path="/reset-password" element={<ResetPasswordPage />} />
+
 
           {/* ================= 보호 ================= */}
           <Route element={<ProtectedRoute />}>
@@ -45,10 +49,6 @@ function App() {
             {/* 입출고 */}
             <Route path="/in" element={<InPage />} />
             <Route path="/out" element={<OutPage />} />
-
-             {/* ================= 비밀번호 재설정 ================= */}
-           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
             {/* 마이그레이션 */}
             <Route path="/migrate" element={<MigratePage />} />
