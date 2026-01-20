@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://orange-fanta-one.vercel.app";
+  import.meta.env.VITE_API_BASE_URL || "https://myinvetory.com";
 
 /**
  * 특정 품목의 기록 목록 조회 (GET /api/records?itemId=...)
