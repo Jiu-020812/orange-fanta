@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import StatsSection from "../components/StatsSection";
-import PurchaseForm from "../components/PurchaseForm";
-import PurchaseList from "../components/PurchaseList";
+import Toast from "../components/common/Toast";
+import ConfirmDialog from "../components/common/ConfirmDialog";
+import OptionAddForm from "../components/manage/OptionAddForm";
+import OptionEditModal from "../components/manage/OptionEditModal";
+import OptionList from "../components/manage/OptionList";
+import RecordFilters from "../components/manage/RecordFilters";
+import RecordList from "../components/manage/RecordList";
+import StockDisplay from "../components/manage/StockDisplay";
+import PurchaseForm from "../components/forms/PurchaseForm";
 import {
   getItems as fetchItems,
   getItemDetail,
@@ -15,33 +22,6 @@ import {
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim();
-
-/* ======================= 이미지 자동 압축 유틸 ======================= */
-async function compressImage(file, maxW = 900, maxH = 900, quality = 0.75) {
-  const img = new Image();
-  img.src = URL.createObjectURL(file);
-
-  await new Promise((res, rej) => {
-    img.onload = res;
-    img.onerror = rej;
-  });
-
-  let { width, height } = img;
-  const ratio = Math.min(maxW / width, maxH / height, 1);
-  width = Math.round(width * ratio);
-  height = Math.round(height * ratio);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, width, height);
-
-  URL.revokeObjectURL(img.src);
-
-  return canvas.toDataURL("image/jpeg", quality);
-}
 
 function toYmd(d) {
   try {
@@ -443,24 +423,7 @@ export default function ManageDetailPage() {
 
   return (
     <div style={{ padding: 24, width: "100%" }}>
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "8px 14px",
-            borderRadius: 999,
-            backgroundColor: "rgba(59,130,246,0.95)",
-            color: "white",
-            fontSize: 13,
-            zIndex: 200,
-          }}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
 
       {/* 상단 헤더 */}
       <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
@@ -501,108 +464,23 @@ export default function ManageDetailPage() {
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>
 
-          {options.length === 0 && (
-            <div style={{ color: "#9ca3af", fontSize: 13, marginBottom: 12 }}>옵션이 없습니다.</div>
-          )}
+          <OptionList
+            options={options}
+            selectedOptionId={selectedOptionId}
+            representativeImageUrl={representativeImageUrl}
+            onSelect={handleSelectOption}
+            onEdit={(opt) =>
+              setEditModal({
+                id: opt.id,
+                value: opt.size ?? "",
+                image: opt.imageUrl ?? "",
+                barcode: opt.barcode ?? "",
+              })
+            }
+            onDelete={(id) => setDeleteModal(id)}
+          />
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-            {options.map((opt) => {
-              const displayImageUrl = opt.imageUrl || representativeImageUrl;
-
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => handleSelectOption(opt.id)}
-                  style={{
-                    border: selectedOptionId === opt.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
-                    borderRadius: 12,
-                    padding: 10,
-                    cursor: "pointer",
-                    backgroundColor: "white",
-                  }}
-                >
-                  {displayImageUrl ? (
-                    <img
-                      src={displayImageUrl}
-                      alt=""
-                      style={{
-                        width: "100%",
-                        height: 110,
-                        objectFit: "cover",
-                        borderRadius: 10,
-                        marginBottom: 8,
-                      }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: "100%",
-                        height: 110,
-                        borderRadius: 10,
-                        backgroundColor: "#f3f4f6",
-                        marginBottom: 8,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#6b7280",
-                        fontSize: 12,
-                      }}
-                    >
-                      이미지 없음
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>{opt.size || "(옵션)"}</div>
-
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditModal({
-                          id: opt.id,
-                          value: opt.size ?? "",
-                          image: opt.imageUrl ?? "",
-                          barcode: opt.barcode ?? "",
-                        });
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #1F51B7",
-                        background: "#8BBDFF",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      수정
-                    </button>
-
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteModal(opt.id);
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: "6px 10px",
-                        borderRadius: 8,
-                        border: "1px solid #fecaca",
-                        background: "#fee2e2",
-                        color: "#991b1b",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <OptionAddBox isShoes={isShoes} onAdd={handleAddOption} />
+          <OptionAddForm isShoes={isShoes} onAdd={handleAddOption} />
         </div>
 
         {/* 우측 */}
@@ -614,141 +492,21 @@ export default function ManageDetailPage() {
           ) : (
             <>
               {/* 재고 표시 */}
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  backgroundColor: "#ffffff",
-                  marginBottom: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <div style={{ fontSize: 14, fontWeight: 700 }}>
-                  현재 재고:{" "}
-                  <span style={{ color: stock <= 0 ? "#dc2626" : "#111827" }}>{stock}</span>
-                  <span
-                    style={{
-                      marginLeft: 10,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: pendingIn > 0 ? "#d97706" : "#6b7280",
-                    }}
-                  >
-                    미입고: {pendingIn}
-                  </span>
-                </div>
-              </div>
+              <StockDisplay stock={stock} pendingIn={pendingIn} />
 
               {/* 기간/검색/정렬 컨트롤 */}
-              <div
-                style={{
-                  padding: 12,
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  backgroundColor: "#ffffff",
-                  marginBottom: 12,
-                }}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 10 }}>
-                  <label style={{ fontSize: 12 }}>
-                    기간
-                    <select
-                      value={rangeMode}
-                      onChange={(e) => setRangeMode(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 34,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    >
-                      <option value="ALL">전체</option>
-                      <option value="7">최근 7일</option>
-                      <option value="30">최근 30일</option>
-                      <option value="90">최근 90일</option>
-                      <option value="CUSTOM">직접 선택</option>
-                    </select>
-                  </label>
-
-                  <label style={{ fontSize: 12 }}>
-                    정렬
-                    <select
-                      value={sortMode}
-                      onChange={(e) => setSortMode(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 34,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    >
-                      <option value="ASC">오래된 순</option>
-                      <option value="DESC">최신 순</option>
-                    </select>
-                  </label>
-
-                  <label style={{ fontSize: 12 }}>
-                    검색
-                    <input
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                      placeholder="메모/가격/수량/날짜"
-                      style={{
-                        width: "100%",
-                        height: 34,
-                        marginTop: 6,
-                        padding: "0 10px",
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    />
-                  </label>
-                </div>
-
-                {rangeMode === "CUSTOM" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-                    <label style={{ fontSize: 12 }}>
-                      시작일
-                      <input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                        style={{
-                          width: "100%",
-                          height: 34,
-                          marginTop: 6,
-                          padding: "0 10px",
-                          borderRadius: 10,
-                          border: "1px solid #e5e7eb",
-                        }}
-                      />
-                    </label>
-                    <label style={{ fontSize: 12 }}>
-                      종료일
-                      <input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                        style={{
-                          width: "100%",
-                          height: 34,
-                          marginTop: 6,
-                          padding: "0 10px",
-                          borderRadius: 10,
-                          border: "1px solid #e5e7eb",
-                        }}
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
+              <RecordFilters
+                rangeMode={rangeMode}
+                setRangeMode={setRangeMode}
+                sortMode={sortMode}
+                setSortMode={setSortMode}
+                searchText={searchText}
+                setSearchText={setSearchText}
+                fromDate={fromDate}
+                toDate={toDate}
+                setFromDate={setFromDate}
+                setToDate={setToDate}
+              />
 
               <StatsSection records={recordsForStats} itemName={`${decodedName} (${selectedOption?.size ?? ""})`} />
 
@@ -819,11 +577,11 @@ export default function ManageDetailPage() {
               </div>
 
               {/* 기록 리스트 */}
-              <PurchaseList
-                records={safeRecords} //  전체 넘겨야 showIn 토글/입고연결 계산이 됨
-                showIn={showIn}
-                onDeleteRecord={async (id) => {
-                  if (!selectedOptionId) return;
+                <RecordList
+                  records={safeRecords} //  전체 넘겨야 showIn 토글/입고연결 계산이 됨
+                  showIn={showIn}
+                  onDeleteRecord={async (id) => {
+                    if (!selectedOptionId) return;
                 
                   try {
                     const resp = await deleteServerRecord({ itemId: selectedOptionId, id });
@@ -987,7 +745,7 @@ export default function ManageDetailPage() {
       </div>
 
       {editModal && (
-        <EditOptionModal
+        <OptionEditModal
           isShoes={isShoes}
           editModal={editModal}
           setEditModal={setEditModal}
@@ -995,288 +753,12 @@ export default function ManageDetailPage() {
         />
       )}
 
-      {deleteModal && (
-        <ConfirmModal
-          message="정말 이 옵션을 삭제할까요?"
-          onCancel={() => setDeleteModal(null)}
-          onConfirm={handleDeleteOption}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ======================= 옵션 추가 박스 ======================= */
-function OptionAddBox({ isShoes, onAdd }) {
-  const [value, setValue] = useState("");
-  const [image, setImage] = useState("");
-  const [barcode, setBarcode] = useState("");
-
-  const handleImage = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const compressed = await compressImage(file, 900, 900, 0.75);
-      setImage(compressed);
-    } catch (err) {
-      console.error("이미지 압축 실패", err);
-      alert("이미지 처리 중 오류가 발생했어요 😢");
-    }
-  };
-
-  const submit = () => {
-    onAdd({ value, image, barcode });
-    setValue("");
-    setImage("");
-    setBarcode("");
-  };
-
-  return (
-    <div
-      style={{
-        marginTop: 16,
-        padding: 14,
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        backgroundColor: "#fafafa",
-      }}
-    >
-      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>옵션 추가</h4>
-
-      <input
-        type="text"
-        placeholder={isShoes ? "사이즈 (260)" : "옵션"}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        style={{
-          width: "100%",
-          marginTop: 8,
-          padding: "8px 10px",
-          borderRadius: 8,
-          border: "1px solid #d1d5db",
-        }}
+      <ConfirmDialog
+        open={Boolean(deleteModal)}
+        message="정말 이 옵션을 삭제할까요?"
+        onCancel={() => setDeleteModal(null)}
+        onConfirm={handleDeleteOption}
       />
-
-      <input
-        type="text"
-        placeholder="바코드(선택)"
-        value={barcode}
-        onChange={(e) => setBarcode(e.target.value)}
-        style={{
-          width: "100%",
-          marginTop: 8,
-          padding: "8px 10px",
-          borderRadius: 8,
-          border: "1px solid #d1d5db",
-        }}
-      />
-
-      <div style={{ marginTop: 8 }}>
-        <input type="file" accept="image/*" onChange={handleImage} />
-        {image && (
-          <img
-            src={image}
-            alt=""
-            style={{
-              marginTop: 8,
-              width: "100%",
-              maxWidth: 180,
-              borderRadius: 8,
-            }}
-          />
-        )}
-      </div>
-
-      <button
-        onClick={submit}
-        style={{
-          marginTop: 10,
-          padding: "6px 14px",
-          borderRadius: 999,
-          backgroundColor: "#2563eb",
-          color: "white",
-          border: "none",
-          cursor: "pointer",
-        }}
-      >
-        추가
-      </button>
-    </div>
-  );
-}
-
-/* ======================= 옵션 수정 모달 ======================= */
-function EditOptionModal({ isShoes, editModal, setEditModal, onSave }) {
-  const { id, value, image, barcode } = editModal;
-
-  const handleImage = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const compressed = await compressImage(file, 900, 900, 0.75);
-      setEditModal({ id, value, image: compressed, barcode });
-    } catch (err) {
-      console.error("이미지 압축 실패", err);
-      alert("이미지 처리 중 오류가 발생했어요 😢");
-    }
-  };
-
-  return (
-    <ModalContainer>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 380,
-          backgroundColor: "white",
-          borderRadius: 14,
-          padding: 20,
-        }}
-      >
-        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>옵션 수정</h3>
-
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setEditModal({ id, value: e.target.value, image, barcode })}
-          style={{
-            width: "100%",
-            marginTop: 14,
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-          }}
-          placeholder={isShoes ? "사이즈" : "옵션"}
-        />
-
-        <input
-          type="text"
-          value={barcode ?? ""}
-          onChange={(e) => setEditModal({ id, value, image, barcode: e.target.value })}
-          style={{
-            width: "100%",
-            marginTop: 8,
-            padding: "8px 10px",
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-          }}
-          placeholder="바코드(선택)"
-        />
-
-        <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />
-
-        {image && (
-          <img
-            src={image}
-            alt=""
-            style={{
-              marginTop: 10,
-              width: "100%",
-              height: 140,
-              objectFit: "cover",
-              borderRadius: 10,
-            }}
-          />
-        )}
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
-          <button
-            onClick={() => setEditModal(null)}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#f3f4f6",
-              color: "black",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            취소
-          </button>
-
-          <button
-            onClick={onSave}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#2563eb",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            저장
-          </button>
-        </div>
-      </div>
-    </ModalContainer>
-  );
-}
-
-/* ======================= 삭제 확인 모달 ======================= */
-function ConfirmModal({ message, onCancel, onConfirm }) {
-  return (
-    <ModalContainer>
-      <div
-        style={{
-          width: "100%",
-          maxWidth: 360,
-          backgroundColor: "white",
-          borderRadius: 14,
-          padding: 20,
-        }}
-      >
-        <div style={{ fontSize: 15, fontWeight: 600 }}>{message}</div>
-
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 }}>
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#f3f4f6",
-              color: "black",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            취소
-          </button>
-
-          <button
-            onClick={onConfirm}
-            style={{
-              padding: "6px 14px",
-              borderRadius: 8,
-              backgroundColor: "#dc2626",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            삭제
-          </button>
-        </div>
-      </div>
-    </ModalContainer>
-  );
-}
-
-function ModalContainer({ children }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.4)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 200,
-      }}
-    >
-      {children}
     </div>
   );
 }

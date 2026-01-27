@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { login, signup } from "../api/auth";
-import api from "../api/items";
+import api from "../api/client";
 
 export default function LoginPage() {
   const navigate = useNavigate();

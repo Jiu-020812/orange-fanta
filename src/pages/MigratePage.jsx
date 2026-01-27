@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../api/items";
+import api from "../api/client";
 
 // Vercel 413 피하려고 넉넉하게 낮게 잡기 (0.8MB)
 const MAX_BYTES = 800_000;

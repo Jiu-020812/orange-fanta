@@ -1,4 +1,4 @@
-import api from "./items"; // axios 인스턴스 (baseURL: API_BASE, withCredentials: true)
+import api from "./client"; // axios 인스턴스 (baseURL: API_BASE, withCredentials: true)
 
 // 공통: 토큰 저장 & axios 기본 헤더 세팅
 function setAuthToken(token) {

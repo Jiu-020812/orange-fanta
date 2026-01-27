@@ -45,7 +45,7 @@ export default function TopNav() {
     } finally {
       window.localStorage.removeItem("authToken");
       try {
-        const api = (await import("../api/items")).default;
+        const api = (await import("../api/client")).default;
         delete api.defaults.headers.common["Authorization"];
       } catch {}
       navigate("/login");

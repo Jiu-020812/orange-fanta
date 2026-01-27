@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import DeleteButton from "./DeleteButton";
+import DeleteButton from "../DeleteButton";
+import Modal from "../common/Modal";
+import RecordEditForm from "../forms/RecordEditForm";
 
 function formatNumber(num) {
   if (num == null) return "";
@@ -73,7 +75,7 @@ function TypeBadge({ type }) {
  * - onUpdateRecord(id, patch)
  * - onMarkArrived(purchaseRecord, arrivedCount)
  */
-export default function PurchaseList({
+export default function RecordList({
   records,
   showIn,
   onDeleteRecord,
@@ -113,9 +115,9 @@ export default function PurchaseList({
         const t = normType(r.type);
         const hasPrice = r.price != null && Number(r.price) > 0;
 
-        if (t === "IN") return !!showIn;       // 체크했을 때만 IN 표시
+        if (t === "IN") return !!showIn; // 체크했을 때만 IN 표시
         if (t === "PURCHASE") return hasPrice; // 매입은 가격 있는 것만
-        if (t === "OUT") return hasPrice;      // 판매도 가격 있는 것만
+        if (t === "OUT") return hasPrice; // 판매도 가격 있는 것만
         return false;
       })
       .sort((a, b) => {
@@ -252,7 +254,7 @@ export default function PurchaseList({
             const unit = isPurchase && r.price != null ? calcUnit(r.price, r.count ?? 1) : null;
 
             const remain = isPurchase ? getRemain(r) : 0;
-            const total = isPurchase ? (Number(r.count) || 0) : 0;
+            const total = isPurchase ? Number(r.count) || 0 : 0;
             const arrived = isPurchase ? Math.max(0, total - remain) : 0;
             const done = isPurchase && remain === 0;
 
@@ -273,87 +275,18 @@ export default function PurchaseList({
                 {/* 왼쪽 */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {isEditing ? (
-                    <>
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          marginBottom: 6,
-                          flexWrap: "wrap",
-                          alignItems: "center",
-                        }}
-                      >
-                        <select
-                          value={editType}
-                          onChange={(e) => setEditType(normType(e.target.value))}
-                          style={{
-                            padding: "4px 6px",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            fontSize: 12,
-                            backgroundColor: "white",
-                          }}
-                        >
-                          <option value="PURCHASE">매입</option>
-                          <option value="OUT">판매</option>
-                          {/* IN은 여기서 수정 선택지로 안 둠 */}
-                        </select>
-
-                        <input
-                          type="date"
-                          value={editDate}
-                          onChange={(e) => setEditDate(e.target.value)}
-                          style={{
-                            padding: "4px 6px",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            fontSize: 12,
-                          }}
-                        />
-
-                        <input
-                          type="number"
-                          value={editPrice}
-                          onChange={(e) => setEditPrice(e.target.value)}
-                          placeholder={normType(editType) === "OUT" ? "판매 금액(총액)" : "매입 금액(총액)"}
-                          style={{
-                            width: 140,
-                            padding: "4px 6px",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            fontSize: 12,
-                          }}
-                        />
-
-                        <input
-                          type="number"
-                          value={editCount}
-                          onChange={(e) => setEditCount(e.target.value)}
-                          placeholder="수량"
-                          style={{
-                            width: 70,
-                            padding: "4px 6px",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            fontSize: 12,
-                          }}
-                        />
-                      </div>
-
-                      <input
-                        value={editMemo}
-                        onChange={(e) => setEditMemo(e.target.value)}
-                        placeholder="메모(선택)"
-                        style={{
-                          width: "100%",
-                          padding: "6px 8px",
-                          borderRadius: 8,
-                          border: "1px solid #d1d5db",
-                          fontSize: 12,
-                          backgroundColor: "white",
-                        }}
-                      />
-                    </>
+                    <RecordEditForm
+                      editType={editType}
+                      editDate={editDate}
+                      editPrice={editPrice}
+                      editCount={editCount}
+                      editMemo={editMemo}
+                      onChangeType={(value) => setEditType(normType(value))}
+                      onChangeDate={setEditDate}
+                      onChangePrice={setEditPrice}
+                      onChangeCount={setEditCount}
+                      onChangeMemo={setEditMemo}
+                    />
                   ) : (
                     <>
                       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 2 }}>
@@ -507,18 +440,7 @@ export default function PurchaseList({
 
       {/* 부분입고 모달 */}
       {arriveModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 999,
-          }}
-          onClick={() => setArriveModal(null)}
-        >
+        <Modal onClose={() => setArriveModal(null)}>
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
@@ -588,7 +510,7 @@ export default function PurchaseList({
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

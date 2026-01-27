@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-function PurchaseForm({ onAddRecord }) {
+export default function PurchaseForm({ onAddRecord }) {
   const today = new Date().toISOString().slice(0, 10);
 
   //  IN 제거: PURCHASE / OUT만
@@ -126,5 +126,3 @@ function PurchaseForm({ onAddRecord }) {
     </div>
   );
 }
-
-export default PurchaseForm;
