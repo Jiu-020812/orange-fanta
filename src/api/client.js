@@ -14,7 +14,18 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error?.response?.status === 401) {
-      window.location.href = "/login";
+      const url = String(error?.config?.url || "");
+      const allowlist = [
+        "/api/auth/login",
+        "/api/auth/signup",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+        "/api/auth/resend-verify",
+      ];
+      const shouldRedirect = !allowlist.some((path) => url.includes(path));
+      if (shouldRedirect) {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }
