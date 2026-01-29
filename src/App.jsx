@@ -5,6 +5,7 @@ import AddItemPage from "./pages/AddItemPage";
 import ManageListPage from "./pages/ManageListPage";
 import ManageDetailPage from "./pages/ManageDetailPage";
 import LoginPage from "./pages/LoginPage";
+import LandingPage from "./pages/LandingPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import MigratePage from "./pages/MigratePage";
 import MyPage from "./pages/mypages/MyPage";
@@ -16,7 +17,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 function App() {
   const location = useLocation();
-  const hideTopNav = location.pathname.startsWith("/login");
+  const hideTopNav = location.pathname.startsWith("/login") || location.pathname === "/";
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
@@ -25,6 +26,7 @@ function App() {
       <main style={{ maxWidth: "none", margin: "0 auto", padding: "24px 16px" }}>
         <Routes>
           {/* ================= 공개 ================= */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           {/* ================= 비밀번호 재설정 ================= */}
            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -34,7 +36,7 @@ function App() {
           {/* ================= 보호 ================= */}
           <Route element={<ProtectedRoute />}>
             {/* 메인 */}
-            <Route path="/" element={<HomePage />} />
+            <Route path="/home" element={<HomePage />} />
 
             {/* 품목 관리 */}
             <Route path="/manage" element={<ManageListPage />} />
