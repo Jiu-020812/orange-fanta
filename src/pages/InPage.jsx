@@ -208,7 +208,7 @@ export default function InPage() {
     <div
       style={{
         minHeight: "calc(100vh - 56px)",
-        background: "#f8f9fa",
+        background: "linear-gradient(135deg, #b8c5f2 0%, #c5b3d9 50%, #e8d4f0 100%)",
         padding: "40px 20px",
       }}
     >
@@ -219,8 +219,8 @@ export default function InPage() {
           background: "#ffffff",
           borderRadius: "16px",
           padding: "40px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-          border: "1px solid #e5e7eb",
+          boxShadow: "0 2px 8px rgba(123, 97, 255, 0.08)",
+          border: "1px solid rgba(184, 197, 242, 0.3)",
         }}
       >
         <h2
@@ -228,7 +228,7 @@ export default function InPage() {
             fontSize: 28,
             fontWeight: 800,
             marginBottom: 24,
-            color: "#374151",
+            color: "#7c8db5",
           }}
         >
           📥 입고 관리

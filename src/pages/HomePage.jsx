@@ -87,7 +87,7 @@ function HomePage() {
     <div
       style={{
         minHeight: "calc(100vh - 56px)",
-        background: "#f8f9fa",
+        background: "linear-gradient(135deg, #b8c5f2 0%, #c5b3d9 50%, #e8d4f0 100%)",
         padding: "40px 20px",
       }}
     >
@@ -136,7 +136,7 @@ function HomePage() {
                 fontSize: "24px",
                 fontWeight: "800",
                 marginBottom: "12px",
-                color: "#374151",
+                color: "#7c8db5",
                 textAlign: "center",
               }}
             >
@@ -215,7 +215,7 @@ function HomePage() {
                   style={{
                     fontSize: "32px",
                     fontWeight: "900",
-                    color: "#374151",
+                    color: "#8b9abe",
                     textAlign: "center",
                     marginBottom: "8px",
                   }}
