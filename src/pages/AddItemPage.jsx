@@ -16,6 +16,7 @@ function AddItemPage() {
 
   // 입력값
   const [barcode, setBarcode] = useState(""); // 바코드
+  const [sku, setSku] = useState(""); // 내부 SKU
   const [name, setName] = useState("");
   const [second, setSecond] = useState(""); // size/option 통합
   const [imageDataUrl, setImageDataUrl] = useState("");
@@ -202,6 +203,7 @@ function AddItemPage() {
     e.preventDefault();
 
     const trimmedBarcode = norm(barcode);
+    const trimmedSku = norm(sku);
     const trimmedName = norm(name);
     const trimmedSecond = norm(second);
 
@@ -238,6 +240,7 @@ function AddItemPage() {
         name: trimmedName,
         size: finalSecond,
         barcode: trimmedBarcode || null,
+        sku: trimmedSku || null,
         imageUrl: imageDataUrl || null,
         categoryId: activeCategoryId, // 
       });
@@ -263,6 +266,7 @@ function AddItemPage() {
       }
     } finally {
       setBarcode("");
+      setSku("");
       setName("");
       setSecond("");
       setImageDataUrl("");
@@ -312,6 +316,16 @@ function AddItemPage() {
             className="add-item-input"
             autoComplete="off"
             inputMode="numeric"
+          />
+
+          {/* SKU */}
+          <input
+            type="text"
+            placeholder="SKU (비워두면 자동 생성됩니다)"
+            value={sku}
+            onChange={(e) => setSku(e.target.value)}
+            className="add-item-input"
+            autoComplete="off"
           />
 
           {/* 이름 */}

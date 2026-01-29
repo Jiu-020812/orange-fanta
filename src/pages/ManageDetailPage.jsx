@@ -255,9 +255,10 @@ export default function ManageDetailPage() {
   };
 
   /* ---------------- 옵션 추가 ---------------- */
-  const handleAddOption = async ({ value, image, barcode }) => {
+  const handleAddOption = async ({ value, image, barcode, sku }) => {
     const trimmed = String(value ?? "").trim();
     const trimmedBarcode = String(barcode ?? "").trim();
+    const trimmedSku = String(sku ?? "").trim();
     if (!trimmed) return;
 
     if (!decodedName) {
@@ -285,6 +286,7 @@ export default function ManageDetailPage() {
         imageUrl: image || null,
         categoryId: selectedOption?.categoryId ?? null,
         barcode: trimmedBarcode || null,
+        sku: trimmedSku || null,
       });
 
       setItems((prev) => [...(Array.isArray(prev) ? prev : []), created]);
@@ -300,9 +302,10 @@ export default function ManageDetailPage() {
   const handleSaveEditOption = async () => {
     if (!editModal) return;
 
-    const { id, value, image, barcode } = editModal;
+    const { id, value, image, barcode, sku } = editModal;
     const trimmed = String(value ?? "").trim();
     const trimmedBarcode = String(barcode ?? "").trim();
+    const trimmedSku = String(sku ?? "").trim();
 
     if (!trimmed) return;
 
@@ -326,6 +329,7 @@ export default function ManageDetailPage() {
         size: trimmed,
         imageUrl: image || null,
         barcode: trimmedBarcode || null,
+        sku: trimmedSku || "",
       });
 
       setItems((prev) => {
@@ -475,6 +479,7 @@ export default function ManageDetailPage() {
                 value: opt.size ?? "",
                 image: opt.imageUrl ?? "",
                 barcode: opt.barcode ?? "",
+                sku: opt.sku ?? "",
               })
             }
             onDelete={(id) => setDeleteModal(id)}
@@ -493,6 +498,20 @@ export default function ManageDetailPage() {
             <>
               {/* 재고 표시 */}
               <StockDisplay stock={stock} pendingIn={pendingIn} />
+
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                  marginBottom: 12,
+                  fontSize: 13,
+                  color: "#111827",
+                }}
+              >
+                <b>SKU</b>: {selectedOption?.sku || "자동 생성 예정"}
+              </div>
 
               {/* 기간/검색/정렬 컨트롤 */}
               <RecordFilters

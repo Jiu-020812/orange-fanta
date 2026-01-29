@@ -5,6 +5,7 @@ export default function OptionAddForm({ isShoes, onAdd }) {
   const [value, setValue] = useState("");
   const [image, setImage] = useState("");
   const [barcode, setBarcode] = useState("");
+  const [sku, setSku] = useState("");
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -21,10 +22,11 @@ export default function OptionAddForm({ isShoes, onAdd }) {
 
   const submit = () => {
     if (typeof onAdd !== "function") return;
-    onAdd({ value, image, barcode });
+    onAdd({ value, image, barcode, sku });
     setValue("");
     setImage("");
     setBarcode("");
+    setSku("");
   };
 
   return (
@@ -58,6 +60,20 @@ export default function OptionAddForm({ isShoes, onAdd }) {
         placeholder="바코드(선택)"
         value={barcode}
         onChange={(e) => setBarcode(e.target.value)}
+        style={{
+          width: "100%",
+          marginTop: 8,
+          padding: "8px 10px",
+          borderRadius: 8,
+          border: "1px solid #d1d5db",
+        }}
+      />
+
+      <input
+        type="text"
+        placeholder="SKU(선택, 비워두면 자동 생성)"
+        value={sku}
+        onChange={(e) => setSku(e.target.value)}
         style={{
           width: "100%",
           marginTop: 8,

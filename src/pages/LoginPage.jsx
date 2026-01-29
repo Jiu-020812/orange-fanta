@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { login, signup } from "../api/auth";
+import { login, signup, resendVerify } from "../api/auth";
 import api from "../api/client";
 
 export default function LoginPage() {
@@ -37,11 +37,7 @@ export default function LoginPage() {
     setNotice("📨 인증 메일을 다시 보내는 중...");
 
     try {
-      await api.post(
-        "/api/auth/resend-verify",
-        { email },
-        { withCredentials: true }
-      );
+      await resendVerify(email);
 
       setNotice(
         "📧 인증 메일을 다시 보냈어요.\n메일함(스팸함 포함)을 확인해주세요."
@@ -49,7 +45,7 @@ export default function LoginPage() {
     } catch (e) {
       setNotice("");
       setError(
-        e?.response?.data?.message ||
+        e?.message ||
           "인증 메일 재전송에 실패했습니다. 잠시 후 다시 시도해주세요."
       );
     }

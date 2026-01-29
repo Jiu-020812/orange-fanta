@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+import Toast from "../../components/common/Toast";
+import {
+  deleteAccount,
+  getMe as fetchMe,
+  updateName,
+  updatePassword,
+} from "../../api/me";
 
 // 비밀번호 정책: 8자 이상 + 숫자 + 특수문자
 const PASSWORD_REGEX =
@@ -44,21 +48,17 @@ export default function MyPage() {
   /* ================== 내 정보 불러오기 ================== */
   async function fetchMe() {
     try {
-      const res = await axios.get(`${API_BASE}/api/me`, {
-        withCredentials: true,
-      });
+      const data = await fetchMe();
 
-      if (res.data?.ok) {
-        setMe(res.data.user);
-        setName(res.data.user?.name ?? "");
+      if (data?.ok) {
+        setMe(data.user);
+        setName(data.user?.name ?? "");
       } else {
         navigate("/login");
       }
     } catch (err) {
-      if (err?.response?.status === 401) {
-        navigate("/login");
-      }
       console.error("GET /api/me error", err);
+      navigate("/login");
     } finally {
       setLoading(false);
     }
@@ -77,20 +77,16 @@ export default function MyPage() {
     if (trimmed.length > 20) return alert("닉네임은 20자 이하로 해주세요.");
 
     try {
-      const res = await axios.patch(
-        `${API_BASE}/api/me`,
-        { name: trimmed },
-        { withCredentials: true }
-      );
+      const res = await updateName(trimmed);
 
-      if (res.data?.ok) {
-        setMe(res.data.user);
+      if (res?.ok) {
+        setMe(res.user);
         showToast("닉네임 저장 완료!");
       } else {
-        alert(res.data?.message || "닉네임 저장 실패");
+        alert(res?.message || "닉네임 저장 실패");
       }
     } catch (err) {
-      alert(err?.response?.data?.message || "닉네임 저장 실패");
+      alert(err?.message || "닉네임 저장 실패");
     }
   }
 
@@ -102,22 +98,18 @@ export default function MyPage() {
     if (!pwMatchOk) return alert("새 비밀번호 확인이 일치하지 않습니다.");
 
     try {
-      const res = await axios.patch(
-        `${API_BASE}/api/me/password`,
-        { currentPassword, newPassword },
-        { withCredentials: true }
-      );
+      const res = await updatePassword({ currentPassword, newPassword });
 
-      if (res.data?.ok) {
+      if (res?.ok) {
         setCurrentPassword("");
         setNewPassword("");
         setNewPassword2("");
         showToast("비밀번호 변경 완료!");
       } else {
-        alert(res.data?.message || "비밀번호 변경 실패");
+        alert(res?.message || "비밀번호 변경 실패");
       }
     } catch (err) {
-      alert(err?.response?.data?.message || "비밀번호 변경 실패");
+      alert(err?.message || "비밀번호 변경 실패");
     }
   }
 
@@ -134,10 +126,7 @@ export default function MyPage() {
     try {
       setDeleteLoading(true);
 
-      await axios.delete(`${API_BASE}/api/me`, {
-        withCredentials: true,
-        data: { password: deletePassword }, 
-      });
+      await deleteAccount(deletePassword);
 
       localStorage.removeItem("authToken");
       showToast("회원탈퇴가 완료되었습니다.");
@@ -146,7 +135,7 @@ export default function MyPage() {
         window.location.href = "/login";
       }, 400);
     } catch (err) {
-      alert(err?.response?.data?.message || "회원탈퇴 실패");
+      alert(err?.message || "회원탈퇴 실패");
     } finally {
       setDeleteLoading(false);
     }
@@ -164,24 +153,7 @@ export default function MyPage() {
   return (
     <div style={{ padding: 24, maxWidth: 720, margin: "0 auto" }}>
       {/* 토스트 */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: 20,
-            left: "50%",
-            transform: "translateX(-50%)",
-            padding: "8px 14px",
-            borderRadius: 999,
-            backgroundColor: "rgba(59,130,246,0.95)",
-            color: "white",
-            fontSize: 13,
-            zIndex: 200,
-          }}
-        >
-          {toast}
-        </div>
-      )}
+      <Toast message={toast} />
 
       <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>마이페이지</h2>
 

@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
-const join = (base, path) => `${base}${path.startsWith("/") ? "" : "/"}${path}`;
+import { getMe } from "../api/me";
 
 export default function ProtectedRoute() {
   const location = useLocation();
@@ -14,17 +11,8 @@ export default function ProtectedRoute() {
 
     (async () => {
       try {
-        const url = API_BASE
-          ? join(API_BASE, "/api/me")
-          : "/api/me";
-
-        const res = await fetch(url, {
-          method: "GET",
-          credentials: "include", // 
-        });
-
-        if (!res.ok) throw new Error("not authenticated");
-
+        const data = await getMe();
+        if (!data?.ok) throw new Error("not authenticated");
         if (alive) setOk(true);
       } catch (err) {
         if (alive) setOk(false);

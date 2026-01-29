@@ -1,8 +1,6 @@
 import { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+import { forgotPassword } from "../api/auth";
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -15,14 +13,10 @@ export default function ForgotPasswordPage() {
     setMsg("");
     setLoading(true);
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/auth/forgot-password`,
-        { email },
-        { withCredentials: true }
-      );
+      const data = await forgotPassword(email);
       setMsg(data?.message || "메일을 발송했습니다. (스팸함도 확인)");
     } catch (err) {
-      setMsg(err?.response?.data?.message || "요청 실패");
+      setMsg(err?.message || "요청 실패");
     } finally {
       setLoading(false);
     }

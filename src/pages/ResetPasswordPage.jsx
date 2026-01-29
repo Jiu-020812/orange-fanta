@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
-
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+import { resetPassword } from "../api/auth";
 const PASSWORD_REGEX =
   /^(?=.*\d)(?=.*[!@#$%^&*()[\]{};:'",.<>/?\\|`~+=_-]).{8,}$/;
 
@@ -28,14 +26,10 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      const { data } = await axios.post(
-        `${API_BASE}/api/auth/reset-password`,
-        { token, newPassword: pw1 },
-        { withCredentials: true }
-      );
+      await resetPassword({ token, newPassword: pw1 });
       navigate("/login?reset=1");
     } catch (err) {
-      setMsg(err?.response?.data?.message || "변경 실패");
+      setMsg(err?.message || "변경 실패");
     } finally {
       setLoading(false);
     }

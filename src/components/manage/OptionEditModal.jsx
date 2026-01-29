@@ -2,7 +2,7 @@ import Modal from "../common/Modal";
 import { compressImage } from "./imageUtils";
 
 export default function OptionEditModal({ isShoes, editModal, setEditModal, onSave }) {
-  const { id, value, image, barcode } = editModal;
+  const { id, value, image, barcode, sku } = editModal;
 
   const handleImage = async (e) => {
     const file = e.target.files?.[0];
@@ -10,7 +10,7 @@ export default function OptionEditModal({ isShoes, editModal, setEditModal, onSa
 
     try {
       const compressed = await compressImage(file, 900, 900, 0.75);
-      setEditModal({ id, value, image: compressed, barcode });
+      setEditModal({ id, value, image: compressed, barcode, sku });
     } catch (err) {
       console.error("이미지 압축 실패", err);
       alert("이미지 처리 중 오류가 발생했어요 😢");
@@ -33,7 +33,9 @@ export default function OptionEditModal({ isShoes, editModal, setEditModal, onSa
         <input
           type="text"
           value={value}
-          onChange={(e) => setEditModal({ id, value: e.target.value, image, barcode })}
+          onChange={(e) =>
+            setEditModal({ id, value: e.target.value, image, barcode, sku })
+          }
           style={{
             width: "100%",
             marginTop: 14,
@@ -47,7 +49,7 @@ export default function OptionEditModal({ isShoes, editModal, setEditModal, onSa
         <input
           type="text"
           value={barcode ?? ""}
-          onChange={(e) => setEditModal({ id, value, image, barcode: e.target.value })}
+          onChange={(e) => setEditModal({ id, value, image, barcode: e.target.value, sku })}
           style={{
             width: "100%",
             marginTop: 8,
@@ -56,6 +58,20 @@ export default function OptionEditModal({ isShoes, editModal, setEditModal, onSa
             border: "1px solid #d1d5db",
           }}
           placeholder="바코드(선택)"
+        />
+
+        <input
+          type="text"
+          value={sku ?? ""}
+          onChange={(e) => setEditModal({ id, value, image, barcode, sku: e.target.value })}
+          style={{
+            width: "100%",
+            marginTop: 8,
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #d1d5db",
+          }}
+          placeholder="SKU(선택, 비워두면 자동 생성)"
         />
 
         <input type="file" accept="image/*" onChange={handleImage} style={{ marginTop: 8 }} />

@@ -1,4 +1,5 @@
 import api from "./client"; // axios 인스턴스 (baseURL: API_BASE, withCredentials: true)
+import { request, handleError } from "./request";
 
 // 공통: 토큰 저장 & axios 기본 헤더 세팅
 function setAuthToken(token) {
@@ -11,64 +12,48 @@ function setAuthToken(token) {
   api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 }
 
-// 공통: 에러 메시지 정리
-function parseError(err) {
-  console.error("🔴 [auth.js] 요청 실패:", err);
-  if (err?.response?.data?.message) return err.response.data.message;
-  if (err?.message) return err.message;
-  return "요청에 실패했습니다.";
-}
-
 //  핵심: 백엔드가 /api/auth/* 라우트를 쓰므로 prefix 고정
 const AUTH_PREFIX = "/api/auth";
 
 // -------------------- 회원가입 --------------------
 export async function signup({ email, password, name }) {
-  try {
-    const res = await api.post(`${AUTH_PREFIX}/signup`, {
+  const res = await request(() =>
+    api.post(`${AUTH_PREFIX}/signup`, {
       email,
       password,
       name,
-    });
+    })
+  );
 
-    const data = res.data;
-    if (data?.token) setAuthToken(data.token);
-    return data.user;
-  } catch (err) {
-    throw new Error(parseError(err));
-  }
+  const data = res.data;
+  if (data?.token) setAuthToken(data.token);
+  return data.user;
 }
 
 // -------------------- 로그인 --------------------
 export async function login({ email, password }) {
-  try {
-    const res = await api.post(`${AUTH_PREFIX}/login`, {
+  const res = await request(() =>
+    api.post(`${AUTH_PREFIX}/login`, {
       email,
       password,
-    });
+    })
+  );
 
-    const data = res.data;
-    if (data?.token) setAuthToken(data.token);
-    return data.user;
-  } catch (err) {
-    throw new Error(parseError(err));
-  }
+  const data = res.data;
+  if (data?.token) setAuthToken(data.token);
+  return data.user;
 }
 
 // -------------------- 내 정보 조회 --------------------
 export async function getMe() {
-  try {
-    const res = await api.get(`${AUTH_PREFIX}/me`);
-    return res.data.user;
-  } catch (err) {
-    throw new Error(parseError(err));
-  }
+  const res = await request(() => api.get(`${AUTH_PREFIX}/me`));
+  return res.data.user;
 }
 
 // -------------------- 로그아웃 --------------------
 export async function logout() {
   try {
-    await api.post(`${AUTH_PREFIX}/logout`);
+    await request(() => api.post(`${AUTH_PREFIX}/logout`));
   } catch (err) {
     console.warn("로그아웃 요청 실패 (무시 가능):", err);
   }
@@ -80,3 +65,26 @@ export async function logout() {
   }
   delete api.defaults.headers.common["Authorization"];
 }
+
+export async function resendVerify(email) {
+  const res = await request(() =>
+    api.post(`${AUTH_PREFIX}/resend-verify`, { email })
+  );
+  return res.data;
+}
+
+export async function forgotPassword(email) {
+  const res = await request(() =>
+    api.post(`${AUTH_PREFIX}/forgot-password`, { email })
+  );
+  return res.data;
+}
+
+export async function resetPassword({ token, newPassword }) {
+  const res = await request(() =>
+    api.post(`${AUTH_PREFIX}/reset-password`, { token, newPassword })
+  );
+  return res.data;
+}
+
+export { handleError };
