@@ -7,6 +7,11 @@ import {
   upsertChannelListing,
   upsertItemPolicy,
 } from "../api/items";
+import {
+  listIntegrations,
+  removeIntegration,
+  upsertIntegration,
+} from "../api/integrations";
 
 export default function InventorySyncPage() {
   const [selectedItem, setSelectedItem] = useState(null);
@@ -27,6 +32,10 @@ export default function InventorySyncPage() {
   const [listingLoading, setListingLoading] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
+  const [connections, setConnections] = useState({});
+  const [connectionForms, setConnectionForms] = useState({});
+  const [connectionLoading, setConnectionLoading] = useState(false);
+  const [connectionSaving, setConnectionSaving] = useState({});
 
   useEffect(() => {
     let alive = true;
@@ -50,9 +59,92 @@ export default function InventorySyncPage() {
     };
   }, [selectedItem]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setConnectionLoading(true);
+        const data = await listIntegrations();
+        if (!alive) return;
+        const map = {};
+        for (const conn of data?.connections || []) {
+          map[conn.provider] = conn;
+        }
+        setConnections(map);
+        setConnectionForms((prev) => {
+          const next = { ...prev };
+          for (const provider of Object.keys(PROVIDER_FIELDS)) {
+            const existing = map[provider];
+            next[provider] = existing?.credentials || {};
+          }
+          return next;
+        });
+      } catch (err) {
+        console.error("integrations load failed", err);
+      } finally {
+        if (alive) setConnectionLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
+  };
+
+  const handleIntegrationChange = (provider, key, value) => {
+    setConnectionForms((prev) => ({
+      ...prev,
+      [provider]: {
+        ...(prev[provider] || {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const handleSaveIntegration = async (provider) => {
+    try {
+      setConnectionSaving((prev) => ({ ...prev, [provider]: true }));
+      const credentials = connectionForms[provider] || {};
+      const result = await upsertIntegration({
+        provider,
+        credentials,
+        isActive: true,
+      });
+      setConnections((prev) => ({
+        ...prev,
+        [provider]: result.connection,
+      }));
+      showToast(`${provider} 연결 저장 완료`);
+    } catch (err) {
+      console.error("integration save failed", err);
+      window.alert(err?.message || "연동 저장 실패");
+    } finally {
+      setConnectionSaving((prev) => ({ ...prev, [provider]: false }));
+    }
+  };
+
+  const handleRemoveIntegration = async (provider) => {
+    if (!window.confirm(`${provider} 연결을 해제할까요?`)) return;
+    try {
+      setConnectionSaving((prev) => ({ ...prev, [provider]: true }));
+      await removeIntegration(provider);
+      setConnections((prev) => {
+        const next = { ...prev };
+        delete next[provider];
+        return next;
+      });
+      showToast(`${provider} 연결 해제 완료`);
+    } catch (err) {
+      console.error("integration remove failed", err);
+      window.alert(err?.message || "연동 해제 실패");
+    } finally {
+      setConnectionSaving((prev) => ({ ...prev, [provider]: false }));
+    }
   };
 
   const handleSavePolicy = async () => {
@@ -128,6 +220,91 @@ export default function InventorySyncPage() {
         </h2>
         <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
           중앙 재고 기준으로 판매 채널의 노출 수량을 자동 계산해 SET 방식으로 푸시합니다.
+        </div>
+
+        <div
+          style={{
+            marginTop: 16,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#f8fafc",
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>채널 계정 연결</div>
+          {connectionLoading ? (
+            <div style={{ fontSize: 12, color: "#64748b" }}>불러오는 중...</div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {Object.keys(PROVIDER_FIELDS).map((provider) => {
+                const fields = PROVIDER_FIELDS[provider];
+                const saved = connections[provider];
+                const saving = Boolean(connectionSaving[provider]);
+                const values = connectionForms[provider] || {};
+
+                return (
+                  <div
+                    key={provider}
+                    style={{
+                      padding: 12,
+                      borderRadius: 12,
+                      border: "1px solid #e2e8f0",
+                      backgroundColor: "white",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>{provider}</div>
+                      <span style={{ fontSize: 11, color: saved ? "#16a34a" : "#94a3b8" }}>
+                        {saved ? "연결됨" : "미연결"}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      {fields.map((field) => (
+                        <label key={field.key} style={{ fontSize: 11 }}>
+                          {field.label}
+                          <input
+                            value={values[field.key] || ""}
+                            onChange={(e) =>
+                              handleIntegrationChange(provider, field.key, e.target.value)
+                            }
+                            placeholder={field.placeholder}
+                            style={smallInputStyle}
+                          />
+                        </label>
+                      ))}
+                    </div>
+
+                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                      <button
+                        onClick={() => handleSaveIntegration(provider)}
+                        disabled={saving}
+                        style={smallButtonStyle}
+                      >
+                        {saving ? "저장 중..." : "저장"}
+                      </button>
+                      {saved ? (
+                        <button
+                          onClick={() => handleRemoveIntegration(provider)}
+                          disabled={saving}
+                          style={{ ...smallButtonStyle, backgroundColor: "#ef4444" }}
+                        >
+                          연결 해제
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div style={{ marginTop: 14 }}>
@@ -345,4 +522,50 @@ const buttonStyle = {
   border: "none",
   cursor: "pointer",
   fontSize: 12,
+};
+
+const smallInputStyle = {
+  width: "100%",
+  height: 30,
+  marginTop: 6,
+  padding: "0 8px",
+  borderRadius: 10,
+  border: "1px solid #e5e7eb",
+  fontSize: 11,
+};
+
+const smallButtonStyle = {
+  padding: "6px 10px",
+  borderRadius: 8,
+  backgroundColor: "#111827",
+  color: "white",
+  border: "none",
+  cursor: "pointer",
+  fontSize: 11,
+};
+
+const PROVIDER_FIELDS = {
+  NAVER: [
+    { key: "clientId", label: "Client ID", placeholder: "네이버 Client ID" },
+    { key: "clientSecret", label: "Client Secret", placeholder: "네이버 Secret" },
+    { key: "sellerId", label: "Seller ID", placeholder: "판매자 ID" },
+    { key: "accessToken", label: "Access Token", placeholder: "OAuth Token" },
+  ],
+  COUPANG: [
+    { key: "accessKey", label: "Access Key", placeholder: "쿠팡 Access Key" },
+    { key: "secretKey", label: "Secret Key", placeholder: "쿠팡 Secret" },
+    { key: "vendorId", label: "Vendor ID", placeholder: "판매자 ID" },
+  ],
+  ELEVENST: [
+    { key: "openApiKey", label: "Open API Key", placeholder: "11번가 API Key" },
+    { key: "sellerId", label: "Seller ID", placeholder: "판매자 ID" },
+  ],
+  KREAM: [
+    { key: "apiKey", label: "API Key", placeholder: "KREAM API Key" },
+    { key: "apiSecret", label: "API Secret", placeholder: "KREAM Secret" },
+  ],
+  ETC: [
+    { key: "apiKey", label: "API Key", placeholder: "채널 API Key" },
+    { key: "apiSecret", label: "API Secret", placeholder: "채널 Secret" },
+  ],
 };
