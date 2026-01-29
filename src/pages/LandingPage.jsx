@@ -48,7 +48,7 @@ export default function LandingPage() {
 
   const targetUsers = [
     '온라인 쇼핑몰 운영자',
-    '리셀러',
+    '재고 관리가 필요하신 분',
     '소규모 매장 사장님',
   ];
 
@@ -346,9 +346,9 @@ export default function LandingPage() {
                 fontWeight: '700',
               }}
             >
-              🖼️ 실제 화면 스크린샷 영역
+              실제 화면 스크린샷 영역
               <br />
-              (여기에 앱 화면을 넣으세요)
+              ( 앱 화면을 넣을듯?)
             </div>
           </div>
         </div>

@@ -164,12 +164,11 @@ export default function TopNav() {
       >
         {user ? (
           <>
-            <Link
-              to="/mypage"
+            <button
+              type="button"
               title="마이페이지"
               onClick={(e) => {
                 e.stopPropagation();
-                e.preventDefault();
                 navigate("/mypage");
               }}
               style={{
@@ -178,14 +177,13 @@ export default function TopNav() {
                 cursor: "pointer",
                 textDecoration: "underline",
                 textUnderlineOffset: 3,
-                position: "relative",
-                zIndex: 999999,
-                pointerEvents: "auto",
-                display: "inline-block",
+                border: "none",
+                background: "transparent",
+                padding: 0,
               }}
             >
               {user.name ? `${user.name} 님` : user.email}
-            </Link>
+            </button>
 
             <button
               onClick={(e) => {
