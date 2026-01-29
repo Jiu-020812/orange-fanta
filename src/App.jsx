@@ -14,6 +14,7 @@ import OutPage from "./pages/OutPage.jsx";
 import TopNav from "./components/TopNav.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import InventorySyncPage from "./pages/InventorySyncPage";
 
 function App() {
   const location = useLocation();
@@ -44,6 +45,9 @@ function App() {
 
             {/* 품목 등록 */}
             <Route path="/add" element={<AddItemPage />} />
+
+            {/* 채널 연동 */}
+            <Route path="/sync" element={<InventorySyncPage />} />
 
             {/* 마이페이지 */}
             <Route path="/mypage" element={<MyPage />} />
