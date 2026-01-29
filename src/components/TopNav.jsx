@@ -60,10 +60,13 @@ export default function TopNav() {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        borderBottom: "1px solid #e5e7eb",
-        backgroundColor: "#ffffff",
-        position: "relative",
-        zIndex: 10,
+        background: "rgba(255, 255, 255, 0.95)",
+        backdropFilter: "blur(10px)",
+        borderBottom: "1px solid rgba(102, 126, 234, 0.1)",
+        boxShadow: "0 2px 20px rgba(102, 126, 234, 0.08)",
+        position: "sticky",
+        top: 0,
+        zIndex: 1000,
       }}
     >
       {/* 왼쪽: 제목 */}

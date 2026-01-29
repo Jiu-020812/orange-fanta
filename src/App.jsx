@@ -20,10 +20,10 @@ function App() {
   const hideTopNav = location.pathname.startsWith("/login") || location.pathname === "/";
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f3f4f6" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
       {!hideTopNav && <TopNav />}
 
-      <main style={{ maxWidth: "none", margin: "0 auto", padding: "24px 16px" }}>
+      <main style={{ maxWidth: "none", margin: "0 auto", padding: hideTopNav ? "0" : "0" }}>
         <Routes>
           {/* ================= 공개 ================= */}
           <Route path="/" element={<LandingPage />} />

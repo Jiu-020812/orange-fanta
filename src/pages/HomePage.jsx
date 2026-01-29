@@ -5,7 +5,6 @@ const OPENWEATHER_API_KEY = "b23e3ef920cc977da3084aedddef8322";
 const CITY_NAME = "Iksan";
 const COUNTRY_CODE = "KR";
 
-// 날씨 코드 → 이모지 매핑
 function getWeatherEmoji(main) {
   if (!main) return "❔";
   const m = main.toLowerCase();
@@ -23,11 +22,10 @@ function getWeatherEmoji(main) {
 
 function HomePage() {
   const [now, setNow] = useState(new Date());
-  const [weather, setWeather] = useState(null); // { temp, main, description }
+  const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // 1) 시계 1초마다 업데이트
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(new Date());
@@ -36,7 +34,6 @@ function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // 2) 날씨 한 번 가져오기
   useEffect(() => {
     const fetchWeather = async () => {
       try {
@@ -89,168 +86,235 @@ function HomePage() {
   return (
     <div
       style={{
-        width: "100%",
-        minHeight: "60vh",
-        display: "flex",
-        justifyContent: "center",
-        boxSizing: "border-box",
+        minHeight: "calc(100vh - 56px)",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+        padding: "40px 20px",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
-      {/* 가운데에 투두 + 날씨 카드 두 개를 나란히 배치 */}
+      {/* 배경 장식 */}
       <div
         style={{
+          position: "absolute",
+          width: "600px",
+          height: "600px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.1)",
+          top: "-200px",
+          right: "-100px",
+          filter: "blur(80px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: "400px",
+          height: "400px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.05)",
+          bottom: "-100px",
+          left: "-50px",
+          filter: "blur(80px)",
+        }}
+      />
+
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
           display: "grid",
-          gridTemplateColumns: "minmax(260px, 320px) minmax(480px, 1fr)",
-          gap: 40,
-          alignItems: "flex-start",
-          maxWidth: 980,
-          width: "100%",
+          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          gap: "30px",
+          position: "relative",
+          zIndex: 1,
         }}
       >
-        {/* 왼쪽: 메모장 느낌 투두 리스트 */}
-        <div>
-          <TodoList />
-        </div>
-
-        {/* 오른쪽: 기존 날짜/시간/날씨 카드 */}
+        {/* 날짜/시간 카드 */}
         <div
           style={{
-            width: "100%",
-            maxWidth: 640,
-            padding: 24,
-            borderRadius: 24,
-            backgroundColor: "#ffffff",
-            boxShadow: "0 10px 30px rgba(15,23,42,0.12)",
-            boxSizing: "border-box",
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "24px",
+            padding: "40px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
           }}
         >
-          {/* 날짜 / 시간 */}
           <div
             style={{
-              marginBottom: 12,
-              fontSize: 18,
-              fontWeight: 600,
-              color: "#111827",
+              fontSize: "48px",
+              marginBottom: "20px",
+              textAlign: "center",
             }}
           >
-            오늘은{" "}
-            <span
-              style={{
-                color: "#2563eb",
-              }}
-            >
-              {formattedDate}
-            </span>
-            입니다.
+            🕐
           </div>
+
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: "800",
+              marginBottom: "12px",
+              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              textAlign: "center",
+            }}
+          >
+            {formattedDate}
+          </h2>
+
           <div
             style={{
-              marginBottom: 24,
-              fontSize: 32,
-              fontWeight: 700,
+              fontSize: "48px",
+              fontWeight: "900",
               color: "#111827",
+              textAlign: "center",
+              letterSpacing: "2px",
+              fontVariantNumeric: "tabular-nums",
             }}
           >
             {formattedTime}
           </div>
+        </div>
 
-          {/* 날씨 박스 */}
+        {/* 날씨 카드 */}
+        <div
+          style={{
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "24px",
+            padding: "40px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+          }}
+        >
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              padding: 16,
-              borderRadius: 20,
-              background:
-                "linear-gradient(135deg, rgba(59,130,246,0.1), rgba(251,191,36,0.1))",
-              border: "1px solid rgba(148,163,184,0.5)",
+              fontSize: "64px",
+              textAlign: "center",
+              marginBottom: "20px",
             }}
           >
-            <div
-              style={{
-                fontSize: 40,
-              }}
-            >
-              {emoji}
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                익산 오늘의 날씨
-              </div>
-
-              {loading ? (
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "#6b7280",
-                  }}
-                >
-                  날씨 불러오는 중...
-                </div>
-              ) : error ? (
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "#ef4444",
-                  }}
-                >
-                  {error}
-                </div>
-              ) : weather ? (
-                <>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      color: "#111827",
-                    }}
-                  >
-                    {weather.description || "날씨 정보"}
-                    {typeof weather.temp === "number"
-                      ? ` · ${Math.round(weather.temp)}°C`
-                      : ""}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#6b7280",
-                      marginTop: 2,
-                    }}
-                  >
-                    (OpenWeather 기준 실시간 정보)
-                  </div>
-                </>
-              ) : (
-                <div
-                  style={{
-                    fontSize: 13,
-                    color: "#6b7280",
-                  }}
-                >
-                  날씨 정보가 없습니다.
-                </div>
-              )}
-            </div>
+            {emoji}
           </div>
 
-          {/* 아래 간단 안내 */}
-          <p
+          <h3
             style={{
-              marginTop: 20,
-              fontSize: 13,
-              color: "#6b7280",
+              fontSize: "20px",
+              fontWeight: "700",
+              color: "#111827",
+              marginBottom: "12px",
+              textAlign: "center",
             }}
           >
-            상단 메뉴에서 <b>물품 관리</b> 또는 <b>물품 등록</b>을 눌러서
-            평균 매입가를 관리해보세요.
-          </p>
+            익산 오늘의 날씨
+          </h3>
+
+          {loading ? (
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "15px",
+                color: "#6b7280",
+              }}
+            >
+              날씨 불러오는 중...
+            </div>
+          ) : error ? (
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "15px",
+                color: "#ef4444",
+              }}
+            >
+              {error}
+            </div>
+          ) : weather ? (
+            <>
+              <div
+                style={{
+                  fontSize: "32px",
+                  fontWeight: "900",
+                  color: "#667eea",
+                  textAlign: "center",
+                  marginBottom: "8px",
+                }}
+              >
+                {typeof weather.temp === "number"
+                  ? `${Math.round(weather.temp)}°C`
+                  : "-"}
+              </div>
+              <div
+                style={{
+                  fontSize: "16px",
+                  color: "#4b5563",
+                  textAlign: "center",
+                }}
+              >
+                {weather.description || "날씨 정보"}
+              </div>
+            </>
+          ) : (
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "15px",
+                color: "#6b7280",
+              }}
+            >
+              날씨 정보가 없습니다.
+            </div>
+          )}
+        </div>
+
+        {/* TodoList 카드 */}
+        <div
+          style={{
+            gridColumn: "1 / -1",
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "24px",
+            padding: "40px",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+          }}
+        >
+          <TodoList />
+        </div>
+
+        {/* 안내 카드 */}
+        <div
+          style={{
+            gridColumn: "1 / -1",
+            background: "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(20px)",
+            borderRadius: "20px",
+            padding: "24px 32px",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.15)",
+            border: "1px solid rgba(255, 255, 255, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            gap: "20px",
+          }}
+        >
+          <div style={{ fontSize: "32px" }}>💡</div>
+          <div style={{ flex: 1 }}>
+            <p
+              style={{
+                fontSize: "16px",
+                color: "#4b5563",
+                margin: 0,
+                lineHeight: "1.6",
+              }}
+            >
+              상단 메뉴에서 <strong style={{ color: "#667eea" }}>품목 관리</strong> 또는{" "}
+              <strong style={{ color: "#667eea" }}>품목 등록</strong>을 눌러서
+              평균 매입가를 관리해보세요.
+            </p>
+          </div>
         </div>
       </div>
     </div>
