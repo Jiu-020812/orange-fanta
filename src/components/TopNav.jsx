@@ -169,6 +169,8 @@ export default function TopNav() {
               title="마이페이지"
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
+                navigate("/mypage");
               }}
               style={{
                 fontSize: 13,
@@ -186,7 +188,10 @@ export default function TopNav() {
             </Link>
 
             <button
-              onClick={handleLogout}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLogout();
+              }}
               style={{
                 padding: "6px 14px",
                 borderRadius: 999,
