@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 export default function LandingPage() {
+  const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
   const [currentFeature, setCurrentFeature] = useState(0);
 
@@ -137,6 +139,7 @@ export default function LandingPage() {
             }}
           >
             <button
+              onClick={() => navigate('/login')}
               style={{
                 padding: '18px 40px',
                 fontSize: '18px',
@@ -162,6 +165,7 @@ export default function LandingPage() {
             </button>
 
             <button
+              onClick={() => navigate('/login')}
               style={{
                 padding: '18px 40px',
                 fontSize: '18px',
@@ -439,6 +443,7 @@ export default function LandingPage() {
         </p>
 
         <button
+          onClick={() => navigate('/login')}
           style={{
             padding: '20px 50px',
             fontSize: '20px',
