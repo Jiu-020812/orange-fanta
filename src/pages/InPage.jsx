@@ -208,50 +208,19 @@ export default function InPage() {
     <div
       style={{
         minHeight: "calc(100vh - 56px)",
-        background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+        background: "#f8f9fa",
         padding: "40px 20px",
-        position: "relative",
-        overflow: "hidden",
       }}
     >
-      {/* 배경 장식 */}
-      <div
-        style={{
-          position: "absolute",
-          width: "600px",
-          height: "600px",
-          borderRadius: "50%",
-          background: "rgba(255, 255, 255, 0.1)",
-          top: "-200px",
-          right: "-100px",
-          filter: "blur(80px)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          width: "400px",
-          height: "400px",
-          borderRadius: "50%",
-          background: "rgba(255, 255, 255, 0.05)",
-          bottom: "-100px",
-          left: "-50px",
-          filter: "blur(80px)",
-        }}
-      />
-
       <div
         style={{
           maxWidth: "1400px",
           margin: "0 auto",
-          position: "relative",
-          zIndex: 1,
-          background: "rgba(255, 255, 255, 0.95)",
-          backdropFilter: "blur(20px)",
-          borderRadius: "24px",
+          background: "#ffffff",
+          borderRadius: "16px",
           padding: "40px",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-          border: "1px solid rgba(255, 255, 255, 0.3)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          border: "1px solid #e5e7eb",
         }}
       >
         <h2
@@ -259,9 +228,7 @@ export default function InPage() {
             fontSize: 28,
             fontWeight: 800,
             marginBottom: 24,
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
+            color: "#374151",
           }}
         >
           📥 입고 관리
