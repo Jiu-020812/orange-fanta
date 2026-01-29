@@ -96,6 +96,27 @@ export async function deleteItem(id) {
   await request(() => client.delete(`/api/items/${id}`));
 }
 
+export async function upsertItemPolicy(itemId, payload) {
+  const res = await request(() =>
+    client.put(`/api/items/${itemId}/policy`, payload)
+  );
+  return res.data;
+}
+
+export async function upsertChannelListing(itemId, payload) {
+  const res = await request(() =>
+    client.post(`/api/items/${itemId}/listings`, payload)
+  );
+  return res.data;
+}
+
+export async function syncInventory(itemId) {
+  const res = await request(() =>
+    client.post(`/api/items/${itemId}/sync-inventory`)
+  );
+  return res.data;
+}
+
 /* ===================== records ===================== */
 
 /**

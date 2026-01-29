@@ -19,6 +19,9 @@ import {
   updateRecord as updateServerRecord,
   deleteRecord as deleteServerRecord,
   deleteItem as deleteServerItem,
+  upsertItemPolicy,
+  upsertChannelListing,
+  syncInventory,
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim();
@@ -66,6 +69,18 @@ export default function ManageDetailPage() {
   const [deleteModal, setDeleteModal] = useState(null);
 
   const [memoText, setMemoText] = useState("");
+  const [policyMode, setPolicyMode] = useState("NORMAL");
+  const [policyBuffer, setPolicyBuffer] = useState(1);
+  const [policyMinVisible, setPolicyMinVisible] = useState(1);
+  const [exclusiveProvider, setExclusiveProvider] = useState("NAVER");
+  const [listingProvider, setListingProvider] = useState("NAVER");
+  const [channelProductId, setChannelProductId] = useState("");
+  const [channelOptionId, setChannelOptionId] = useState("");
+  const [listingExternalSku, setListingExternalSku] = useState("");
+  const [syncResult, setSyncResult] = useState(null);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [listingLoading, setListingLoading] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   // 기간/검색/정렬
   const [rangeMode, setRangeMode] = useState("ALL"); // ALL | 7 | 30 | 90 | CUSTOM
@@ -251,6 +266,60 @@ export default function ManageDetailPage() {
     } catch (err) {
       console.error("메모 서버 저장 실패", err);
       window.alert("메모 저장 실패 😢\n잠시 후 다시 시도해 주세요.");
+    }
+  };
+
+  const handleSavePolicy = async () => {
+    if (!selectedOptionId) return;
+    try {
+      setPolicyLoading(true);
+      await upsertItemPolicy(selectedOptionId, {
+        mode: policyMode,
+        buffer: policyMode === "NORMAL" ? Number(policyBuffer) : undefined,
+        minVisible: policyMode === "NORMAL" ? Number(policyMinVisible) : undefined,
+        exclusiveProvider: policyMode === "EXCLUSIVE" ? exclusiveProvider : null,
+      });
+      showToast("정책 저장 완료");
+    } catch (err) {
+      console.error("정책 저장 실패", err);
+      window.alert(err?.message || "정책 저장 실패");
+    } finally {
+      setPolicyLoading(false);
+    }
+  };
+
+  const handleSaveListing = async () => {
+    if (!selectedOptionId) return;
+    try {
+      setListingLoading(true);
+      await upsertChannelListing(selectedOptionId, {
+        provider: listingProvider,
+        channelProductId: channelProductId || null,
+        channelOptionId: channelOptionId || null,
+        externalSku: listingExternalSku || null,
+        isActive: true,
+      });
+      showToast("채널 리스팅 저장 완료");
+    } catch (err) {
+      console.error("리스팅 저장 실패", err);
+      window.alert(err?.message || "리스팅 저장 실패");
+    } finally {
+      setListingLoading(false);
+    }
+  };
+
+  const handleSyncInventory = async () => {
+    if (!selectedOptionId) return;
+    try {
+      setSyncLoading(true);
+      const result = await syncInventory(selectedOptionId);
+      setSyncResult(result);
+      showToast("재고 동기화 큐 등록 완료");
+    } catch (err) {
+      console.error("동기화 실패", err);
+      window.alert(err?.message || "동기화 실패");
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -511,6 +580,238 @@ export default function ManageDetailPage() {
                 }}
               >
                 <b>SKU</b>: {selectedOption?.sku || "자동 생성 예정"}
+              </div>
+
+              <div
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontWeight: 700, marginBottom: 8 }}>채널 재고 연동</div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <label style={{ fontSize: 12 }}>
+                    모드
+                    <select
+                      value={policyMode}
+                      onChange={(e) => setPolicyMode(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <option value="NORMAL">NORMAL</option>
+                      <option value="EXCLUSIVE">EXCLUSIVE</option>
+                    </select>
+                  </label>
+
+                  <label style={{ fontSize: 12 }}>
+                    단일 채널
+                    <select
+                      value={exclusiveProvider}
+                      onChange={(e) => setExclusiveProvider(e.target.value)}
+                      disabled={policyMode !== "EXCLUSIVE"}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: policyMode === "EXCLUSIVE" ? "white" : "#f8fafc",
+                      }}
+                    >
+                      <option value="NAVER">NAVER</option>
+                      <option value="COUPANG">COUPANG</option>
+                      <option value="ELEVENST">ELEVENST</option>
+                      <option value="KREAM">KREAM</option>
+                      <option value="ETC">ETC</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                  <label style={{ fontSize: 12 }}>
+                    버퍼
+                    <input
+                      type="number"
+                      value={policyBuffer}
+                      onChange={(e) => setPolicyBuffer(e.target.value)}
+                      disabled={policyMode !== "NORMAL"}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: policyMode === "NORMAL" ? "white" : "#f8fafc",
+                      }}
+                    />
+                  </label>
+                  <label style={{ fontSize: 12 }}>
+                    최소 노출
+                    <input
+                      type="number"
+                      value={policyMinVisible}
+                      onChange={(e) => setPolicyMinVisible(e.target.value)}
+                      disabled={policyMode !== "NORMAL"}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                        backgroundColor: policyMode === "NORMAL" ? "white" : "#f8fafc",
+                      }}
+                    />
+                  </label>
+                </div>
+
+                <button
+                  onClick={handleSavePolicy}
+                  disabled={policyLoading}
+                  style={{
+                    marginTop: 10,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "#111827",
+                    color: "white",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {policyLoading ? "저장 중..." : "정책 저장"}
+                </button>
+
+                <div style={{ marginTop: 16, fontWeight: 700 }}>채널 리스팅</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 8 }}>
+                  <label style={{ fontSize: 12 }}>
+                    Provider
+                    <select
+                      value={listingProvider}
+                      onChange={(e) => setListingProvider(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <option value="NAVER">NAVER</option>
+                      <option value="COUPANG">COUPANG</option>
+                      <option value="ELEVENST">ELEVENST</option>
+                      <option value="KREAM">KREAM</option>
+                      <option value="ETC">ETC</option>
+                    </select>
+                  </label>
+                  <label style={{ fontSize: 12 }}>
+                    외부 SKU
+                    <input
+                      value={listingExternalSku}
+                      onChange={(e) => setListingExternalSku(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                      placeholder="옵션 SKU"
+                    />
+                  </label>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+                  <label style={{ fontSize: 12 }}>
+                    상품 ID
+                    <input
+                      value={channelProductId}
+                      onChange={(e) => setChannelProductId(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                      placeholder="채널 상품 ID"
+                    />
+                  </label>
+                  <label style={{ fontSize: 12 }}>
+                    옵션 ID
+                    <input
+                      value={channelOptionId}
+                      onChange={(e) => setChannelOptionId(e.target.value)}
+                      style={{
+                        width: "100%",
+                        height: 34,
+                        marginTop: 6,
+                        padding: "0 10px",
+                        borderRadius: 10,
+                        border: "1px solid #e5e7eb",
+                      }}
+                      placeholder="채널 옵션 ID"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  onClick={handleSaveListing}
+                  disabled={listingLoading}
+                  style={{
+                    marginTop: 10,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "#0f766e",
+                    color: "white",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {listingLoading ? "저장 중..." : "리스팅 저장"}
+                </button>
+
+                <div style={{ marginTop: 16, fontWeight: 700 }}>재고 동기화</div>
+                <button
+                  onClick={handleSyncInventory}
+                  disabled={syncLoading}
+                  style={{
+                    marginTop: 8,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    backgroundColor: "#2563eb",
+                    color: "white",
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  {syncLoading ? "동기화 중..." : "재고 동기화"}
+                </button>
+
+                {syncResult?.targets?.length ? (
+                  <div style={{ marginTop: 10, fontSize: 12, color: "#475569" }}>
+                    targetQty:
+                    {syncResult.targets.map((t) => (
+                      <div key={`${t.provider}-${t.listingId}`}>
+                        {t.provider} → {t.targetQty}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {/* 기간/검색/정렬 컨트롤 */}
