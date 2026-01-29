@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { login, signup, resendVerify } from "../api/auth";
 import api from "../api/client";
@@ -7,8 +7,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 마우스 위치 추적
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
+
   // 로그인 / 회원가입 모드
-  const [mode, setMode] = useState("login"); // login | signup
+  const [mode, setMode] = useState("login");
 
   // 입력값
   const [email, setEmail] = useState("");
@@ -20,13 +24,24 @@ export default function LoginPage() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
 
-  //  이메일 인증 필요 상태인지(에러로 판단)
   const needVerify = error.includes("이메일 인증");
-
-  // 이메일 인증 완료 배너
   const verified = new URLSearchParams(location.search).get("verified") === "1";
 
-  //  인증 메일 재전송
+  // 마우스 움직임 추적
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+        const y = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+        setMousePos({ x, y });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
   async function handleResendVerify() {
     if (!email) {
       setError("인증 메일을 다시 받으려면 이메일을 먼저 입력해주세요.");
@@ -38,16 +53,10 @@ export default function LoginPage() {
 
     try {
       await resendVerify(email);
-
-      setNotice(
-        "📧 인증 메일을 다시 보냈어요.\n메일함(스팸함 포함)을 확인해주세요."
-      );
+      setNotice("📧 인증 메일을 다시 보냈어요.\n메일함(스팸함 포함)을 확인해주세요.");
     } catch (e) {
       setNotice("");
-      setError(
-        e?.message ||
-          "인증 메일 재전송에 실패했습니다. 잠시 후 다시 시도해주세요."
-      );
+      setError(e?.message || "인증 메일 재전송에 실패했습니다. 잠시 후 다시 시도해주세요.");
     }
   }
 
@@ -55,281 +64,453 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setNotice("");
+
+    if (!email || !password) {
+      setError("이메일과 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    if (mode === "signup" && password.length < 8) {
+      setError("비밀번호는 8자 이상이어야 합니다.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       if (mode === "login") {
-        const result = await login({ email, password });
-
-        // (토큰 방식이면 유지, 쿠키 방식이면 없어도 OK)
-        if (result?.token) {
-          api.defaults.headers.common["Authorization"] = `Bearer ${result.token}`;
-          localStorage.setItem("authToken", result.token);
+        await login({ email, password });
+        const storedToken = window.localStorage.getItem("authToken");
+        if (storedToken) {
+          api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
         }
-
-        navigate("/");
-        return;
-      }
-
-      // 회원가입 (자동 로그인 X)
-      const r = await signup({ email, password, name });
-
-      setMode("login");
-      setNotice(
-        r?.message ||
-          "회원가입이 완료되었습니다.\n📧 가입하신 이메일(스팸함 포함)에서 인증을 완료한 뒤 로그인해주세요."
-      );
-      setPassword("");
-      return;
-    } catch (err) {
-      if (err.status === 403 && err.message.includes("이메일")) {
-        setError(
-          "이메일 인증이 완료되지 않았습니다.\n" +
-            "가입하신 이메일(스팸함 포함)을 확인한 뒤 인증을 완료해주세요."
-        );
+        navigate("/home");
       } else {
-        setError(err.message || "오류가 발생했습니다.");
+        await signup({ email, password, name });
+        setNotice(
+          "✅ 회원가입 완료!\n이메일 인증 링크를 확인해주세요. (스팸함 포함)"
+        );
+        setMode("login");
+        setPassword("");
+        setName("");
       }
+    } catch (err) {
+      setError(err?.message || "오류가 발생했습니다.");
     } finally {
       setLoading(false);
     }
   }
 
+  // 캐릭터 기울기 계산
+  const getCharacterStyle = (index) => {
+    const baseRotate = (mousePos.x * 15) * (index === 1 ? 1 : index === 0 ? 0.7 : 1.3);
+    const baseTranslate = mousePos.x * 10 * (index === 1 ? 1 : index === 0 ? 0.5 : 1.5);
+
+    return {
+      transform: `translateX(${baseTranslate}px) rotate(${baseRotate}deg)`,
+      transition: 'transform 0.3s ease-out',
+    };
+  };
+
+  // 눈동자 위치 계산
+  const getEyeStyle = () => {
+    return {
+      transform: `translate(${mousePos.x * 8}px, ${mousePos.y * 8}px)`,
+      transition: 'transform 0.2s ease-out',
+    };
+  };
+
   return (
     <div
+      ref={containerRef}
       style={{
-        minHeight: "100vh",
-        background: "#f3f4f6",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* 배경 애니메이션 */}
       <div
         style={{
-          width: "100%",
-          maxWidth: 360,
-          padding: 24,
-          borderRadius: 14,
-          background: "#fff",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          opacity: 0.3,
+          background: `radial-gradient(circle at ${50 + mousePos.x * 20}% ${50 + mousePos.y * 20}%, rgba(255,255,255,0.2) 0%, transparent 50%)`,
+          transition: 'background 0.3s ease-out',
+        }}
+      />
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '900px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '40px',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
-        {/* 탭 */}
+        {/* 캐릭터들 */}
         <div
           style={{
-            display: "flex",
-            marginBottom: 20,
-            borderRadius: 12,
-            overflow: "hidden",
-            border: "1px solid #e5e7eb",
+            display: 'flex',
+            gap: '60px',
+            marginBottom: '20px',
           }}
         >
-          <button
-            type="button"
-            onClick={() => {
-              setMode("login");
-              setError("");
-              setNotice("");
-            }}
-            style={{
-              flex: 1,
-              padding: "10px 0",
-              fontWeight: 600,
-              background: mode === "login" ? "#111827" : "transparent",
-              color: mode === "login" ? "#fff" : "#6b7280",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            로그인
-          </button>
+          {[0, 1, 2].map((index) => (
+            <div
+              key={index}
+              style={{
+                ...getCharacterStyle(index),
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+              }}
+            >
+              {/* 캐릭터 몸통 */}
+              <div
+                style={{
+                  width: '100px',
+                  height: '120px',
+                  background: `linear-gradient(135deg, ${
+                    index === 0 ? '#ff6b9d, #ffa5c5' :
+                    index === 1 ? '#4facfe, #00f2fe' :
+                    '#43e97b, #38f9d7'
+                  })`,
+                  borderRadius: '50% 50% 45% 45%',
+                  position: 'relative',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+                }}
+              >
+                {/* 얼굴 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '15px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '70px',
+                    height: '70px',
+                    background: 'rgba(255,255,255,0.9)',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  {/* 눈 */}
+                  <div style={{ display: 'flex', gap: '20px' }}>
+                    {[0, 1].map((eyeIndex) => (
+                      <div
+                        key={eyeIndex}
+                        style={{
+                          width: '12px',
+                          height: '12px',
+                          background: 'white',
+                          borderRadius: '50%',
+                          position: 'relative',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        <div
+                          style={{
+                            ...getEyeStyle(),
+                            width: '8px',
+                            height: '8px',
+                            background: '#111',
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            marginTop: '-4px',
+                            marginLeft: '-4px',
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setMode("signup");
-              setError("");
-              setNotice("");
-            }}
-            style={{
-              flex: 1,
-              padding: "10px 0",
-              fontWeight: 600,
-              background: mode === "signup" ? "#111827" : "transparent",
-              color: mode === "signup" ? "#fff" : "#6b7280",
-              border: "none",
-              cursor: "pointer",
-            }}
-          >
-            회원가입
-          </button>
+                  {/* 입 */}
+                  <div
+                    style={{
+                      width: '20px',
+                      height: '10px',
+                      borderBottom: '3px solid #ff6b9d',
+                      borderRadius: '0 0 20px 20px',
+                    }}
+                  />
+                </div>
+
+                {/* 팔 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '60px',
+                    left: '-15px',
+                    width: '30px',
+                    height: '40px',
+                    background: `linear-gradient(135deg, ${
+                      index === 0 ? '#ff6b9d, #ffa5c5' :
+                      index === 1 ? '#4facfe, #00f2fe' :
+                      '#43e97b, #38f9d7'
+                    })`,
+                    borderRadius: '15px',
+                    transform: 'rotate(-20deg)',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '60px',
+                    right: '-15px',
+                    width: '30px',
+                    height: '40px',
+                    background: `linear-gradient(135deg, ${
+                      index === 0 ? '#ff6b9d, #ffa5c5' :
+                      index === 1 ? '#4facfe, #00f2fe' :
+                      '#43e97b, #38f9d7'
+                    })`,
+                    borderRadius: '15px',
+                    transform: 'rotate(20deg)',
+                  }}
+                />
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* 인증 완료 배너 */}
-        {verified && (
-          <div
+        {/* 로그인 카드 */}
+        <div
+          style={{
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '24px',
+            padding: '40px',
+            width: '100%',
+            maxWidth: '420px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}
+        >
+          <h2
             style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "#ecfdf5",
-              border: "1px solid #a7f3d0",
-              color: "#065f46",
-              fontSize: 13,
-              marginBottom: 12,
+              fontSize: '32px',
+              fontWeight: '900',
+              textAlign: 'center',
+              marginBottom: '10px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
             }}
           >
-             이메일 인증이 완료되었습니다. 로그인해주세요.
-          </div>
-        )}
+            {mode === "login" ? "로그인" : "회원가입"}
+          </h2>
 
-        {/* 회원가입 후 안내 / 재전송 성공 안내 */}
-        {notice && (
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "#fff7ed",
-              border: "1px solid #fed7aa",
-              color: "#9a3412",
-              fontSize: 13,
-              marginBottom: 12,
-              whiteSpace: "pre-line",
-            }}
-          >
-            {notice}
-          </div>
-        )}
+          <p style={{ textAlign: 'center', color: '#666', marginBottom: '30px' }}>
+            📦 평균값 계산 재고관리
+          </p>
 
-        {/* 에러 */}
-        {error && (
-          <div
-            style={{
-              padding: "10px 12px",
-              borderRadius: 8,
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#b91c1c",
-              fontSize: 13,
-              marginBottom: 12,
-              whiteSpace: "pre-line",
-            }}
-          >
-            ❗ {error}
-          </div>
-        )}
-
-        {/* 이메일 인증 필요할 때 재전송 버튼 */}
-        {mode === "login" && needVerify && (
-          <button
-            type="button"
-            onClick={handleResendVerify}
-            style={{
-              width: "100%",
-              padding: "10px 0",
-              borderRadius: 12,
-              border: "1px solid #fed7aa",
-              background: "#fff7ed",
-              color: "#9a3412",
-              fontWeight: 800,
-              cursor: "pointer",
-              marginBottom: 12,
-            }}
-          >
-            인증 메일 다시 보내기
-          </button>
-        )}
-
-        {/* 폼 */}
-        <form onSubmit={handleSubmit}>
-          {mode === "signup" && (
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>이름 / 닉네임</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: 10,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                }}
-              />
+          {/* 알림 메시지 */}
+          {verified && (
+            <div
+              style={{
+                padding: '12px',
+                background: '#d1fae5',
+                border: '1px solid #10b981',
+                borderRadius: '8px',
+                color: '#065f46',
+                marginBottom: '20px',
+                fontSize: '14px',
+              }}
+            >
+              ✅ 이메일 인증이 완료되었습니다! 로그인해주세요.
             </div>
           )}
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 13 }}>이메일</label>
+          {error && (
+            <div
+              style={{
+                padding: '12px',
+                background: '#fee2e2',
+                border: '1px solid #ef4444',
+                borderRadius: '8px',
+                color: '#991b1b',
+                marginBottom: '20px',
+                fontSize: '14px',
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {notice && (
+            <div
+              style={{
+                padding: '12px',
+                background: '#dbeafe',
+                border: '1px solid #3b82f6',
+                borderRadius: '8px',
+                color: '#1e40af',
+                marginBottom: '20px',
+                fontSize: '14px',
+                whiteSpace: 'pre-line',
+              }}
+            >
+              {notice}
+            </div>
+          )}
+
+          {/* 폼 */}
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {mode === "signup" && (
+              <input
+                type="text"
+                placeholder="이름 (선택)"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                style={{
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  border: '2px solid #e5e7eb',
+                  borderRadius: '12px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#667eea')}
+                onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
+              />
+            )}
+
             <input
               type="email"
-              placeholder="example@email.com"
+              placeholder="이메일"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
               style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
+                padding: '14px 16px',
+                fontSize: '15px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '12px',
+                outline: 'none',
+                transition: 'border-color 0.2s',
               }}
+              onFocus={(e) => (e.target.style.borderColor = '#667eea')}
+              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
             />
-          </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 13 }}>비밀번호</label>
             <input
               type="password"
-               placeholder="abcd1234!"
+              placeholder="비밀번호"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               style={{
-                width: "100%",
-                padding: 10,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
+                padding: '14px 16px',
+                fontSize: '15px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '12px',
+                outline: 'none',
+                transition: 'border-color 0.2s',
               }}
+              onFocus={(e) => (e.target.style.borderColor = '#667eea')}
+              onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
             />
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                padding: '16px',
+                fontSize: '16px',
+                fontWeight: '700',
+                background: loading ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                marginTop: '8px',
+                transition: 'transform 0.2s',
+              }}
+              onMouseEnter={(e) => !loading && (e.target.style.transform = 'translateY(-2px)')}
+              onMouseLeave={(e) => (e.target.style.transform = 'translateY(0)')}
+            >
+              {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
+            </button>
+          </form>
+
+          {/* 모드 전환 */}
+          <div style={{ textAlign: 'center', marginTop: '24px' }}>
+            <button
+              onClick={() => {
+                setMode(mode === "login" ? "signup" : "login");
+                setError("");
+                setNotice("");
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#667eea',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+              }}
+            >
+              {mode === "login" ? "회원가입하기" : "로그인하기"}
+            </button>
+
+            {mode === "login" && (
+              <>
+                <span style={{ margin: '0 8px', color: '#d1d5db' }}>|</span>
+                <button
+                  onClick={() => navigate("/forgot-password")}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#667eea',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  비밀번호 찾기
+                </button>
+              </>
+            )}
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: "12px 0",
-              borderRadius: 12,
-              border: "none",
-              background: "#111827",
-              color: "#fff",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {loading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
-          </button>
-
-          {mode === "login" && (
-        <div style={{ marginTop: 10, textAlign: "center" }}>
-       <button
-        type="button"
-        onClick={() => navigate("/forgot-password")}
-        style={{
-        background: "transparent",
-        border: "none",
-        color: "#2563eb",
-        cursor: "pointer",
-        fontSize: 13,
-        textDecoration: "underline",
-        padding: 0,
-      }}
-    >
-      비밀번호를 잊으셨나요?
-    </button>
-  </div>
-)}
-        </form>
+          {/* 인증 메일 재전송 */}
+          {needVerify && (
+            <div style={{ textAlign: 'center', marginTop: '16px' }}>
+              <button
+                onClick={handleResendVerify}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f59e0b',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                📧 인증 메일 다시 받기
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
