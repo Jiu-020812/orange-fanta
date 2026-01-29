@@ -1,70 +1,28 @@
-/* 전체 배경 */
+/* ================= GLOBAL ================= */
 body,
 #root {
   margin: 0;
   padding: 0;
-  background-color: #f5f6fa; /* 밝은 배경 */
+  background-color: #f5f6fa;
   font-family: "Inter", "Apple SD Gothic Neo", sans-serif;
   color: #222;
 }
 
-/* 앱 전체 레이아웃: 항상 가운데 정렬 */
+/* ================= LAYOUT ================= */
 .app-container {
   min-height: 100vh;
   width: 100%;
-  padding: 32px 0 40px; /* 위/아래 여백만 */
+  padding: 32px 0 40px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: center; /* 수평 가운데 정렬 */
+  align-items: center;
 }
 
-/* 상단 문구 */
-.top-message {
-  text-align: center;
-  font-size: 22px;
-  font-weight: 600;
-  color: #ff4b91;
-  margin-bottom: 20px;
-}
-
-/* 상단 네비(메인 / 물품 관리 / 물품 등록) */
-.nav-row {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-/* 상단 탭 버튼 공통 */
-.tab-btn {
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  background: white;
-  color: #444;
-  cursor: pointer;
-  transition: 0.15s;
-  text-decoration: none; /* NavLink 기본 밑줄 제거 */
-  font-size: 14px;
-}
-
-.tab-btn.active {
-  background-color: #3b82f6;
-  color: white;
-  border-color: transparent;
-}
-
-.tab-btn:hover {
-  transform: translateY(-1px);
-}
-
-/* 페이지 공통 카드: 세 페이지 다 이 안에서 보여짐 */
 .app-card {
   width: 100%;
   max-width: none;
   margin: 0;
-  border-radius: 0;
   padding: 24px 40px 40px;
   border-radius: 24px;
   background-color: #ffffff;
@@ -72,7 +30,6 @@ body,
   box-sizing: border-box;
 }
 
-/* 메인 레이아웃 (물품 관리 페이지용) */
 .main-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
@@ -80,58 +37,6 @@ body,
   align-items: flex-start;
 }
 
-/* 물품 관리 페이지 상단 탭 (신발 관리 / 식품 관리) */
-.tab-buttons {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-/* 날짜 입력 박스를 흰색으로 고정 */
-input[type="date"] {
-  background-color: #ffffff !important;
-  color: #111827 !important;
-  border: 1px solid #d1d5db !important;
-  border-radius: 6px;
-  padding: 4px 6px;
-}
-/* 상단 네비 / 관리 탭 공통 버튼 스타일 */
-.tab-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 16px;
-  border-radius: 999px;
-  border: 1px solid #d1d5db;
-  background-color: #ffffff;
-  color: #444;
-  font-size: 14px;
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s,
-    border-color 0.15s,
-    transform 0.1s;
-}
-
-.tab-btn:hover {
-  transform: translateY(-1px);
-}
-
-.tab-btn.active {
-  background-color: #3b82f6;
-  color: #ffffff;
-  border-color: transparent;
-}
-
-/* 물품 관리 페이지 2열 레이아웃 */
-.main-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 20px;
-  align-items: flex-start;
-}
-/* 물품 관리 전체 레이아웃 (카드 + 그래프 두 칸) */
 .manage-main {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr);
@@ -139,14 +44,54 @@ input[type="date"] {
   align-items: flex-start;
 }
 
-/* 왼쪽: 등록된 물품 카드 영역 */
+/* ================= BUTTONS ================= */
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: none;
+  background-color: transparent;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+
+.tab-btn + .tab-btn {
+  margin-left: 4px;
+}
+
+.tab-btn:hover {
+  transform: translateY(-1px);
+}
+
+.tab-btn.active {
+  background-color: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+/* ================= ITEM GRID ================= */
 .item-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)); /* 한 줄에 최대 3개 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-/* 물품 카드 하나 */
 .item-card {
   border-radius: 12px;
   border: 1px solid #e5e7eb;
@@ -158,6 +103,7 @@ input[type="date"] {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: box-shadow 0.15s;
 }
 
 .item-card:hover {
@@ -188,30 +134,16 @@ input[type="date"] {
   font-size: 12px;
   color: #6b7280;
 }
-.tab-btn {
-  border: none;
-  border-radius: 999px;
-  padding: 8px 18px;      /* ← 세로/가로 여유 */
-  font-size: 14px;        /* ← 글씨 조금 키우기 */
-  font-weight: 500;
-  color: #4b5563;
-  background-color: transparent;
-  cursor: pointer;
-  text-decoration: none;
+
+/* ================= FORMS ================= */
+input[type="date"] {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 6px;
+  padding: 4px 6px;
 }
 
-.tab-btn + .tab-btn {
-  margin-left: 4px;       /* 탭 사이 간격 */
-}
-
-.tab-btn.active {
-  background-color: #2563eb;
-  color: #ffffff;
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.35);
-}
-
-/* Safari/Chrome에서 date 입력의 아이콘 컬러도 변경 */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0%) !important; /* 검은색 아이콘 */
+  filter: invert(0%) !important;
 }

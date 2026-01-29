@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { getMe, logout } from "../api/auth";
+import { getAuthMe, logout } from "../api/auth";
 
 export default function TopNav() {
   const location = useLocation();
@@ -14,10 +14,10 @@ export default function TopNav() {
   useEffect(() => {
     async function fetchMe() {
       try {
-        const me = await getMe(); // { id, email, name }
+        const me = await getAuthMe(); // { id, email, name }
         setUser(me);
       } catch (err) {
-        console.warn("getMe 실패:", err?.message || err);
+        console.warn("getAuthMe 실패:", err?.message || err);
       }
     }
     fetchMe();

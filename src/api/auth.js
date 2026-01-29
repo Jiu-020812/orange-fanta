@@ -44,8 +44,8 @@ export async function login({ email, password }) {
   return data.user;
 }
 
-// -------------------- 내 정보 조회 --------------------
-export async function getMe() {
+// -------------------- 내 정보 조회 (인증용) --------------------
+export async function getAuthMe() {
   const res = await request(() => api.get(`${AUTH_PREFIX}/me`));
   return res.data.user;
 }

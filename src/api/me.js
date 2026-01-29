@@ -6,6 +6,10 @@ export async function getMe() {
   return res.data;
 }
 
+export async function getUserProfile() {
+  return getMe();
+}
+
 export async function updateName(name) {
   const res = await request(() => api.patch("/api/me", { name }));
   return res.data;
