@@ -319,12 +319,69 @@ export default function ManageListPage() {
   };
 
   return (
-    <div style={{ width: "100%", padding: 24, boxSizing: "border-box" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>
-        물품 관리 {activeCategoryName ? `· ${activeCategoryName}` : ""}
-      </h2>
+    <div
+      style={{
+        minHeight: "calc(100vh - 56px)",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+        padding: "40px 20px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* 배경 장식 */}
+      <div
+        style={{
+          position: "absolute",
+          width: "600px",
+          height: "600px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.1)",
+          top: "-200px",
+          right: "-100px",
+          filter: "blur(80px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: "400px",
+          height: "400px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.05)",
+          bottom: "-100px",
+          left: "-50px",
+          filter: "blur(80px)",
+        }}
+      />
 
-      {/* 카테고리 탭 + +버튼 */}
+      <div
+        style={{
+          maxWidth: "1400px",
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 1,
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "24px",
+          padding: "40px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            marginBottom: 24,
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          물품 관리 {activeCategoryName ? `· ${activeCategoryName}` : ""}
+        </h2>
+
+        {/* 카테고리 탭 + +버튼 */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <div
           style={{
@@ -632,7 +689,7 @@ export default function ManageListPage() {
                 <b>{deleteModal.name}</b> 카테고리를 삭제할까요?
               </div>
               <div style={{ marginTop: 6, color: "#6b7280" }}>
-                삭제해도 아이템은 사라지지 않고 <b>“미분류”</b>로 자동 이동합니다.
+                삭제해도 아이템은 사라지지 않고 <b>"미분류"</b>로 자동 이동합니다.
               </div>
               <div style={{ marginTop: 6, color: "#dc2626", fontWeight: 700 }}>
                 (미분류 카테고리는 삭제할 수 없어요)
@@ -650,6 +707,7 @@ export default function ManageListPage() {
           </div>
         </ModalContainer>
       )}
+      </div>
     </div>
   );
 }

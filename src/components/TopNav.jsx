@@ -78,7 +78,7 @@ export default function TopNav() {
 
       {/* 가운데: 탭 네비게이션 */}
       <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
-        <NavLink to="/" active={isActive("/") && location.pathname === "/"}>
+        <NavLink to="/home" active={isActive("/home")}>
           메인
         </NavLink>
 

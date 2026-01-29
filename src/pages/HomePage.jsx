@@ -123,157 +123,165 @@ function HomePage() {
         style={{
           maxWidth: "1200px",
           margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+          display: "flex",
+          flexDirection: "column",
           gap: "30px",
           position: "relative",
           zIndex: 1,
         }}
       >
-        {/* 날짜/시간 카드 */}
+        {/* 날짜/시간 + 날씨 카드 (2칸) */}
         <div
           style={{
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(20px)",
-            borderRadius: "24px",
-            padding: "40px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-            border: "1px solid rgba(255, 255, 255, 0.3)",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+            gap: "30px",
           }}
         >
+          {/* 날짜/시간 카드 */}
           <div
             style={{
-              fontSize: "48px",
-              marginBottom: "20px",
-              textAlign: "center",
+              background: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(20px)",
+              borderRadius: "24px",
+              padding: "40px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
             }}
           >
-            🕐
-          </div>
-
-          <h2
-            style={{
-              fontSize: "24px",
-              fontWeight: "800",
-              marginBottom: "12px",
-              background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              textAlign: "center",
-            }}
-          >
-            {formattedDate}
-          </h2>
-
-          <div
-            style={{
-              fontSize: "48px",
-              fontWeight: "900",
-              color: "#111827",
-              textAlign: "center",
-              letterSpacing: "2px",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {formattedTime}
-          </div>
-        </div>
-
-        {/* 날씨 카드 */}
-        <div
-          style={{
-            background: "rgba(255, 255, 255, 0.95)",
-            backdropFilter: "blur(20px)",
-            borderRadius: "24px",
-            padding: "40px",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-            border: "1px solid rgba(255, 255, 255, 0.3)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "64px",
-              textAlign: "center",
-              marginBottom: "20px",
-            }}
-          >
-            {emoji}
-          </div>
-
-          <h3
-            style={{
-              fontSize: "20px",
-              fontWeight: "700",
-              color: "#111827",
-              marginBottom: "12px",
-              textAlign: "center",
-            }}
-          >
-            익산 오늘의 날씨
-          </h3>
-
-          {loading ? (
             <div
               style={{
+                fontSize: "48px",
+                marginBottom: "20px",
                 textAlign: "center",
-                fontSize: "15px",
-                color: "#6b7280",
               }}
             >
-              날씨 불러오는 중...
+              🕐
             </div>
-          ) : error ? (
+
+            <h2
+              style={{
+                fontSize: "24px",
+                fontWeight: "800",
+                marginBottom: "12px",
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                textAlign: "center",
+              }}
+            >
+              {formattedDate}
+            </h2>
+
             <div
               style={{
+                fontSize: "48px",
+                fontWeight: "900",
+                color: "#111827",
                 textAlign: "center",
-                fontSize: "15px",
-                color: "#ef4444",
+                letterSpacing: "2px",
+                fontVariantNumeric: "tabular-nums",
               }}
             >
-              {error}
+              {formattedTime}
             </div>
-          ) : weather ? (
-            <>
+          </div>
+
+          {/* 날씨 카드 */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(20px)",
+              borderRadius: "24px",
+              padding: "40px",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              border: "1px solid rgba(255, 255, 255, 0.3)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "64px",
+                textAlign: "center",
+                marginBottom: "20px",
+              }}
+            >
+              {emoji}
+            </div>
+
+            <h3
+              style={{
+                fontSize: "20px",
+                fontWeight: "700",
+                color: "#111827",
+                marginBottom: "12px",
+                textAlign: "center",
+              }}
+            >
+              익산 오늘의 날씨
+            </h3>
+
+            {loading ? (
               <div
                 style={{
-                  fontSize: "32px",
-                  fontWeight: "900",
-                  color: "#667eea",
                   textAlign: "center",
-                  marginBottom: "8px",
+                  fontSize: "15px",
+                  color: "#6b7280",
                 }}
               >
-                {typeof weather.temp === "number"
-                  ? `${Math.round(weather.temp)}°C`
-                  : "-"}
+                날씨 불러오는 중...
               </div>
+            ) : error ? (
               <div
                 style={{
-                  fontSize: "16px",
-                  color: "#4b5563",
                   textAlign: "center",
+                  fontSize: "15px",
+                  color: "#ef4444",
                 }}
               >
-                {weather.description || "날씨 정보"}
+                {error}
               </div>
-            </>
-          ) : (
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: "15px",
-                color: "#6b7280",
-              }}
-            >
-              날씨 정보가 없습니다.
-            </div>
-          )}
+            ) : weather ? (
+              <>
+                <div
+                  style={{
+                    fontSize: "32px",
+                    fontWeight: "900",
+                    color: "#667eea",
+                    textAlign: "center",
+                    marginBottom: "8px",
+                  }}
+                >
+                  {typeof weather.temp === "number"
+                    ? `${Math.round(weather.temp)}°C`
+                    : "-"}
+                </div>
+                <div
+                  style={{
+                    fontSize: "16px",
+                    color: "#4b5563",
+                    textAlign: "center",
+                  }}
+                >
+                  {weather.description || "날씨 정보"}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: "15px",
+                  color: "#6b7280",
+                }}
+              >
+                날씨 정보가 없습니다.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* TodoList 카드 */}
         <div
           style={{
-            gridColumn: "1 / -1",
             background: "rgba(255, 255, 255, 0.95)",
             backdropFilter: "blur(20px)",
             borderRadius: "24px",
@@ -288,7 +296,6 @@ function HomePage() {
         {/* 안내 카드 */}
         <div
           style={{
-            gridColumn: "1 / -1",
             background: "rgba(255, 255, 255, 0.9)",
             backdropFilter: "blur(20px)",
             borderRadius: "20px",

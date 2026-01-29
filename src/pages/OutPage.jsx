@@ -249,10 +249,67 @@ export default function OutPage() {
 
   /* ==================== UI ==================== */
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
-      <h2 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>
-        📤 판매 관리
-      </h2>
+    <div
+      style={{
+        minHeight: "calc(100vh - 56px)",
+        background: "linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)",
+        padding: "40px 20px",
+        position: "relative",
+        overflow: "hidden",
+      }}
+    >
+      {/* 배경 장식 */}
+      <div
+        style={{
+          position: "absolute",
+          width: "600px",
+          height: "600px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.1)",
+          top: "-200px",
+          right: "-100px",
+          filter: "blur(80px)",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          width: "400px",
+          height: "400px",
+          borderRadius: "50%",
+          background: "rgba(255, 255, 255, 0.05)",
+          bottom: "-100px",
+          left: "-50px",
+          filter: "blur(80px)",
+        }}
+      />
+
+      <div
+        style={{
+          maxWidth: "1400px",
+          margin: "0 auto",
+          position: "relative",
+          zIndex: 1,
+          background: "rgba(255, 255, 255, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderRadius: "24px",
+          padding: "40px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+          border: "1px solid rgba(255, 255, 255, 0.3)",
+        }}
+      >
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            marginBottom: 24,
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+          }}
+        >
+          📤 판매 관리
+        </h2>
 
       {lastScanned && (
         <div style={scanToast}>
@@ -486,6 +543,7 @@ export default function OutPage() {
         }}
         onSubmit={handlePriceSubmit}
       />
+      </div>
     </div>
   );
 }
