@@ -6,6 +6,9 @@ import {
   syncInventory,
   upsertChannelListing,
   upsertItemPolicy,
+  getSyncLogs,
+  getSyncStatus,
+  triggerManualSync,
 } from "../api/items";
 import {
   listIntegrations,
@@ -36,6 +39,9 @@ export default function InventorySyncPage() {
   const [connectionForms, setConnectionForms] = useState({});
   const [connectionLoading, setConnectionLoading] = useState(false);
   const [connectionSaving, setConnectionSaving] = useState({});
+  const [syncLogs, setSyncLogs] = useState([]);
+  const [syncStatus, setSyncStatus] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -83,6 +89,30 @@ export default function InventorySyncPage() {
         console.error("integrations load failed", err);
       } finally {
         if (alive) setConnectionLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        setLogsLoading(true);
+        const [logs, status] = await Promise.all([
+          getSyncLogs({ limit: 20 }),
+          getSyncStatus(),
+        ]);
+        if (!alive) return;
+        setSyncLogs(logs || []);
+        setSyncStatus(status || []);
+      } catch (err) {
+        console.error("sync logs/status load failed", err);
+      } finally {
+        if (alive) setLogsLoading(false);
       }
     })();
 
@@ -198,6 +228,20 @@ export default function InventorySyncPage() {
       window.alert(err?.message || "동기화 실패");
     } finally {
       setSyncLoading(false);
+    }
+  };
+
+  const handleManualSync = async (provider) => {
+    try {
+      const result = await triggerManualSync({ provider });
+      showToast(`${provider} 수동 동기화 시작`);
+
+      // 동기화 로그 새로고침
+      const logs = await getSyncLogs({ limit: 20 });
+      setSyncLogs(logs || []);
+    } catch (err) {
+      console.error("수동 동기화 실패", err);
+      window.alert(err?.message || "수동 동기화 실패");
     }
   };
 
@@ -326,18 +370,29 @@ export default function InventorySyncPage() {
                         {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
                       </button>
                       {saved ? (
-                        <button
-                          onClick={() => handleRemoveIntegration(provider)}
-                          disabled={saving}
-                          style={{
-                            ...smallButtonStyle,
-                            backgroundColor: "transparent",
-                            border: "1px solid #ef4444",
-                            color: "#ef4444",
-                          }}
-                        >
-                          해제
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleManualSync(provider)}
+                            style={{
+                              ...smallButtonStyle,
+                              backgroundColor: "#10b981",
+                            }}
+                          >
+                            동기화
+                          </button>
+                          <button
+                            onClick={() => handleRemoveIntegration(provider)}
+                            disabled={saving}
+                            style={{
+                              ...smallButtonStyle,
+                              backgroundColor: "transparent",
+                              border: "1px solid #ef4444",
+                              color: "#ef4444",
+                            }}
+                          >
+                            해제
+                          </button>
+                        </>
                       ) : null}
                     </div>
                   </div>
@@ -567,6 +622,154 @@ export default function InventorySyncPage() {
             </div>
           </>
         ) : null}
+
+        {/* 동기화 로그 */}
+        <div
+          style={{
+            marginTop: 32,
+            padding: 20,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 16 }}>📊 최근 동기화 내역</div>
+            <button
+              onClick={async () => {
+                try {
+                  setLogsLoading(true);
+                  const logs = await getSyncLogs({ limit: 20 });
+                  setSyncLogs(logs || []);
+                  showToast("동기화 내역 새로고침 완료");
+                } catch (err) {
+                  console.error("로그 새로고침 실패", err);
+                } finally {
+                  setLogsLoading(false);
+                }
+              }}
+              disabled={logsLoading}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                color: "#374151",
+                fontSize: 12,
+                cursor: logsLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {logsLoading ? "새로고침 중..." : "🔄 새로고침"}
+            </button>
+          </div>
+
+          {syncLogs.length === 0 ? (
+            <div style={{ textAlign: "center", color: "#9ca3af", padding: "40px 0", fontSize: 14 }}>
+              아직 동기화 내역이 없습니다.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {syncLogs.map((log, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    border: "1px solid #f3f4f6",
+                    backgroundColor: "#fafafa",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>
+                        {log.provider || "UNKNOWN"}
+                      </span>
+                      {log.itemName && (
+                        <span style={{ fontSize: 12, color: "#6b7280" }}>
+                          · {log.itemName}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      {log.message || log.description || "동기화 완료"}
+                      {log.orderId && ` (주문번호: ${log.orderId})`}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        backgroundColor: log.status === "SUCCESS" ? "#d1fae5" : "#fee2e2",
+                        color: log.status === "SUCCESS" ? "#065f46" : "#991b1b",
+                      }}
+                    >
+                      {log.status || "SUCCESS"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                      {log.createdAt
+                        ? new Date(log.createdAt).toLocaleString("ko-KR")
+                        : new Date().toLocaleString("ko-KR")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 채널별 동기화 상태 */}
+        {syncStatus.length > 0 && (
+          <div
+            style={{
+              marginTop: 20,
+              padding: 20,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              backgroundColor: "#f8fafc",
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>📈 채널별 동기화 상태</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12 }}>
+              {syncStatus.map((ch) => (
+                <div
+                  key={ch.provider}
+                  style={{
+                    padding: 12,
+                    borderRadius: 8,
+                    backgroundColor: "#ffffff",
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
+                    {ch.provider}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6b7280" }}>
+                    마지막 동기화:{" "}
+                    {ch.lastSyncAt
+                      ? new Date(ch.lastSyncAt).toLocaleString("ko-KR")
+                      : "없음"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                    처리 건수: {ch.totalProcessed || 0}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

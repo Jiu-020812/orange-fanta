@@ -258,4 +258,44 @@ export async function createRecordsBatch({ type = "IN", items }) {
   return res.data;
 }
 
+/* ===================== channel webhooks ===================== */
+
+// GET /api/sync/logs - 동기화 로그 조회
+export async function getSyncLogs({ limit = 50 } = {}) {
+  const res = await request(() =>
+    client.get("/api/sync/logs", { params: { limit } })
+  );
+  return unwrapArray(res.data.logs);
+}
+
+// POST /api/sync/manual - 수동 동기화 트리거
+export async function triggerManualSync({ provider, startDate, endDate } = {}) {
+  const res = await request(() =>
+    client.post("/api/sync/manual", {
+      provider,
+      startDate,
+      endDate,
+    })
+  );
+  return unwrapObject(res.data);
+}
+
+// GET /api/sync/status - 채널별 동기화 상태 조회
+export async function getSyncStatus() {
+  const res = await request(() => client.get("/api/sync/status"));
+  return unwrapArray(res.data.channels);
+}
+
+// POST /api/sync/settings - 자동 동기화 설정
+export async function updateSyncSettings({ provider, enabled, interval } = {}) {
+  const res = await request(() =>
+    client.post("/api/sync/settings", {
+      provider,
+      enabled,
+      interval,
+    })
+  );
+  return unwrapObject(res.data);
+}
+
 export default client;
