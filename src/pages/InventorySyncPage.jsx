@@ -202,36 +202,51 @@ export default function InventorySyncPage() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
+    <div
+      style={{
+        minHeight: "calc(100vh - 56px)",
+        background: "linear-gradient(135deg, #b8c5f2 0%, #c5b3d9 50%, #e8d4f0 100%)",
+        padding: "40px 20px",
+      }}
+    >
       <Toast message={toast} />
 
       <div
         style={{
-          maxWidth: 720,
+          maxWidth: 1200,
           margin: "0 auto",
-          padding: 16,
-          borderRadius: 14,
-          border: "1px solid #e5e7eb",
-          backgroundColor: "white",
+          background: "#ffffff",
+          borderRadius: "16px",
+          padding: "40px",
+          boxShadow: "0 2px 8px rgba(123, 97, 255, 0.08)",
+          border: "1px solid rgba(184, 197, 242, 0.3)",
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
-          채널 재고 연동
+        <h2
+          style={{
+            margin: 0,
+            fontSize: 28,
+            fontWeight: 800,
+            marginBottom: 12,
+            color: "#7c8db5",
+          }}
+        >
+          🔗 채널 재고 연동
         </h2>
-        <div style={{ fontSize: 13, color: "#64748b", marginTop: 6 }}>
+        <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>
           중앙 재고 기준으로 판매 채널의 노출 수량을 자동 계산해 SET 방식으로 푸시합니다.
         </div>
 
         <div
           style={{
-            marginTop: 16,
-            padding: 12,
+            marginBottom: 32,
+            padding: 24,
             borderRadius: 12,
             border: "1px solid #e5e7eb",
             backgroundColor: "#f8fafc",
           }}
         >
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>채널 계정 연결</div>
+          <div style={{ fontWeight: 700, marginBottom: 16, fontSize: 16 }}>📱 채널 계정 연결</div>
           {connectionLoading ? (
             <div style={{ fontSize: 12, color: "#64748b" }}>불러오는 중...</div>
           ) : (
@@ -242,14 +257,21 @@ export default function InventorySyncPage() {
                 const saving = Boolean(connectionSaving[provider]);
                 const values = connectionForms[provider] || {};
 
+                const providerIcons = {
+                  NAVER: "🟢",
+                  COUPANG: "🔵",
+                  ELEVENST: "🔴",
+                  ETC: "⚪",
+                };
+
                 return (
                   <div
                     key={provider}
                     style={{
-                      padding: 12,
+                      padding: 16,
                       borderRadius: 12,
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "white",
+                      border: saved ? "2px solid #9dadd6" : "1px solid #e2e8f0",
+                      backgroundColor: saved ? "#f8f9fe" : "white",
                     }}
                   >
                     <div
@@ -257,12 +279,21 @@ export default function InventorySyncPage() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
-                        marginBottom: 8,
+                        marginBottom: 12,
                       }}
                     >
-                      <div style={{ fontWeight: 700 }}>{provider}</div>
-                      <span style={{ fontSize: 11, color: saved ? "#16a34a" : "#94a3b8" }}>
-                        {saved ? "연결됨" : "미연결"}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 20 }}>{providerIcons[provider]}</span>
+                        <div style={{ fontWeight: 700, fontSize: 15 }}>{provider}</div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: saved ? "#10b981" : "#9ca3af",
+                        }}
+                      >
+                        {saved ? "✓ 연결됨" : "미연결"}
                       </span>
                     </div>
 
@@ -282,21 +313,30 @@ export default function InventorySyncPage() {
                       ))}
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                       <button
                         onClick={() => handleSaveIntegration(provider)}
                         disabled={saving}
-                        style={smallButtonStyle}
+                        style={{
+                          ...smallButtonStyle,
+                          backgroundColor: "#9dadd6",
+                          flex: 1,
+                        }}
                       >
-                        {saving ? "저장 중..." : "저장"}
+                        {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
                       </button>
                       {saved ? (
                         <button
                           onClick={() => handleRemoveIntegration(provider)}
                           disabled={saving}
-                          style={{ ...smallButtonStyle, backgroundColor: "#ef4444" }}
+                          style={{
+                            ...smallButtonStyle,
+                            backgroundColor: "transparent",
+                            border: "1px solid #ef4444",
+                            color: "#ef4444",
+                          }}
                         >
-                          연결 해제
+                          해제
                         </button>
                       ) : null}
                     </div>
@@ -307,11 +347,19 @@ export default function InventorySyncPage() {
           )}
         </div>
 
-        <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 12, fontWeight: 600 }}>품목 선택</label>
-          <div style={{ marginTop: 6 }}>
-            <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
-          </div>
+        <div
+          style={{
+            padding: 20,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#ffffff",
+            marginBottom: 24,
+          }}
+        >
+          <label style={{ fontSize: 14, fontWeight: 700, display: "block", marginBottom: 12 }}>
+            📦 품목 선택
+          </label>
+          <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
         </div>
 
         {selectedItem?.id ? (
@@ -334,8 +382,16 @@ export default function InventorySyncPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 16 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>정책 설정</div>
+            <div
+              style={{
+                padding: 20,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                backgroundColor: "#ffffff",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>⚙️ 정책 설정</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <label style={{ fontSize: 12 }}>
                   모드
@@ -407,14 +463,22 @@ export default function InventorySyncPage() {
               <button
                 onClick={handleSavePolicy}
                 disabled={policyLoading}
-                style={buttonStyle}
+                style={{ ...buttonStyle, backgroundColor: "#9dadd6" }}
               >
                 {policyLoading ? "저장 중..." : "정책 저장"}
               </button>
             </div>
 
-            <div style={{ marginTop: 18 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>채널 리스팅</div>
+            <div
+              style={{
+                padding: 20,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                backgroundColor: "#ffffff",
+                marginBottom: 16,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>📋 채널 리스팅</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <label style={{ fontSize: 12 }}>
                   Provider
@@ -469,20 +533,27 @@ export default function InventorySyncPage() {
               <button
                 onClick={handleSaveListing}
                 disabled={listingLoading}
-                style={{ ...buttonStyle, backgroundColor: "#0f766e" }}
+                style={{ ...buttonStyle, backgroundColor: "#9dadd6" }}
               >
                 {listingLoading ? "저장 중..." : "리스팅 저장"}
               </button>
             </div>
 
-            <div style={{ marginTop: 18 }}>
-              <div style={{ fontWeight: 700, marginBottom: 8 }}>재고 동기화</div>
+            <div
+              style={{
+                padding: 20,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 15 }}>🔄 재고 동기화</div>
               <button
                 onClick={handleSyncInventory}
                 disabled={syncLoading}
-                style={{ ...buttonStyle, backgroundColor: "#2563eb" }}
+                style={{ ...buttonStyle, backgroundColor: "#9dadd6" }}
               >
-                {syncLoading ? "동기화 중..." : "재고 동기화"}
+                {syncLoading ? "동기화 중..." : "지금 동기화"}
               </button>
               {syncResult?.targets?.length ? (
                 <div style={{ marginTop: 8, fontSize: 12, color: "#475569" }}>
