@@ -363,7 +363,6 @@ export default function InventorySyncPage() {
                     <option value="NAVER">NAVER</option>
                     <option value="COUPANG">COUPANG</option>
                     <option value="ELEVENST">ELEVENST</option>
-                    <option value="KREAM">KREAM</option>
                     <option value="ETC">ETC</option>
                   </select>
                 </label>
@@ -427,7 +426,6 @@ export default function InventorySyncPage() {
                     <option value="NAVER">NAVER</option>
                     <option value="COUPANG">COUPANG</option>
                     <option value="ELEVENST">ELEVENST</option>
-                    <option value="KREAM">KREAM</option>
                     <option value="ETC">ETC</option>
                   </select>
                 </label>
@@ -559,10 +557,6 @@ const PROVIDER_FIELDS = {
   ELEVENST: [
     { key: "openApiKey", label: "Open API Key", placeholder: "11번가 API Key" },
     { key: "sellerId", label: "Seller ID", placeholder: "판매자 ID" },
-  ],
-  KREAM: [
-    { key: "apiKey", label: "API Key", placeholder: "KREAM API Key" },
-    { key: "apiSecret", label: "API Secret", placeholder: "KREAM Secret" },
   ],
   ETC: [
     { key: "apiKey", label: "API Key", placeholder: "채널 API Key" },
