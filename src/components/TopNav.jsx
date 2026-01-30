@@ -151,6 +151,10 @@ export default function TopNav() {
           채널 연동
         </NavLink>
 
+        <NavLink to="/reports" active={isActive("/reports")}>
+          보고서
+        </NavLink>
+
         <NavLink to="/add" active={isActive("/add")}>
           품목 등록
         </NavLink>

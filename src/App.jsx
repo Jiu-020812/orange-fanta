@@ -15,6 +15,7 @@ import TopNav from "./components/TopNav.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import InventorySyncPage from "./pages/InventorySyncPage";
+import ReportsPage from "./pages/ReportsPage";
 
 function App() {
   const location = useLocation();
@@ -48,6 +49,9 @@ function App() {
 
             {/* 채널 연동 */}
             <Route path="/sync" element={<InventorySyncPage />} />
+
+            {/* 보고서 */}
+            <Route path="/reports" element={<ReportsPage />} />
 
             {/* 마이페이지 */}
             <Route path="/mypage" element={<MyPage />} />
