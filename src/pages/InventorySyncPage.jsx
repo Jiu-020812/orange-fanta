@@ -9,6 +9,7 @@ import {
   getSyncLogs,
   getSyncStatus,
   triggerManualSync,
+  uploadListingsCsv,
 } from "../api/items";
 import {
   listIntegrations,
@@ -42,6 +43,7 @@ export default function InventorySyncPage() {
   const [syncLogs, setSyncLogs] = useState([]);
   const [syncStatus, setSyncStatus] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [csvUploading, setCsvUploading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -233,7 +235,7 @@ export default function InventorySyncPage() {
 
   const handleManualSync = async (provider) => {
     try {
-      const result = await triggerManualSync({ provider });
+      await triggerManualSync({ provider });
       showToast(`${provider} 수동 동기화 시작`);
 
       // 동기화 로그 새로고침
@@ -243,6 +245,75 @@ export default function InventorySyncPage() {
       console.error("수동 동기화 실패", err);
       window.alert(err?.message || "수동 동기화 실패");
     }
+  };
+
+  const handleCsvUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setCsvUploading(true);
+      const text = await file.text();
+      const lines = text.split("\n").filter((line) => line.trim());
+
+      // 첫 줄은 헤더이므로 스킵
+      const mappings = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",").map((c) => c.trim());
+        if (cols.length < 2) continue;
+
+        const [sku, itemName, coupangProductId, coupangOptionId, naverProductId, naverOptionId] = cols;
+
+        if (coupangProductId) {
+          mappings.push({
+            sku,
+            itemName,
+            provider: "COUPANG",
+            channelProductId: coupangProductId,
+            channelOptionId: coupangOptionId || null,
+          });
+        }
+
+        if (naverProductId) {
+          mappings.push({
+            sku,
+            itemName,
+            provider: "NAVER",
+            channelProductId: naverProductId,
+            channelOptionId: naverOptionId || null,
+          });
+        }
+      }
+
+      if (mappings.length === 0) {
+        alert("유효한 데이터가 없습니다.");
+        return;
+      }
+
+      await uploadListingsCsv(mappings);
+      showToast(`${mappings.length}건의 매핑이 등록되었습니다!`);
+
+      // 파일 input 초기화
+      event.target.value = "";
+    } catch (err) {
+      console.error("CSV 업로드 실패", err);
+      window.alert(err?.message || "CSV 업로드 실패");
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const downloadSampleCsv = () => {
+    const sample = `SKU,상품명,쿠팡상품ID,쿠팡옵션ID,네이버상품ID,네이버옵션ID
+SHRIMP-001,새우깡,12345678,987654,87654321,456789
+POTATO-001,감자깡,23456789,876543,98765432,567890
+ONION-001,양파링,34567890,765432,19876543,678901`;
+
+    const blob = new Blob([sample], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "채널매핑_샘플.csv";
+    link.click();
   };
 
   return (
@@ -402,6 +473,81 @@ export default function InventorySyncPage() {
           )}
         </div>
 
+        {/* CSV 일괄 업로드 */}
+        <div
+          style={{
+            marginBottom: 32,
+            padding: 24,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            backgroundColor: "#f0fdf4",
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 16 }}>📊 CSV 일괄 등록</div>
+          <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+            엑셀(CSV) 파일로 한 번에 여러 상품의 채널 매핑을 등록할 수 있습니다.
+          </div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <label
+              style={{
+                flex: 1,
+                padding: "10px 16px",
+                borderRadius: 8,
+                border: "2px dashed #9dadd6",
+                backgroundColor: "#ffffff",
+                cursor: "pointer",
+                textAlign: "center",
+                fontSize: 13,
+                fontWeight: 600,
+                color: csvUploading ? "#9ca3af" : "#7c8db5",
+              }}
+            >
+              {csvUploading ? "업로드 중..." : "📁 CSV 파일 선택"}
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleCsvUpload}
+                disabled={csvUploading}
+                style={{ display: "none" }}
+              />
+            </label>
+
+            <button
+              onClick={downloadSampleCsv}
+              style={{
+                padding: "10px 16px",
+                borderRadius: 8,
+                border: "1px solid #9dadd6",
+                backgroundColor: "#ffffff",
+                color: "#7c8db5",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              📥 샘플 다운로드
+            </button>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 8,
+              backgroundColor: "#ffffff",
+              fontSize: 12,
+              color: "#6b7280",
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>CSV 파일 형식:</div>
+            <div>SKU, 상품명, 쿠팡상품ID, 쿠팡옵션ID, 네이버상품ID, 네이버옵션ID</div>
+            <div style={{ marginTop: 4, fontSize: 11, color: "#9ca3af" }}>
+              * 옵션ID는 선택사항입니다. 비워두셔도 됩니다.
+            </div>
+          </div>
+        </div>
+
         <div
           style={{
             padding: 20,
@@ -412,7 +558,7 @@ export default function InventorySyncPage() {
           }}
         >
           <label style={{ fontSize: 14, fontWeight: 700, display: "block", marginBottom: 12 }}>
-            📦 품목 선택
+            📦 품목 선택 (개별 등록)
           </label>
           <ItemPicker value={selectedItem} onSelect={setSelectedItem} />
         </div>

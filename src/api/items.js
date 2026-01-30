@@ -298,4 +298,12 @@ export async function updateSyncSettings({ provider, enabled, interval } = {}) {
   return unwrapObject(res.data);
 }
 
+// POST /api/listings/batch - CSV 일괄 등록
+export async function uploadListingsCsv(mappings) {
+  const res = await request(() =>
+    client.post("/api/listings/batch", { mappings })
+  );
+  return unwrapObject(res.data);
+}
+
 export default client;
