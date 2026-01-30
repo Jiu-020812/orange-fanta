@@ -337,17 +337,61 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
           border: "1px solid rgba(184, 197, 242, 0.3)",
         }}
       >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: 28,
-            fontWeight: 800,
-            marginBottom: 12,
-            color: "#7c8db5",
-          }}
-        >
-          🔗 채널 재고 연동
-        </h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: 28,
+              fontWeight: 800,
+              color: "#7c8db5",
+            }}
+          >
+            🔗 채널 재고 연동
+          </h2>
+          <div
+            title="자세한 설명 보기"
+            style={{
+              cursor: "pointer",
+              fontSize: 20,
+              color: "#7c8db5",
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "50%",
+              border: "2px solid #7c8db5",
+              fontWeight: 700,
+            }}
+            onClick={() => {
+              const helpText = `
+📌 채널 재고 연동이란?
+
+여러 판매 채널(네이버, 쿠팡, 11번가 등)에 동일한 상품을 올려놓았을 때,
+한 채널에서 판매가 발생하면 자동으로 다른 채널의 재고도 함께 차감되는 기능입니다.
+
+✅ 사용 방법:
+1. [채널 계정 연결] - 각 판매 채널의 API 키를 입력하고 연결하세요
+2. [CSV 일괄 등록] - 엑셀로 여러 상품의 매핑을 한 번에 등록하세요
+3. [품목 선택] - 개별 상품의 정책과 리스팅을 설정하세요
+4. [재고 동기화] - 수동으로 재고를 동기화할 수 있습니다
+
+💡 예시:
+- 새우깡을 쿠팡, 네이버, 11번가에 각각 10개씩 올려놓음
+- 쿠팡에서 1개 판매 발생
+- 자동으로 네이버와 11번가의 재고도 9개로 변경됨
+
+⚠️ 주의사항:
+- 각 채널의 API 키는 해당 채널의 판매자 센터에서 발급받아야 합니다
+- CSV 업로드 시 샘플 파일 형식을 참고하세요
+- 정책 설정에서 버퍼(안전 재고)를 설정할 수 있습니다
+              `;
+              alert(helpText.trim());
+            }}
+          >
+            ?
+          </div>
+        </div>
         <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 32 }}>
           중앙 재고 기준으로 판매 채널의 노출 수량을 자동 계산해 SET 방식으로 푸시합니다.
         </div>
@@ -923,12 +967,14 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
 
 const inputStyle = {
   width: "100%",
+  maxWidth: "100%",
   height: 32,
   marginTop: 6,
   padding: "0 10px",
   borderRadius: 10,
   border: "1px solid #e5e7eb",
   fontSize: 12,
+  boxSizing: "border-box",
 };
 
 const buttonStyle = {
@@ -944,12 +990,14 @@ const buttonStyle = {
 
 const smallInputStyle = {
   width: "100%",
-  height: 30,
+  maxWidth: "100%",
+  height: 28,
   marginTop: 6,
   padding: "0 8px",
-  borderRadius: 10,
+  borderRadius: 8,
   border: "1px solid #e5e7eb",
   fontSize: 11,
+  boxSizing: "border-box",
 };
 
 const smallButtonStyle = {

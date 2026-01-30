@@ -1,30 +1,16 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import TodoList from "./TodoList";
 
-const OPENWEATHER_API_KEY = "b23e3ef920cc977da3084aedddef8322";
-const CITY_NAME = "Iksan";
-const COUNTRY_CODE = "KR";
-
-function getWeatherEmoji(main) {
-  if (!main) return "❔";
-  const m = main.toLowerCase();
-
-  if (m.includes("clear")) return "☀️";
-  if (m.includes("cloud")) return "⛅";
-  if (m.includes("rain") || m.includes("drizzle")) return "🌧️";
-  if (m.includes("thunder")) return "⛈️";
-  if (m.includes("snow")) return "❄️";
-  if (m.includes("fog") || m.includes("mist") || m.includes("haze"))
-    return "🌫️";
-
-  return "🌈";
-}
-
 function HomePage() {
+  const navigate = useNavigate();
   const [now, setNow] = useState(new Date());
-  const [weather, setWeather] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [dashboardStats, setDashboardStats] = useState({
+    totalItems: 0,
+    lowStockItems: 0,
+    recentInCount: 0,
+    recentOutCount: 0,
+  });
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -35,37 +21,23 @@ function HomePage() {
   }, []);
 
   useEffect(() => {
-    const fetchWeather = async () => {
+    // 대시보드 통계 데이터 가져오기 (임시 데이터, 나중에 API 연동 가능)
+    const fetchDashboardStats = async () => {
       try {
-        setLoading(true);
-        setError("");
-
-        const url = `https://api.openweathermap.org/data/2.5/weather?q=${CITY_NAME},${COUNTRY_CODE}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=kr`;
-
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const data = await res.json();
-
-        const main = data.weather?.[0]?.main || "";
-        const description = data.weather?.[0]?.description || "";
-        const temp = data.main?.temp;
-
-        setWeather({
-          main,
-          description,
-          temp,
+        // TODO: API 연동
+        // 임시 데이터
+        setDashboardStats({
+          totalItems: 127,
+          lowStockItems: 8,
+          recentInCount: 23,
+          recentOutCount: 45,
         });
       } catch (e) {
-        console.error("날씨 가져오기 오류:", e);
-        setError("날씨 정보를 불러오지 못했습니다.");
-      } finally {
-        setLoading(false);
+        console.error("대시보드 통계 가져오기 오류:", e);
       }
     };
 
-    fetchWeather();
+    fetchDashboardStats();
   }, []);
 
   const formattedDate = now.toLocaleDateString("ko-KR", {
@@ -81,8 +53,6 @@ function HomePage() {
     second: "2-digit",
   });
 
-  const emoji = getWeatherEmoji(weather?.main);
-
   return (
     <div
       style={{
@@ -94,157 +64,131 @@ function HomePage() {
 
       <div
         style={{
-          maxWidth: "1200px",
+          maxWidth: "1400px",
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: "30px",
+          gap: "24px",
           position: "relative",
           zIndex: 1,
         }}
       >
-        {/* 날짜/시간 + 날씨 카드 (2칸) */}
+        {/* 헤더 */}
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            padding: "32px 40px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <h1
+            style={{
+              margin: 0,
+              fontSize: 32,
+              fontWeight: 900,
+              color: "#7c8db5",
+              marginBottom: 8,
+            }}
+          >
+            📊 재고 관리 대시보드
+          </h1>
+          <div style={{ fontSize: 14, color: "#6b7280" }}>
+            {formattedDate} · {formattedTime}
+          </div>
+        </div>
+
+        {/* 통계 카드 (4칸) */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: "30px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: "20px",
           }}
         >
-          {/* 날짜/시간 카드 */}
-          <div
+          <DashboardStatCard
+            icon="📦"
+            title="전체 품목"
+            value={dashboardStats.totalItems}
+            subtext="등록된 품목"
+            color="#7c8db5"
+            onClick={() => navigate("/manage")}
+          />
+          <DashboardStatCard
+            icon="⚠️"
+            title="재고 부족"
+            value={dashboardStats.lowStockItems}
+            subtext="품목이 재고 부족"
+            color="#f59e0b"
+            onClick={() => navigate("/manage")}
+          />
+          <DashboardStatCard
+            icon="📥"
+            title="최근 입고"
+            value={dashboardStats.recentInCount}
+            subtext="건 (최근 7일)"
+            color="#10b981"
+            onClick={() => navigate("/in")}
+          />
+          <DashboardStatCard
+            icon="📤"
+            title="최근 판매"
+            value={dashboardStats.recentOutCount}
+            subtext="건 (최근 7일)"
+            color="#ef4444"
+            onClick={() => navigate("/out")}
+          />
+        </div>
+
+        {/* 빠른 액션 카드 */}
+        <div
+          style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            padding: "32px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+            border: "1px solid #e5e7eb",
+          }}
+        >
+          <h3
             style={{
-              background: "#ffffff",
-              borderRadius: "16px",
-              padding: "40px",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              border: "1px solid #e5e7eb",
+              margin: 0,
+              fontSize: 18,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 20,
             }}
           >
-            <div
-              style={{
-                fontSize: "48px",
-                marginBottom: "20px",
-                textAlign: "center",
-              }}
-            >
-              🕐
-            </div>
-
-            <h2
-              style={{
-                fontSize: "24px",
-                fontWeight: "800",
-                marginBottom: "12px",
-                color: "#7c8db5",
-                textAlign: "center",
-              }}
-            >
-              {formattedDate}
-            </h2>
-
-            <div
-              style={{
-                fontSize: "48px",
-                fontWeight: "900",
-                color: "#111827",
-                textAlign: "center",
-                letterSpacing: "2px",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formattedTime}
-            </div>
-          </div>
-
-          {/* 날씨 카드 */}
+            ⚡ 빠른 실행
+          </h3>
           <div
             style={{
-              background: "#ffffff",
-              borderRadius: "16px",
-              padding: "40px",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-              border: "1px solid #e5e7eb",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: 12,
             }}
           >
-            <div
-              style={{
-                fontSize: "64px",
-                textAlign: "center",
-                marginBottom: "20px",
-              }}
-            >
-              {emoji}
-            </div>
-
-            <h3
-              style={{
-                fontSize: "20px",
-                fontWeight: "700",
-                color: "#111827",
-                marginBottom: "12px",
-                textAlign: "center",
-              }}
-            >
-              익산 오늘의 날씨
-            </h3>
-
-            {loading ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "15px",
-                  color: "#6b7280",
-                }}
-              >
-                날씨 불러오는 중...
-              </div>
-            ) : error ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "15px",
-                  color: "#ef4444",
-                }}
-              >
-                {error}
-              </div>
-            ) : weather ? (
-              <>
-                <div
-                  style={{
-                    fontSize: "32px",
-                    fontWeight: "900",
-                    color: "#8b9abe",
-                    textAlign: "center",
-                    marginBottom: "8px",
-                  }}
-                >
-                  {typeof weather.temp === "number"
-                    ? `${Math.round(weather.temp)}°C`
-                    : "-"}
-                </div>
-                <div
-                  style={{
-                    fontSize: "16px",
-                    color: "#4b5563",
-                    textAlign: "center",
-                  }}
-                >
-                  {weather.description || "날씨 정보"}
-                </div>
-              </>
-            ) : (
-              <div
-                style={{
-                  textAlign: "center",
-                  fontSize: "15px",
-                  color: "#6b7280",
-                }}
-              >
-                날씨 정보가 없습니다.
-              </div>
-            )}
+            <QuickActionButton
+              icon="➕"
+              label="품목 등록"
+              onClick={() => navigate("/add")}
+            />
+            <QuickActionButton
+              icon="📥"
+              label="입고 등록"
+              onClick={() => navigate("/in")}
+            />
+            <QuickActionButton
+              icon="📤"
+              label="판매 등록"
+              onClick={() => navigate("/out")}
+            />
+            <QuickActionButton
+              icon="🔗"
+              label="채널 연동"
+              onClick={() => navigate("/sync")}
+            />
           </div>
         </div>
 
@@ -253,45 +197,89 @@ function HomePage() {
           style={{
             background: "#ffffff",
             borderRadius: "16px",
-            padding: "40px",
+            padding: "32px",
             boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
             border: "1px solid #e5e7eb",
           }}
         >
           <TodoList />
         </div>
-
-        {/* 안내 카드 */}
-        <div
-          style={{
-            background: "#ffffff",
-            borderRadius: "16px",
-            padding: "24px 32px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            border: "1px solid #e5e7eb",
-            display: "flex",
-            alignItems: "center",
-            gap: "20px",
-          }}
-        >
-          <div style={{ fontSize: "32px" }}>💡</div>
-          <div style={{ flex: 1 }}>
-            <p
-              style={{
-                fontSize: "16px",
-                color: "#4b5563",
-                margin: 0,
-                lineHeight: "1.6",
-              }}
-            >
-              상단 메뉴에서 <strong style={{ color: "#667eea" }}>품목 관리</strong> 또는{" "}
-              <strong style={{ color: "#667eea" }}>품목 등록</strong>을 눌러서
-              평균 매입가를 관리해보세요.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
+  );
+}
+
+function DashboardStatCard({ icon, title, value, subtext, color, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "#ffffff",
+        borderRadius: "16px",
+        padding: "24px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+        border: "1px solid #e5e7eb",
+        cursor: "pointer",
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-4px)";
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+      }}
+    >
+      <div style={{ fontSize: 32, marginBottom: 12 }}>{icon}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
+        {title}
+      </div>
+      <div
+        style={{
+          fontSize: 36,
+          fontWeight: 900,
+          color: color,
+          marginBottom: 4,
+        }}
+      >
+        {value}
+      </div>
+      <div style={{ fontSize: 12, color: "#9ca3af" }}>{subtext}</div>
+    </div>
+  );
+}
+
+function QuickActionButton({ icon, label, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "12px 16px",
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+        cursor: "pointer",
+        fontSize: 14,
+        fontWeight: 600,
+        color: "#111827",
+        transition: "all 0.2s",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "#f8fafc";
+        e.currentTarget.style.borderColor = "#7c8db5";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "#ffffff";
+        e.currentTarget.style.borderColor = "#e5e7eb";
+      }}
+    >
+      <span style={{ fontSize: 20 }}>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
 

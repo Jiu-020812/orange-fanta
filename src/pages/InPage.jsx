@@ -446,6 +446,8 @@ const inputStyle = {
   border: "1px solid #e5e7eb",
   fontSize: 13,
   outline: "none",
+  boxSizing: "border-box",
+  maxWidth: "100%",
 };
 
 const resultBox = {
