@@ -19,6 +19,7 @@ import {
   updateRecord as updateServerRecord,
   deleteRecord as deleteServerRecord,
   deleteItem as deleteServerItem,
+  updateLowStockAlert,
 } from "../api/items";
 
 const norm = (s) => String(s ?? "").trim();
@@ -499,6 +500,99 @@ export default function ManageDetailPage() {
             <>
               {/* 재고 표시 */}
               <StockDisplay stock={stock} pendingIn={pendingIn} />
+
+              {/* 재고 부족 알림 설정 */}
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  backgroundColor: "#ffffff",
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#111827" }}>
+                  ⚠️ 재고 부족 알림 설정
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", cursor: "pointer", fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedOption?.lowStockAlert ?? false}
+                      onChange={async (e) => {
+                        const newValue = e.target.checked;
+                        try {
+                          await updateLowStockAlert(selectedOption.id, {
+                            lowStockAlert: newValue,
+                            lowStockThreshold: selectedOption?.lowStockThreshold ?? 10,
+                          });
+                          setItems((prev) =>
+                            (Array.isArray(prev) ? prev : []).map((it) =>
+                              it.id === selectedOption.id
+                                ? { ...it, lowStockAlert: newValue }
+                                : it
+                            )
+                          );
+                          showToast("재고 부족 알림 설정이 저장되었습니다");
+                        } catch (err) {
+                          console.error("재고 부족 알림 설정 실패", err);
+                          window.alert("설정 저장에 실패했습니다 😢");
+                        }
+                      }}
+                      style={{ marginRight: 6 }}
+                    />
+                    재고 부족 알림 사용
+                  </label>
+                </div>
+
+                {selectedOption?.lowStockAlert && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <label style={{ fontSize: 13, color: "#6b7280" }}>재고가</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={selectedOption?.lowStockThreshold ?? 10}
+                      onChange={(e) => {
+                        const newValue = Number(e.target.value);
+                        if (newValue >= 0) {
+                          setItems((prev) =>
+                            (Array.isArray(prev) ? prev : []).map((it) =>
+                              it.id === selectedOption.id
+                                ? { ...it, lowStockThreshold: newValue }
+                                : it
+                            )
+                          );
+                        }
+                      }}
+                      onBlur={async (e) => {
+                        const newValue = Number(e.target.value);
+                        if (newValue >= 0) {
+                          try {
+                            await updateLowStockAlert(selectedOption.id, {
+                              lowStockAlert: selectedOption?.lowStockAlert ?? false,
+                              lowStockThreshold: newValue,
+                            });
+                            showToast("재고 부족 기준이 저장되었습니다");
+                          } catch (err) {
+                            console.error("재고 부족 기준 설정 실패", err);
+                            window.alert("설정 저장에 실패했습니다 😢");
+                          }
+                        }
+                      }}
+                      style={{
+                        width: 70,
+                        padding: "6px 10px",
+                        borderRadius: 8,
+                        border: "1px solid #d1d5db",
+                        fontSize: 13,
+                        textAlign: "center",
+                      }}
+                    />
+                    <label style={{ fontSize: 13, color: "#6b7280" }}>개 이하일 때 알림</label>
+                  </div>
+                )}
+              </div>
 
               <div
                 style={{
