@@ -317,4 +317,16 @@ export async function getDashboardStats({ lowStockThreshold = 10 } = {}) {
   return unwrapObject(res.data);
 }
 
+// ======================= Low Stock Alert =======================
+
+export async function updateLowStockAlert(itemId, { lowStockAlert, lowStockThreshold }) {
+  const res = await request(() =>
+    client.patch(`/api/items/${itemId}/low-stock-alert`, {
+      lowStockAlert,
+      lowStockThreshold,
+    })
+  );
+  return unwrapObject(res.data);
+}
+
 export default client;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import TodoList from "./TodoList";
 import { getDashboardStats } from "../api/items";
 
@@ -11,6 +12,7 @@ function HomePage() {
     lowStockItems: 0,
     recentInCount: 0,
     recentOutCount: 0,
+    topSellingItems: [],
   });
   const [lowStockThreshold, setLowStockThreshold] = useState(() => {
     const saved = localStorage.getItem("lowStockThreshold");
@@ -35,6 +37,7 @@ function HomePage() {
           lowStockItems: stats.lowStockItems || 0,
           recentInCount: stats.recentInCount || 0,
           recentOutCount: stats.recentOutCount || 0,
+          topSellingItems: stats.topSellingItems || [],
         });
       } catch (e) {
         console.error("대시보드 통계 가져오기 오류:", e);
@@ -223,54 +226,124 @@ function HomePage() {
           />
         </div>
 
-        {/* 빠른 액션 카드 */}
+        {/* 콘텐츠 그리드 (2칸) */}
         <div
           style={{
-            background: "#ffffff",
-            borderRadius: "16px",
-            padding: "32px",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-            border: "1px solid #e5e7eb",
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "20px",
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 18,
-              fontWeight: 700,
-              color: "#111827",
-              marginBottom: 20,
-            }}
-          >
-            ⚡ 빠른 실행
-          </h3>
+          {/* 판매 순위 차트 */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: 12,
+              background: "#ffffff",
+              borderRadius: "16px",
+              padding: "32px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              border: "1px solid #e5e7eb",
             }}
           >
-            <QuickActionButton
-              icon="➕"
-              label="품목 등록"
-              onClick={() => navigate("/add")}
-            />
-            <QuickActionButton
-              icon="📥"
-              label="입고 등록"
-              onClick={() => navigate("/in")}
-            />
-            <QuickActionButton
-              icon="📤"
-              label="판매 등록"
-              onClick={() => navigate("/out")}
-            />
-            <QuickActionButton
-              icon="🔗"
-              label="채널 연동"
-              onClick={() => navigate("/sync")}
-            />
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 20,
+              }}
+            >
+              📈 판매 TOP 5 (최근 7일)
+            </h3>
+            {dashboardStats.topSellingItems.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <PieChart>
+                  <Pie
+                    data={dashboardStats.topSellingItems}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${name}: ${value}개`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {dashboardStats.topSellingItems.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div
+                style={{
+                  height: 280,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                }}
+              >
+                최근 판매 데이터가 없습니다.
+              </div>
+            )}
+          </div>
+
+          {/* 빠른 액션 카드 */}
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              padding: "32px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 20,
+              }}
+            >
+              ⚡ 빠른 실행
+            </h3>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              <QuickActionButton
+                icon="➕"
+                label="품목 등록"
+                onClick={() => navigate("/add")}
+              />
+              <QuickActionButton
+                icon="📥"
+                label="입고 등록"
+                onClick={() => navigate("/in")}
+              />
+              <QuickActionButton
+                icon="📤"
+                label="판매 등록"
+                onClick={() => navigate("/out")}
+              />
+              <QuickActionButton
+                icon="🔗"
+                label="채널 연동"
+                onClick={() => navigate("/sync")}
+              />
+            </div>
           </div>
         </div>
 
@@ -290,6 +363,8 @@ function HomePage() {
     </div>
   );
 }
+
+const COLORS = ["#7c8db5", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6"];
 
 function DashboardStatCard({ icon, title, value, subtext, color, onClick }) {
   return (

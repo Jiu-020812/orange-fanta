@@ -17,6 +17,7 @@ export default function LoginPage() {
   // 입력값
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
 
   // 상태
@@ -70,9 +71,15 @@ export default function LoginPage() {
       return;
     }
 
-    if (mode === "signup" && password.length < 8) {
-      setError("비밀번호는 8자 이상이어야 합니다.");
-      return;
+    if (mode === "signup") {
+      if (password.length < 8) {
+        setError("비밀번호는 8자 이상이어야 합니다.");
+        return;
+      }
+      if (password !== passwordConfirm) {
+        setError("비밀번호가 일치하지 않습니다.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -92,6 +99,7 @@ export default function LoginPage() {
         );
         setMode("login");
         setPassword("");
+        setPasswordConfirm("");
         setName("");
       }
     } catch (err) {
@@ -411,7 +419,7 @@ export default function LoginPage() {
 
             <input
               type="password"
-              placeholder="비밀번호"
+              placeholder={mode === "signup" ? "비밀번호 (8자 이상)" : "비밀번호"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -426,6 +434,32 @@ export default function LoginPage() {
               onFocus={(e) => (e.target.style.borderColor = '#667eea')}
               onBlur={(e) => (e.target.style.borderColor = '#e5e7eb')}
             />
+
+            {mode === "signup" && (
+              <input
+                type="password"
+                placeholder="비밀번호 확인"
+                value={passwordConfirm}
+                onChange={(e) => setPasswordConfirm(e.target.value)}
+                required
+                style={{
+                  padding: '14px 16px',
+                  fontSize: '15px',
+                  border: `2px solid ${passwordConfirm && password !== passwordConfirm ? '#ef4444' : '#e5e7eb'}`,
+                  borderRadius: '12px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = passwordConfirm && password !== passwordConfirm ? '#ef4444' : '#667eea')}
+                onBlur={(e) => (e.target.style.borderColor = passwordConfirm && password !== passwordConfirm ? '#ef4444' : '#e5e7eb')}
+              />
+            )}
+
+            {mode === "signup" && passwordConfirm && password !== passwordConfirm && (
+              <div style={{ fontSize: '13px', color: '#ef4444', marginTop: '-8px' }}>
+                비밀번호가 일치하지 않습니다.
+              </div>
+            )}
 
             <button
               type="submit"
@@ -456,6 +490,7 @@ export default function LoginPage() {
                 setMode(mode === "login" ? "signup" : "login");
                 setError("");
                 setNotice("");
+                setPasswordConfirm("");
               }}
               style={{
                 background: 'none',
