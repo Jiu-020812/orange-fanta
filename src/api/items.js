@@ -306,4 +306,15 @@ export async function uploadListingsCsv(mappings) {
   return unwrapObject(res.data);
 }
 
+// ======================= Dashboard Stats =======================
+
+export async function getDashboardStats({ lowStockThreshold = 10 } = {}) {
+  const res = await request(() =>
+    client.get("/api/dashboard/stats", {
+      params: { lowStockThreshold },
+    })
+  );
+  return unwrapObject(res.data);
+}
+
 export default client;

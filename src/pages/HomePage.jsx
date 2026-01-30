@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import TodoList from "./TodoList";
+import { getDashboardStats } from "../api/items";
 
 function HomePage() {
   const navigate = useNavigate();
@@ -11,6 +12,11 @@ function HomePage() {
     recentInCount: 0,
     recentOutCount: 0,
   });
+  const [lowStockThreshold, setLowStockThreshold] = useState(() => {
+    const saved = localStorage.getItem("lowStockThreshold");
+    return saved ? Number(saved) : 10;
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -21,16 +27,14 @@ function HomePage() {
   }, []);
 
   useEffect(() => {
-    // 대시보드 통계 데이터 가져오기 (임시 데이터, 나중에 API 연동 가능)
     const fetchDashboardStats = async () => {
       try {
-        // TODO: API 연동
-        // 임시 데이터
+        const stats = await getDashboardStats({ lowStockThreshold });
         setDashboardStats({
-          totalItems: 127,
-          lowStockItems: 8,
-          recentInCount: 23,
-          recentOutCount: 45,
+          totalItems: stats.totalItems || 0,
+          lowStockItems: stats.lowStockItems || 0,
+          recentInCount: stats.recentInCount || 0,
+          recentOutCount: stats.recentOutCount || 0,
         });
       } catch (e) {
         console.error("대시보드 통계 가져오기 오류:", e);
@@ -38,7 +42,15 @@ function HomePage() {
     };
 
     fetchDashboardStats();
-  }, []);
+  }, [lowStockThreshold]);
+
+  const handleThresholdChange = (value) => {
+    const num = Number(value);
+    if (num >= 0) {
+      setLowStockThreshold(num);
+      localStorage.setItem("lowStockThreshold", num);
+    }
+  };
 
   const formattedDate = now.toLocaleDateString("ko-KR", {
     year: "numeric",
@@ -83,20 +95,90 @@ function HomePage() {
             border: "1px solid #e5e7eb",
           }}
         >
-          <h1
+          <div
             style={{
-              margin: 0,
-              fontSize: 32,
-              fontWeight: 900,
-              color: "#7c8db5",
-              marginBottom: 8,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
-            📊 재고 관리 대시보드
-          </h1>
-          <div style={{ fontSize: 14, color: "#6b7280" }}>
-            {formattedDate} · {formattedTime}
+            <div>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 32,
+                  fontWeight: 900,
+                  color: "#7c8db5",
+                  marginBottom: 8,
+                }}
+              >
+                📊 재고 관리 대시보드
+              </h1>
+              <div style={{ fontSize: 14, color: "#6b7280" }}>
+                {formattedDate} · {formattedTime}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                color: "#374151",
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              ⚙️ 설정
+            </button>
           </div>
+
+          {showSettings && (
+            <div
+              style={{
+                marginTop: 20,
+                padding: 20,
+                borderRadius: 12,
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>
+                재고 부족 기준 설정
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <label style={{ fontSize: 13, color: "#6b7280" }}>
+                  재고가
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={lowStockThreshold}
+                  onChange={(e) => handleThresholdChange(e.target.value)}
+                  style={{
+                    width: 80,
+                    padding: "6px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    fontSize: 14,
+                    textAlign: "center",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <label style={{ fontSize: 13, color: "#6b7280" }}>
+                  개 이하인 품목을 재고 부족으로 표시
+                </label>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 통계 카드 (4칸) */}
