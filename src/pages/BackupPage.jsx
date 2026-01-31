@@ -1,8 +1,7 @@
 import { useState, useRef } from "react";
 import { exportData, importData } from "../api/backup";
 import * as XLSX from "xlsx";
-import { getCategories, createCategory } from "../api/categories";
-import { createItem } from "../api/items";
+import { getCategories, createCategory, createItem } from "../api/items";
 
 export default function BackupPage() {
   const [importing, setImporting] = useState(false);
