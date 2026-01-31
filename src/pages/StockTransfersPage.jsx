@@ -110,14 +110,16 @@ export default function StockTransfersPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+    <div style={{ padding: "16px", maxWidth: 1200, margin: "0 auto" }}>
       {/* 헤더 */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 24,
+          marginBottom: 16,
+          flexWrap: "wrap",
+          gap: 12,
         }}
       >
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>재고 이동</h1>

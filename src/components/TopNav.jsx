@@ -61,8 +61,8 @@ export default function TopNav() {
   return (
     <header
       style={{
-        height: 56,
-        padding: "0 32px",
+        minHeight: 56,
+        padding: "12px 16px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -73,17 +73,33 @@ export default function TopNav() {
         position: "sticky",
         top: 0,
         zIndex: 1000,
+        flexWrap: "wrap",
+        gap: 8,
       }}
     >
       {/* 왼쪽: 제목 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <span style={{ fontSize: 18, fontWeight: 700 }}>
+        <span
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+          }}
+        >
           📦 평균값 계산 재고관리
         </span>
       </div>
 
       {/* 가운데: 탭 네비게이션 */}
-      <nav style={{ display: "flex", gap: 16, alignItems: "center" }}>
+      <nav
+        style={{
+          display: "flex",
+          gap: window.innerWidth > 768 ? 16 : 8,
+          alignItems: "center",
+          flexWrap: "wrap",
+          flex: 1,
+          justifyContent: window.innerWidth > 768 ? "center" : "flex-start",
+        }}
+      >
         <NavLink to="/home" active={isActive("/home")}>
           메인
         </NavLink>
@@ -227,6 +243,10 @@ export default function TopNav() {
 
         <NavLink to="/add" active={isActive("/add")}>
           품목 등록
+        </NavLink>
+
+        <NavLink to="/backup" active={isActive("/backup")}>
+          백업/복원
         </NavLink>
       </nav>
 

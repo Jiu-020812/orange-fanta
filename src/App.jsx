@@ -19,6 +19,7 @@ import ReportsPage from "./pages/ReportsPage";
 import WarehousesPage from "./pages/WarehousesPage";
 import StockTransfersPage from "./pages/StockTransfersPage";
 import StockAuditsPage from "./pages/StockAuditsPage";
+import BackupPage from "./pages/BackupPage";
 
 function App() {
   const location = useLocation();
@@ -60,6 +61,9 @@ function App() {
             <Route path="/warehouses" element={<WarehousesPage />} />
             <Route path="/stock-transfers" element={<StockTransfersPage />} />
             <Route path="/stock-audits" element={<StockAuditsPage />} />
+
+            {/* 백업/복원 */}
+            <Route path="/backup" element={<BackupPage />} />
 
             {/* 마이페이지 */}
             <Route path="/mypage" element={<MyPage />} />

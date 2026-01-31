@@ -9,6 +9,7 @@ export default function StockAuditsPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const [formData, setFormData] = useState({
     itemId: "",
@@ -107,17 +108,74 @@ export default function StockAuditsPage() {
   }
 
   return (
-    <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
+    <div style={{ padding: "16px", maxWidth: 1200, margin: "0 auto" }}>
       {/* 헤더 */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 24,
+          marginBottom: 16,
+          flexWrap: "wrap",
+          gap: 12,
         }}
       >
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>재고 실사</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>재고 실사</h1>
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              onClick={() => setShowTooltip(!showTooltip)}
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: "50%",
+                border: "1px solid #9ca3af",
+                backgroundColor: "transparent",
+                color: "#9ca3af",
+                fontSize: 12,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+              }}
+            >
+              ?
+            </button>
+            {showTooltip && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 8,
+                  padding: 12,
+                  backgroundColor: "#1f2937",
+                  color: "#fff",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  width: 280,
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  zIndex: 1000,
+                }}
+              >
+                <strong>재고 실사란?</strong>
+                <br />
+                창고에서 실제로 물건을 세어보고, 시스템 재고와 비교하는 작업입니다.
+                <br />
+                <br />
+                • 예상 수량: 시스템상 있어야 하는 수량
+                <br />
+                • 실제 수량: 실제로 세어본 수량
+                <br />• 차이: 실제 - 예상 (±로 표시)
+              </div>
+            )}
+          </div>
+        </div>
         <button
           onClick={handleOpenModal}
           style={{
@@ -165,23 +223,26 @@ export default function StockAuditsPage() {
           <p style={{ color: "#6b7280" }}>등록된 재고 실사 기록이 없습니다.</p>
         </div>
       ) : (
-        <div
-          style={{
-            backgroundColor: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: 12,
-            overflow: "hidden",
-          }}
-        >
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ padding: 12, textAlign: "left", fontSize: 13, fontWeight: 600 }}>
-                  날짜
-                </th>
-                <th style={{ padding: 12, textAlign: "left", fontSize: 13, fontWeight: 600 }}>
-                  품목
-                </th>
+        <>
+          {/* 데스크톱 테이블 */}
+          <div
+            style={{
+              backgroundColor: "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: 12,
+              overflow: "auto",
+              display: window.innerWidth > 768 ? "block" : "none",
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 800 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                  <th style={{ padding: 12, textAlign: "left", fontSize: 13, fontWeight: 600 }}>
+                    날짜
+                  </th>
+                  <th style={{ padding: 12, textAlign: "left", fontSize: 13, fontWeight: 600 }}>
+                    품목
+                  </th>
                 <th style={{ padding: 12, textAlign: "left", fontSize: 13, fontWeight: 600 }}>
                   창고
                 </th>
@@ -245,6 +306,96 @@ export default function StockAuditsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* 모바일 카드 뷰 */}
+        <div
+          style={{
+            display: window.innerWidth > 768 ? "none" : "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {audits.map((audit) => (
+            <div
+              key={audit.id}
+              style={{
+                backgroundColor: "#fff",
+                border: "1px solid #e5e7eb",
+                borderRadius: 12,
+                padding: 16,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+                    {audit.item.name} ({audit.item.size})
+                  </div>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    {audit.warehouse.name}
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                  {new Date(audit.createdAt).toLocaleDateString("ko-KR")}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr 1fr",
+                  gap: 8,
+                  padding: "12px 0",
+                  borderTop: "1px solid #f3f4f6",
+                  borderBottom: "1px solid #f3f4f6",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+                    예상 수량
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    {audit.expectedQuantity}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+                    실제 수량
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    {audit.actualQuantity}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4 }}>
+                    차이
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 700,
+                      color:
+                        audit.difference > 0
+                          ? "#059669"
+                          : audit.difference < 0
+                          ? "#dc2626"
+                          : "#6b7280",
+                    }}
+                  >
+                    {audit.difference > 0 ? "+" : ""}
+                    {audit.difference}
+                  </div>
+                </div>
+              </div>
+
+              {audit.notes && (
+                <div style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
+                  {audit.notes}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </>
       )}
 
       {/* 모달 */}
