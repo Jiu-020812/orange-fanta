@@ -16,6 +16,9 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import InventorySyncPage from "./pages/InventorySyncPage";
 import ReportsPage from "./pages/ReportsPage";
+import WarehousesPage from "./pages/WarehousesPage";
+import StockTransfersPage from "./pages/StockTransfersPage";
+import StockAuditsPage from "./pages/StockAuditsPage";
 
 function App() {
   const location = useLocation();
@@ -52,6 +55,11 @@ function App() {
 
             {/* 보고서 */}
             <Route path="/reports" element={<ReportsPage />} />
+
+            {/* 창고 관리 */}
+            <Route path="/warehouses" element={<WarehousesPage />} />
+            <Route path="/stock-transfers" element={<StockTransfersPage />} />
+            <Route path="/stock-audits" element={<StockAuditsPage />} />
 
             {/* 마이페이지 */}
             <Route path="/mypage" element={<MyPage />} />

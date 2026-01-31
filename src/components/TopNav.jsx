@@ -9,7 +9,9 @@ export default function TopNav() {
 
   //  드롭다운 상태
   const [manageOpen, setManageOpen] = useState(false);
+  const [warehouseOpen, setWarehouseOpen] = useState(false);
   const manageRef = useRef(null);
+  const warehouseRef = useRef(null);
 
   useEffect(() => {
     async function fetchMe() {
@@ -26,8 +28,12 @@ export default function TopNav() {
   //  바깥 클릭 시 드롭다운 닫기
   useEffect(() => {
     function onDocDown(e) {
-      if (!manageRef.current) return;
-      if (!manageRef.current.contains(e.target)) setManageOpen(false);
+      if (manageRef.current && !manageRef.current.contains(e.target)) {
+        setManageOpen(false);
+      }
+      if (warehouseRef.current && !warehouseRef.current.contains(e.target)) {
+        setWarehouseOpen(false);
+      }
     }
     document.addEventListener("mousedown", onDocDown);
     return () => document.removeEventListener("mousedown", onDocDown);
@@ -154,6 +160,70 @@ export default function TopNav() {
         <NavLink to="/reports" active={isActive("/reports")}>
           보고서
         </NavLink>
+
+        {/* 창고 관리 드롭다운 */}
+        <div
+          ref={warehouseRef}
+          style={{ position: "relative" }}
+          onMouseEnter={() => setWarehouseOpen(true)}
+          onMouseLeave={() => setWarehouseOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setWarehouseOpen((v) => !v)}
+            style={{
+              padding: "8px 12px",
+              borderRadius: 999,
+              fontSize: 14,
+              fontWeight: 500,
+              border: "none",
+              cursor: "pointer",
+              backgroundColor:
+                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits")
+                  ? "#dbeafe"
+                  : "transparent",
+              color:
+                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits")
+                  ? "#1d4ed8"
+                  : "#4b5563",
+            }}
+          >
+            창고 관리 ▾
+          </button>
+
+          {warehouseOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                paddingTop: 8,
+                zIndex: 1000,
+              }}
+            >
+              <div
+                style={{
+                  minWidth: 160,
+                  padding: 8,
+                  borderRadius: 14,
+                  backgroundColor: "#ffffff",
+                  border: "1px solid #e5e7eb",
+                  boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                }}
+              >
+                <DropItem to="/warehouses" active={isActive("/warehouses")} onClick={() => setWarehouseOpen(false)}>
+                  창고 목록
+                </DropItem>
+                <DropItem to="/stock-transfers" active={isActive("/stock-transfers")} onClick={() => setWarehouseOpen(false)}>
+                  재고 이동
+                </DropItem>
+                <DropItem to="/stock-audits" active={isActive("/stock-audits")} onClick={() => setWarehouseOpen(false)}>
+                  재고 실사
+                </DropItem>
+              </div>
+            </div>
+          )}
+        </div>
 
         <NavLink to="/add" active={isActive("/add")}>
           품목 등록
