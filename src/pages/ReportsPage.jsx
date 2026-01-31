@@ -25,6 +25,8 @@ import {
 
 function ReportsPage() {
   const [dateRange, setDateRange] = useState("7days");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [reportData, setReportData] = useState({
     salesAnalysis: [],
     inventoryTurnover: [],
@@ -36,18 +38,23 @@ function ReportsPage() {
 
   useEffect(() => {
     fetchReportData();
-  }, [dateRange]);
+  }, [dateRange, customStartDate, customEndDate]);
 
   const fetchReportData = async () => {
     setLoading(true);
     try {
+      // 커스텀 날짜 범위인 경우 startDate와 endDate를 파라미터로 전달
+      const params = dateRange === "custom" && customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : dateRange;
+
       const [salesAnalysis, inventoryTurnover, profitAnalysis, topProducts, categoryBreakdown] =
         await Promise.all([
-          getSalesAnalysis(dateRange),
-          getInventoryTurnover(dateRange),
-          getProfitAnalysis(dateRange),
-          getTopProducts(dateRange),
-          getCategoryBreakdown(dateRange),
+          getSalesAnalysis(params),
+          getInventoryTurnover(params),
+          getProfitAnalysis(params),
+          getTopProducts(params),
+          getCategoryBreakdown(params),
         ]);
 
       setReportData({
@@ -192,7 +199,7 @@ function ReportsPage() {
                 매출 분석, 재고 회전율, 수익률을 한눈에 확인하세요
               </div>
             </div>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
@@ -210,7 +217,38 @@ function ReportsPage() {
                 <option value="30days">최근 30일</option>
                 <option value="90days">최근 90일</option>
                 <option value="1year">최근 1년</option>
+                <option value="custom">커스텀 기간</option>
               </select>
+
+              {dateRange === "custom" && (
+                <>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                      fontSize: 14,
+                      fontWeight: 600,
+                    }}
+                  />
+                  <span style={{ fontSize: 14, color: "#6b7280" }}>~</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                      fontSize: 14,
+                      fontWeight: 600,
+                    }}
+                  />
+                </>
+              )}
               <button
                 onClick={() => handleExport("excel")}
                 style={{
