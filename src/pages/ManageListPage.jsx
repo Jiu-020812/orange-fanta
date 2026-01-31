@@ -11,6 +11,17 @@ import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
 
 const norm = (s) => String(s ?? "").trim();
 
+// 재고 계산 헬퍼
+const calcStock = (records) => {
+  if (!Array.isArray(records)) return 0;
+  let stock = 0;
+  records.forEach((r) => {
+    if (r.type === "IN") stock += Math.abs(r.count || 0);
+    else if (r.type === "OUT") stock -= Math.abs(r.count || 0);
+  });
+  return stock;
+};
+
 export default function ManageListPage() {
   const navigate = useNavigate();
 
@@ -19,6 +30,11 @@ export default function ManageListPage() {
 
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 고급 필터 상태
+  const [stockFilter, setStockFilter] = useState("all"); // all | low | out | available
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef(null);
 
   // 정렬 상태
   const [sortKey, setSortKey] = useState("name"); // name | latest | count
@@ -166,49 +182,78 @@ export default function ManageListPage() {
         const el = sortMenuRef.current;
         if (el && !el.contains(e.target)) setIsSortMenuOpen(false);
       }
+      // 필터 메뉴 닫기
+      if (isFilterMenuOpen) {
+        const el = filterMenuRef.current;
+        if (el && !el.contains(e.target)) setIsFilterMenuOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
-  }, [catMenu, isSortMenuOpen]);
+  }, [catMenu, isSortMenuOpen, isFilterMenuOpen]);
 
   const activeCategoryName = useMemo(() => {
     const c = categories.find((x) => x.id === activeCategoryId);
     return c?.name ?? "";
   }, [categories, activeCategoryId]);
 
-  /* ----------------------- name 기준 그룹핑 ----------------------- */
+  /* ----------------------- name 기준 그룹핑 (+ 재고 계산) ----------------------- */
   const grouped = useMemo(() => {
     const map = {};
     items.forEach((item) => {
       const key = norm(item.name);
       if (!key) return;
       if (!map[key]) map[key] = [];
-      map[key].push(item);
+
+      // 재고 계산 추가
+      const stock = calcStock(item.records || []);
+      map[key].push({ ...item, currentStock: stock });
     });
     return map;
   }, [items]);
 
-  /* ----------------------- 검색(이름 + 옵션 + 바코드) ----------------------- */
+  /* ----------------------- 검색(이름 + 옵션 + 바코드) + 재고 필터 ----------------------- */
   const filteredGroups = useMemo(() => {
+    let result = grouped;
+
+    // 1. 검색어 필터
     const keyword = searchQuery.trim().toLowerCase();
-    if (!keyword) return grouped;
+    if (keyword) {
+      const searchResult = {};
+      Object.entries(result).forEach(([name, list]) => {
+        const nameMatch = name.toLowerCase().includes(keyword);
 
-    const result = {};
-    Object.entries(grouped).forEach(([name, list]) => {
-      const nameMatch = name.toLowerCase().includes(keyword);
+        const optionMatch = list.some((item) => {
+          const sizeMatch = norm(item.size).toLowerCase().includes(keyword);
+          const barcodeMatch = String(item.barcode ?? "").toLowerCase().includes(keyword);
+          return sizeMatch || barcodeMatch;
+        });
 
-      const optionMatch = list.some((item) => {
-        const sizeMatch = norm(item.size).toLowerCase().includes(keyword);
-        const barcodeMatch = String(item.barcode ?? "").toLowerCase().includes(keyword);
-        return sizeMatch || barcodeMatch;
+        if (nameMatch || optionMatch) searchResult[name] = list;
       });
+      result = searchResult;
+    }
 
-      if (nameMatch || optionMatch) result[name] = list;
-    });
+    // 2. 재고 필터
+    if (stockFilter !== "all") {
+      const stockResult = {};
+      Object.entries(result).forEach(([name, list]) => {
+        // 그룹 내 모든 옵션의 총 재고 계산
+        const totalStock = list.reduce((sum, item) => sum + (item.currentStock || 0), 0);
+
+        let include = false;
+        if (stockFilter === "out" && totalStock === 0) include = true;
+        else if (stockFilter === "low" && totalStock > 0 && totalStock <= 10) include = true;
+        else if (stockFilter === "available" && totalStock > 10) include = true;
+
+        if (include) stockResult[name] = list;
+      });
+      result = stockResult;
+    }
 
     return result;
-  }, [grouped, searchQuery]);
+  }, [grouped, searchQuery, stockFilter]);
 
   /* ----------------------- 그룹 최신 날짜(createdAt) ----------------------- */
   const getLatestTime = (list) => {
@@ -466,8 +511,8 @@ export default function ManageListPage() {
         </div>
       )}
 
-      {/* 검색 + 정렬 */}
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+      {/* 검색 + 필터 + 정렬 */}
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <input
           type="text"
           placeholder="품명 / 옵션(size) / 바코드 검색"
@@ -479,9 +524,80 @@ export default function ManageListPage() {
             borderRadius: 8,
             border: "1px solid #d1d5db",
             flex: 1,
+            minWidth: 200,
             fontSize: 14,
           }}
         />
+
+        {/* 재고 필터 */}
+        <div style={{ position: "relative" }} ref={filterMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsFilterMenuOpen((prev) => !prev)}
+            style={{
+              padding: "7px 12px",
+              borderRadius: 999,
+              border: stockFilter !== "all" ? "1px solid #10b981" : "1px solid #6b7280",
+              backgroundColor: stockFilter !== "all" ? "#d1fae5" : "#f3f4f6",
+              color: stockFilter !== "all" ? "#047857" : "#374151",
+              fontSize: 12,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              fontWeight: 600,
+            }}
+          >
+            필터: {stockFilter === "all" ? "전체" : stockFilter === "out" ? "품절" : stockFilter === "low" ? "재고부족" : "충분"} ▾
+          </button>
+
+          {isFilterMenuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                marginTop: 4,
+                padding: 8,
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                backgroundColor: "#ffffff",
+                boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+                fontSize: 12,
+                zIndex: 10,
+                minWidth: 140,
+              }}
+            >
+              <div style={{ marginBottom: 6, fontSize: 11, color: "#6b7280" }}>재고 상태</div>
+
+              <button
+                type="button"
+                onClick={() => { setStockFilter("all"); setIsFilterMenuOpen(false); }}
+                style={filterBtnStyle(stockFilter === "all")}
+              >
+                전체
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStockFilter("out"); setIsFilterMenuOpen(false); }}
+                style={filterBtnStyle(stockFilter === "out")}
+              >
+                품절 (0개)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStockFilter("low"); setIsFilterMenuOpen(false); }}
+                style={filterBtnStyle(stockFilter === "low")}
+              >
+                재고 부족 (≤10개)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setStockFilter("available"); setIsFilterMenuOpen(false); }}
+                style={filterBtnStyle(stockFilter === "available")}
+              >
+                재고 충분 (&gt;10개)
+              </button>
+            </div>
+          )}
+        </div>
 
         <div style={{ position: "relative" }} ref={sortMenuRef}>
           <button
@@ -708,6 +824,22 @@ function sortBtnStyle(active) {
     color: active ? "#1d4ed8" : "#374151",
     cursor: "pointer",
     marginBottom: 2,
+  };
+}
+
+function filterBtnStyle(active) {
+  return {
+    display: "block",
+    width: "100%",
+    padding: "6px 8px",
+    textAlign: "left",
+    borderRadius: 8,
+    border: "none",
+    backgroundColor: active ? "#d1fae5" : "transparent",
+    color: active ? "#047857" : "#374151",
+    cursor: "pointer",
+    marginBottom: 2,
+    fontWeight: active ? 600 : 400,
   };
 }
 

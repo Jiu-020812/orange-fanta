@@ -22,6 +22,11 @@ export default function InPage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /* -------------------- 필터링 -------------------- */
+  const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   /* -------------------- 아이템 목록 (수기 검색용) -------------------- */
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(true);
@@ -163,6 +168,31 @@ export default function InPage() {
     setManualQuery("");
     scanRef.current?.focus();
   }
+
+  /* ==================== 필터링 ==================== */
+  const filteredRecords = useMemo(() => {
+    let result = records;
+
+    // 검색어 필터
+    if (searchQuery.trim()) {
+      const q = norm(searchQuery);
+      result = result.filter((r) => {
+        const name = norm(r.item?.name);
+        const size = norm(r.item?.size);
+        return name.includes(q) || size.includes(q);
+      });
+    }
+
+    // 날짜 범위 필터
+    if (startDate) {
+      result = result.filter((r) => r.date >= startDate);
+    }
+    if (endDate) {
+      result = result.filter((r) => r.date <= endDate);
+    }
+
+    return result;
+  }, [records, searchQuery, startDate, endDate]);
 
   /* ==================== 수량 조절 ==================== */
   function updateCount(itemId, delta) {
@@ -374,32 +404,84 @@ export default function InPage() {
 
         {/* ==================== RIGHT ==================== */}
         <div style={card}>
-          <h3 style={cardTitle}>입고 내역</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ ...cardTitle, marginBottom: 0 }}>입고 내역</h3>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {filteredRecords.length !== records.length && `${filteredRecords.length}/${records.length}건`}
+            </div>
+          </div>
+
+          {/* 검색 및 필터 */}
+          <div style={{ marginBottom: 16 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="품목명/사이즈 검색"
+              style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <span style={{ alignSelf: "center", fontSize: 13, color: "#6b7280" }}>~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              {(searchQuery || startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    background: "#f9fafb",
+                    cursor: "pointer",
+                  }}
+                >
+                  초기화
+                </button>
+              )}
+            </div>
+          </div>
 
           {loading ? (
             <div>불러오는 중...</div>
-          ) : records.length === 0 ? (
+          ) : filteredRecords.length === 0 ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>
-              아직 입고 기록이 없습니다.
+              {records.length === 0 ? "아직 입고 기록이 없습니다." : "검색 결과가 없습니다."}
             </div>
           ) : (
-            records.map((r) => (
-              <div key={r.id} style={recordRow}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {r.item?.name}
-                    {r.item?.size ? ` (${r.item.size})` : ""}
+            <div style={{ maxHeight: 400, overflowY: "auto" }}>
+              {filteredRecords.map((r) => (
+                <div key={r.id} style={recordRow}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {r.item?.name}
+                      {r.item?.size ? ` (${r.item.size})` : ""}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      {r.date?.slice(0, 10)} · {r.count}개
+                    </div>
                   </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    {r.date?.slice(0, 10)} · {r.count}개
-                  </div>
-                </div>
 
-                <button onClick={() => navigate(`/manage/${r.itemId}`)}>
-                  상세
-                </button>
-              </div>
-            ))
+                  <button onClick={() => navigate(`/manage/${r.itemId}`)}>
+                    상세
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

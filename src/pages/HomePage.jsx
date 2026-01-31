@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import TodoList from "./TodoList";
@@ -10,10 +10,12 @@ function HomePage() {
   const [dashboardStats, setDashboardStats] = useState({
     totalItems: 0,
     lowStockItems: 0,
+    lowStockItemsList: [],
     recentInCount: 0,
     recentOutCount: 0,
     topSellingItems: [],
   });
+  const [lowStockSearch, setLowStockSearch] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState(() => {
     const saved = localStorage.getItem("lowStockThreshold");
     return saved ? Number(saved) : 10;
@@ -35,6 +37,7 @@ function HomePage() {
         setDashboardStats({
           totalItems: stats.totalItems || 0,
           lowStockItems: stats.lowStockItems || 0,
+          lowStockItemsList: stats.lowStockItemsList || [],
           recentInCount: stats.recentInCount || 0,
           recentOutCount: stats.recentOutCount || 0,
           topSellingItems: stats.topSellingItems || [],
@@ -46,6 +49,18 @@ function HomePage() {
 
     fetchDashboardStats();
   }, [lowStockThreshold]);
+
+  const filteredLowStockItems = useMemo(() => {
+    const query = lowStockSearch.trim().toLowerCase();
+    if (!query) return dashboardStats.lowStockItemsList;
+
+    return dashboardStats.lowStockItemsList.filter((item) => {
+      const name = (item.name || "").toLowerCase();
+      const size = (item.size || "").toLowerCase();
+      const barcode = (item.barcode || "").toLowerCase();
+      return name.includes(query) || size.includes(query) || barcode.includes(query);
+    });
+  }, [dashboardStats.lowStockItemsList, lowStockSearch]);
 
   const handleThresholdChange = (value) => {
     const num = Number(value);
@@ -226,14 +241,99 @@ function HomePage() {
           />
         </div>
 
-        {/* 콘텐츠 그리드 (2칸) */}
+        {/* 콘텐츠 그리드 (3칸) */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr",
+            gridTemplateColumns: "1fr 1fr 1fr",
             gap: "20px",
           }}
         >
+          {/* 재고 부족 품목 목록 */}
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              padding: "32px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#111827",
+                }}
+              >
+                ⚠️ 재고 부족 품목
+              </h3>
+              {filteredLowStockItems.length !== dashboardStats.lowStockItemsList.length && (
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  {filteredLowStockItems.length}/{dashboardStats.lowStockItemsList.length}
+                </span>
+              )}
+            </div>
+
+            <input
+              type="text"
+              value={lowStockSearch}
+              onChange={(e) => setLowStockSearch(e.target.value)}
+              placeholder="품목명/사이즈/바코드 검색"
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                fontSize: 13,
+                marginBottom: 12,
+                boxSizing: "border-box",
+              }}
+            />
+
+            <div style={{ maxHeight: 300, overflowY: "auto" }}>
+              {filteredLowStockItems.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#9ca3af", fontSize: 14, padding: "20px 0" }}>
+                  {dashboardStats.lowStockItemsList.length === 0
+                    ? "재고 부족 품목이 없습니다."
+                    : "검색 결과가 없습니다."}
+                </div>
+              ) : (
+                filteredLowStockItems.map((item) => (
+                  <div
+                    key={item.id}
+                    onClick={() => navigate(`/manage/${item.id}`)}
+                    style={{
+                      padding: "12px",
+                      borderRadius: 8,
+                      background: "#fef3c7",
+                      border: "1px solid #fbbf24",
+                      marginBottom: 8,
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#fde68a";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "#fef3c7";
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                      {item.name}
+                      {item.size && ` (${item.size})`}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#92400e" }}>
+                      현재 재고: {item.currentStock}개
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* 판매 순위 차트 */}
           <div
             style={{

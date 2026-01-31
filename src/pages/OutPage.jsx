@@ -41,6 +41,11 @@ export default function OutPage() {
   /* -------------------- 수기 검색 -------------------- */
   const [manualQuery, setManualQuery] = useState("");
 
+  /* -------------------- 필터링 -------------------- */
+  const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   /* -------------------- 가격 모달 -------------------- */
   const [priceModalOpen, setPriceModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -174,6 +179,55 @@ export default function OutPage() {
     setManualQuery("");
     scanRef.current?.focus();
   }
+
+  /* ==================== 필터링 ==================== */
+  const filteredPaidSales = useMemo(() => {
+    let result = paidSales;
+
+    // 검색어 필터
+    if (searchQuery.trim()) {
+      const q = norm(searchQuery);
+      result = result.filter((r) => {
+        const name = norm(r.item?.name);
+        const size = norm(r.item?.size);
+        return name.includes(q) || size.includes(q);
+      });
+    }
+
+    // 날짜 범위 필터
+    if (startDate) {
+      result = result.filter((r) => r.date >= startDate);
+    }
+    if (endDate) {
+      result = result.filter((r) => r.date <= endDate);
+    }
+
+    return result;
+  }, [paidSales, searchQuery, startDate, endDate]);
+
+  const filteredUnpricedSales = useMemo(() => {
+    let result = unpricedSales;
+
+    // 검색어 필터
+    if (searchQuery.trim()) {
+      const q = norm(searchQuery);
+      result = result.filter((r) => {
+        const name = norm(r.item?.name);
+        const size = norm(r.item?.size);
+        return name.includes(q) || size.includes(q);
+      });
+    }
+
+    // 날짜 범위 필터
+    if (startDate) {
+      result = result.filter((r) => r.date >= startDate);
+    }
+    if (endDate) {
+      result = result.filter((r) => r.date <= endDate);
+    }
+
+    return result;
+  }, [unpricedSales, searchQuery, startDate, endDate]);
 
   /* ==================== 수량 조절 ==================== */
   function updateCount(itemId, delta) {
@@ -418,19 +472,116 @@ export default function OutPage() {
 
         {/* ==================== RIGHT ==================== */}
         <div style={card}>
-          <h3 style={cardTitle}>판매 내역</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <h3 style={{ ...cardTitle, marginBottom: 0 }}>판매 내역</h3>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              {(filteredPaidSales.length + filteredUnpricedSales.length) !== (paidSales.length + unpricedSales.length) &&
+                `${filteredPaidSales.length + filteredUnpricedSales.length}/${paidSales.length + unpricedSales.length}건`}
+            </div>
+          </div>
+
+          {/* 검색 및 필터 */}
+          <div style={{ marginBottom: 16 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="품목명/사이즈 검색"
+              style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <span style={{ alignSelf: "center", fontSize: 13, color: "#6b7280" }}>~</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              {(searchQuery || startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStartDate("");
+                    setEndDate("");
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    background: "#f9fafb",
+                    cursor: "pointer",
+                  }}
+                >
+                  초기화
+                </button>
+              )}
+            </div>
+          </div>
 
           {loading ? (
             <div>불러오는 중...</div>
           ) : (
-            <>
+            <div style={{ maxHeight: 400, overflowY: "auto" }}>
               {/* 가격 있는 판매(돈 기록) */}
-              {paidSales.length === 0 ? (
+              {filteredPaidSales.length === 0 && paidSales.length > 0 && (
+                <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+                  검색 결과가 없습니다.
+                </div>
+              )}
+              {filteredPaidSales.length === 0 && paidSales.length === 0 && (
                 <div style={{ fontSize: 13, color: "#6b7280" }}>
                   아직 판매 기록(가격 입력 완료)이 없습니다.
                 </div>
-              ) : (
-                paidSales.map((r) => (
+              )}
+              {filteredPaidSales.map((r) => (
+                <div key={r.id} style={recordRow}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {r.item?.name}
+                      {r.item?.size ? ` (${r.item.size})` : ""}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      {r.date?.slice(0, 10)} · {r.count}개
+                    </div>
+                  </div>
+
+                  <div style={{ fontWeight: 700 }}>
+                    {Number(r.price).toLocaleString()}원
+                  </div>
+
+                  <button onClick={() => navigate(`/manage/${r.itemId}`)}>
+                    상세
+                  </button>
+                </div>
+              ))}
+
+              {/* 🟡 가격 미입력 판매 */}
+              <div style={{ marginTop: filteredPaidSales.length > 0 ? 16 : 0 }}>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>
+                  🟡 판매가 미입력
+                  <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>
+                    ({filteredUnpricedSales.length})
+                  </span>
+                </div>
+
+                {filteredUnpricedSales.length === 0 && unpricedSales.length > 0 && (
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    검색 결과가 없습니다.
+                  </div>
+                )}
+                {filteredUnpricedSales.length === 0 && unpricedSales.length === 0 && (
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    판매가 미입력 항목이 없습니다.
+                  </div>
+                )}
+                {filteredUnpricedSales.map((r) => (
                   <div key={r.id} style={recordRow}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>
@@ -442,61 +593,23 @@ export default function OutPage() {
                       </div>
                     </div>
 
-                    <div style={{ fontWeight: 700 }}>
-                      {Number(r.price).toLocaleString()}원
-                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedRecord(r);
+                        setPriceModalOpen(true);
+                      }}
+                      style={warnBtn}
+                    >
+                      판매가 입력
+                    </button>
 
                     <button onClick={() => navigate(`/manage/${r.itemId}`)}>
                       상세
                     </button>
                   </div>
-                ))
-              )}
-
-              {/* 🟡 가격 미입력 판매 */}
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>
-                  🟡 판매가 미입력
-                  <span style={{ marginLeft: 8, fontSize: 12, color: "#6b7280" }}>
-                    ({unpricedSales.length})
-                  </span>
-                </div>
-
-                {unpricedSales.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "#6b7280" }}>
-                    판매가 미입력 항목이 없습니다.
-                  </div>
-                ) : (
-                  unpricedSales.map((r) => (
-                    <div key={r.id} style={recordRow}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600 }}>
-                          {r.item?.name}
-                          {r.item?.size ? ` (${r.item.size})` : ""}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#6b7280" }}>
-                          {r.date?.slice(0, 10)} · {r.count}개
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          setSelectedRecord(r);
-                          setPriceModalOpen(true);
-                        }}
-                        style={warnBtn}
-                      >
-                        판매가 입력
-                      </button>
-
-                      <button onClick={() => navigate(`/manage/${r.itemId}`)}>
-                        상세
-                      </button>
-                    </div>
-                  ))
-                )}
+                ))}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
