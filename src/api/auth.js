@@ -3,13 +3,21 @@ import { request, handleError } from "./request";
 
 // 공통: 토큰 저장 & axios 기본 헤더 세팅
 function setAuthToken(token) {
-  if (!token) return;
+  console.log("[setAuthToken] 호출됨, token:", token ? "있음" : "없음");
+  if (!token) {
+    console.warn("[setAuthToken] 토큰이 없습니다");
+    return;
+  }
   try {
+    console.log("[setAuthToken] localStorage 저장 시도");
     window.localStorage.setItem("authToken", token);
+    const saved = window.localStorage.getItem("authToken");
+    console.log("[setAuthToken] 저장 확인:", saved ? "성공" : "실패");
   } catch (e) {
-    console.warn("localStorage 저장 실패:", e);
+    console.error("[setAuthToken] localStorage 저장 실패:", e);
   }
   api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  console.log("[setAuthToken] 헤더 설정 완료");
 }
 
 //  핵심: 백엔드가 /api/auth/* 라우트를 쓰므로 prefix 고정

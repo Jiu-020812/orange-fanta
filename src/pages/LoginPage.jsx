@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
 
   const needVerify = error.includes("이메일 인증");
   const verified = new URLSearchParams(location.search).get("verified") === "1";
@@ -65,6 +66,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setNotice("");
+    setDebugLog([]);
+
+    const addLog = (msg) => {
+      setDebugLog((prev) => [...prev, `${new Date().toLocaleTimeString()}: ${msg}`]);
+      console.log(msg);
+    };
 
     if (!email || !password) {
       setError("이메일과 비밀번호를 입력해주세요.");
@@ -83,17 +90,36 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    addLog(`시작: ${mode === "login" ? "로그인" : "회원가입"}`);
 
     try {
       if (mode === "login") {
-        await login({ email, password });
+        addLog("로그인 API 호출 시작");
+        const result = await login({ email, password });
+        addLog(`로그인 API 응답: ${JSON.stringify(result)}`);
+
         const storedToken = window.localStorage.getItem("authToken");
+        addLog(`저장된 토큰: ${storedToken ? "있음" : "없음"}`);
+        addLog(`토큰 값: ${storedToken?.substring(0, 20)}...`);
+
         if (storedToken) {
           api.defaults.headers.common["Authorization"] = `Bearer ${storedToken}`;
+          addLog("토큰 헤더 설정 완료");
         }
-        navigate("/home");
+
+        addLog("홈으로 이동 시도");
+        addLog(`현재 경로: ${window.location.pathname}`);
+
+        // 5초 후에 이동 (디버깅용)
+        addLog("5초 후 이동합니다. 로그를 확인하세요.");
+        setTimeout(() => {
+          navigate("/home");
+          addLog("navigate 호출 완료");
+        }, 5000);
       } else {
+        addLog("회원가입 API 호출 시작");
         await signup({ email, password, name });
+        addLog("회원가입 완료");
         setNotice(
           "✅ 회원가입 완료!\n이메일 인증 링크를 확인해주세요. (스팸함 포함)"
         );
@@ -103,9 +129,17 @@ export default function LoginPage() {
         setName("");
       }
     } catch (err) {
+      addLog(`에러 발생: ${err?.message || err}`);
+      addLog(`에러 타입: ${err?.constructor?.name || typeof err}`);
+      addLog(`에러 스택: ${err?.stack || "없음"}`);
+      addLog(`에러 response: ${JSON.stringify(err?.response)}`);
+      addLog(`에러 request: ${err?.request ? "있음" : "없음"}`);
+      addLog(`에러 config: ${JSON.stringify(err?.config?.url)}`);
+      addLog(`전체 에러: ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
       setError(err?.message || "오류가 발생했습니다.");
     } finally {
       setLoading(false);
+      addLog("완료");
     }
   }
 
@@ -543,6 +577,29 @@ export default function LoginPage() {
               >
                 📧 인증 메일 다시 받기
               </button>
+            </div>
+          )}
+
+          {/* 디버그 로그 (모바일 디버깅용) */}
+          {debugLog.length > 0 && (
+            <div
+              style={{
+                marginTop: '20px',
+                padding: '12px',
+                background: '#1f2937',
+                color: '#10b981',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontFamily: 'monospace',
+                maxHeight: '200px',
+                overflowY: 'auto',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-all',
+              }}
+            >
+              {debugLog.map((log, i) => (
+                <div key={i}>{log}</div>
+              ))}
             </div>
           )}
         </div>

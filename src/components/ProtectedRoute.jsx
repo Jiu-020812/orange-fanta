@@ -11,10 +11,16 @@ export default function ProtectedRoute() {
 
     (async () => {
       try {
+        console.log("[ProtectedRoute] 인증 확인 시작");
         const data = await getMe();
+        console.log("[ProtectedRoute] getMe 응답:", data);
         if (!data?.ok) throw new Error("not authenticated");
-        if (alive) setOk(true);
+        if (alive) {
+          console.log("[ProtectedRoute] 인증 성공");
+          setOk(true);
+        }
       } catch (err) {
+        console.error("[ProtectedRoute] 인증 실패:", err);
         if (alive) setOk(false);
       }
     })();
