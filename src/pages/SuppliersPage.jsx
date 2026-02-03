@@ -190,6 +190,7 @@ export default function SuppliersPage() {
                       borderRadius: 8,
                       border: "1px solid #d1d5db",
                       fontSize: 14,
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
@@ -207,6 +208,7 @@ export default function SuppliersPage() {
                       borderRadius: 8,
                       border: "1px solid #d1d5db",
                       fontSize: 14,
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
@@ -224,6 +226,7 @@ export default function SuppliersPage() {
                       borderRadius: 8,
                       border: "1px solid #d1d5db",
                       fontSize: 14,
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
@@ -241,6 +244,7 @@ export default function SuppliersPage() {
                       borderRadius: 8,
                       border: "1px solid #d1d5db",
                       fontSize: 14,
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>
@@ -277,6 +281,7 @@ export default function SuppliersPage() {
                     border: "1px solid #d1d5db",
                     fontSize: 14,
                     resize: "vertical",
+                    boxSizing: "border-box",
                   }}
                 />
               </div>

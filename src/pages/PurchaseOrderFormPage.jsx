@@ -195,6 +195,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 >
                   <option value="">선택하세요</option>
@@ -220,6 +221,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -237,6 +239,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -256,6 +259,7 @@ export default function PurchaseOrderFormPage() {
                   border: "1px solid #d1d5db",
                   fontSize: 14,
                   resize: "vertical",
+                  boxSizing: "border-box",
                 }}
               />
             </div>
@@ -286,6 +290,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 >
                   <option value="">선택하세요</option>
@@ -311,6 +316,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
@@ -330,6 +336,7 @@ export default function PurchaseOrderFormPage() {
                     borderRadius: 8,
                     border: "1px solid #d1d5db",
                     fontSize: 14,
+                    boxSizing: "border-box",
                   }}
                 />
               </div>
