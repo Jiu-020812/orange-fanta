@@ -21,6 +21,8 @@ import StockTransfersPage from "./pages/StockTransfersPage";
 import StockAuditsPage from "./pages/StockAuditsPage";
 import BackupPage from "./pages/BackupPage";
 import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
+import PurchaseOrderFormPage from "./pages/PurchaseOrderFormPage";
+import SuppliersPage from "./pages/SuppliersPage";
 import ExcelPage from "./pages/ExcelPage";
 
 function App() {
@@ -69,6 +71,8 @@ function App() {
 
             {/* 발주 관리 */}
             <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+            <Route path="/purchase-orders/new" element={<PurchaseOrderFormPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
 
             {/* 엑셀 관리 */}
             <Route path="/excel" element={<ExcelPage />} />
