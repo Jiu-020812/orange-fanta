@@ -20,6 +20,8 @@ import WarehousesPage from "./pages/WarehousesPage";
 import StockTransfersPage from "./pages/StockTransfersPage";
 import StockAuditsPage from "./pages/StockAuditsPage";
 import BackupPage from "./pages/BackupPage";
+import PurchaseOrdersPage from "./pages/PurchaseOrdersPage";
+import ExcelPage from "./pages/ExcelPage";
 
 function App() {
   const location = useLocation();
@@ -64,6 +66,12 @@ function App() {
 
             {/* 백업/복원 */}
             <Route path="/backup" element={<BackupPage />} />
+
+            {/* 발주 관리 */}
+            <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+
+            {/* 엑셀 관리 */}
+            <Route path="/excel" element={<ExcelPage />} />
 
             {/* 마이페이지 */}
             <Route path="/mypage" element={<MyPage />} />

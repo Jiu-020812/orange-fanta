@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getItems, createItem, getCategories } from "../api/items";
 import { useLocation, useNavigate } from "react-router-dom";
+import { optimizeImage, isValidImageFile } from "../utils/imageOptimizer";
 import "./AddItemPage.css";
 
 const norm = (s) => String(s ?? "").trim();
@@ -158,18 +159,68 @@ function AddItemPage() {
   };
 
   /* ----------------------- 이미지 ----------------------- */
-  const handleImageChange = (e) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) {
       setImageDataUrl("");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") setImageDataUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    await processImageFile(file);
+  };
+
+  const processImageFile = async (file) => {
+    // 파일 검증
+    const validation = isValidImageFile(file);
+    if (!validation.valid) {
+      alert(validation.error);
+      return;
+    }
+
+    try {
+      setImageLoading(true);
+      // 이미지 최적화 (리사이징 + 압축)
+      const optimizedDataUrl = await optimizeImage(file);
+      setImageDataUrl(optimizedDataUrl);
+      showToast("이미지 업로드 완료");
+    } catch (err) {
+      console.error("이미지 처리 실패:", err);
+      alert("이미지 처리에 실패했습니다.");
+    } finally {
+      setImageLoading(false);
+    }
+  };
+
+  // 드래그 앤 드롭 핸들러
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      await processImageFile(files[0]);
+    }
   };
 
   /* ----------------------- 토스트 ----------------------- */
@@ -374,8 +425,65 @@ function AddItemPage() {
             autoComplete="off"
           />
 
-          {/* 이미지 */}
-          <input type="file" accept="image/*" onChange={handleImageChange} />
+          {/* 이미지 드래그 앤 드롭 영역 */}
+          <div
+            className={`image-upload-area ${isDragging ? "dragging" : ""}`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById("image-file-input").click()}
+            style={{
+              border: isDragging ? "2px dashed #3b82f6" : "2px dashed #d1d5db",
+              borderRadius: "12px",
+              padding: "24px",
+              textAlign: "center",
+              cursor: "pointer",
+              backgroundColor: isDragging ? "#eff6ff" : imageDataUrl ? "#f9fafb" : "#ffffff",
+              transition: "all 0.2s",
+              marginBottom: "12px",
+            }}
+          >
+            <input
+              id="image-file-input"
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              style={{ display: "none" }}
+            />
+
+            {imageLoading ? (
+              <div style={{ color: "#6b7280", fontSize: 14 }}>
+                이미지 처리 중...
+              </div>
+            ) : imageDataUrl ? (
+              <div>
+                <img
+                  src={imageDataUrl}
+                  alt="미리보기"
+                  style={{
+                    maxWidth: "200px",
+                    maxHeight: "200px",
+                    borderRadius: "8px",
+                    marginBottom: "8px",
+                  }}
+                />
+                <div style={{ fontSize: 13, color: "#6b7280", marginTop: 8 }}>
+                  클릭하여 이미지 변경
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📷</div>
+                <div style={{ fontSize: 14, color: "#374151", fontWeight: 500 }}>
+                  이미지를 드래그하거나 클릭하여 업로드
+                </div>
+                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
+                  JPG, PNG, WEBP (최대 10MB)
+                </div>
+              </div>
+            )}
+          </div>
 
           <button type="submit" className="add-item-submit-button">
             등록

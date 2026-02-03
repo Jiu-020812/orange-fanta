@@ -27,6 +27,15 @@ export default function InPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
+  // 빠른 날짜 필터 프리셋
+  const applyDatePreset = (days) => {
+    const today = new Date();
+    const end = today.toISOString().slice(0, 10);
+    const start = new Date(today.setDate(today.getDate() - days)).toISOString().slice(0, 10);
+    setStartDate(start);
+    setEndDate(end);
+  };
+
   /* -------------------- 아이템 목록 (수기 검색용) -------------------- */
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(true);
@@ -420,6 +429,53 @@ export default function InPage() {
               placeholder="품목명/사이즈 검색"
               style={{ ...inputStyle, width: "100%", marginBottom: 8 }}
             />
+
+            {/* 빠른 날짜 선택 버튼 */}
+            <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+              <button
+                onClick={() => applyDatePreset(7)}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "#ffffff",
+                  cursor: "pointer",
+                  color: "#374151",
+                }}
+              >
+                최근 7일
+              </button>
+              <button
+                onClick={() => applyDatePreset(30)}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "#ffffff",
+                  cursor: "pointer",
+                  color: "#374151",
+                }}
+              >
+                최근 30일
+              </button>
+              <button
+                onClick={() => applyDatePreset(90)}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "#ffffff",
+                  cursor: "pointer",
+                  color: "#374151",
+                }}
+              >
+                최근 3개월
+              </button>
+            </div>
+
             <div style={{ display: "flex", gap: 8 }}>
               <input
                 type="date"

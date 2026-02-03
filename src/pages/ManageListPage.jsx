@@ -8,6 +8,8 @@ import {
   deleteCategory,
 } from "../api/items";
 import useBarcodeInputNavigate from "../hooks/useBarcodeInputNavigate";
+import ImageModal from "../components/ImageModal";
+import QRCodeGenerator from "../components/QRCodeGenerator";
 
 const norm = (s) => String(s ?? "").trim();
 
@@ -51,6 +53,8 @@ export default function ManageListPage() {
   // 모달 상태
   const [renameModal, setRenameModal] = useState(null); // { id, name }
   const [deleteModal, setDeleteModal] = useState(null); // { id, name }
+  const [imageModal, setImageModal] = useState(null); // 이미지 확대 모달
+  const [qrModal, setQrModal] = useState(null); // QR코드 생성 모달
 
   //  items fetch 레이스 방지용
   const itemsReqSeq = useRef(0);
@@ -691,7 +695,18 @@ export default function ManageListPage() {
                   <img
                     src={representative.imageUrl}
                     alt=""
-                    style={{ width: "100%", height: 140, objectFit: "cover", borderRadius: 10, marginBottom: 8 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImageModal(representative.imageUrl);
+                    }}
+                    style={{
+                      width: "100%",
+                      height: 140,
+                      objectFit: "cover",
+                      borderRadius: 10,
+                      marginBottom: 8,
+                      cursor: "zoom-in",
+                    }}
                   />
                 ) : (
                   <div
@@ -715,26 +730,54 @@ export default function ManageListPage() {
                 <div style={{ fontSize: 16, fontWeight: 600 }}>{name}</div>
                 <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>옵션 {list.length}개</div>
 
-                <button
-                  style={{
-                    marginTop: 10,
-                    width: "100%",
-                    padding: "8px 0",
-                    borderRadius: 8,
-                    backgroundColor: "#2563eb",
-                    color: "white",
-                    border: "none",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => goDetailByGroupName(name, list)}
-                >
-                  관리하기
-                </button>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button
+                    style={{
+                      flex: 1,
+                      padding: "8px 0",
+                      borderRadius: 8,
+                      backgroundColor: "#2563eb",
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                    onClick={() => goDetailByGroupName(name, list)}
+                  >
+                    관리하기
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setQrModal(representative);
+                    }}
+                    style={{
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      backgroundColor: "#10b981",
+                      color: "white",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                    title="QR코드 생성"
+                  >
+                    QR
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
       )}
+
+      {/* 이미지 확대 모달 */}
+      {imageModal && <ImageModal imageUrl={imageModal} onClose={() => setImageModal(null)} />}
+
+      {/* QR코드 생성 모달 */}
+      {qrModal && <QRCodeGenerator item={qrModal} onClose={() => setQrModal(null)} />}
 
       {/* 이름변경 모달 */}
       {renameModal && (

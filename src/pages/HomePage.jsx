@@ -1,8 +1,21 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 import TodoList from "./TodoList";
 import { getDashboardStats } from "../api/items";
+import { getReorderAlerts } from "../api/reorder";
 
 function HomePage() {
   const navigate = useNavigate();
@@ -14,6 +27,7 @@ function HomePage() {
     recentInCount: 0,
     recentOutCount: 0,
     topSellingItems: [],
+    stockTrend: [],
   });
   const [lowStockSearch, setLowStockSearch] = useState("");
   const [lowStockThreshold, setLowStockThreshold] = useState(() => {
@@ -21,6 +35,7 @@ function HomePage() {
     return saved ? Number(saved) : 10;
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [reorderAlerts, setReorderAlerts] = useState([]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -41,13 +56,24 @@ function HomePage() {
           recentInCount: stats.recentInCount || 0,
           recentOutCount: stats.recentOutCount || 0,
           topSellingItems: stats.topSellingItems || [],
+          stockTrend: stats.stockTrend || [],
         });
       } catch (e) {
         console.error("대시보드 통계 가져오기 오류:", e);
       }
     };
 
+    const fetchReorderAlerts = async () => {
+      try {
+        const data = await getReorderAlerts();
+        setReorderAlerts(data.alerts || []);
+      } catch (e) {
+        console.error("재주문 알림 가져오기 오류:", e);
+      }
+    };
+
     fetchDashboardStats();
+    fetchReorderAlerts();
   }, [lowStockThreshold]);
 
   const filteredLowStockItems = useMemo(() => {
@@ -241,6 +267,105 @@ function HomePage() {
           />
         </div>
 
+        {/* 재주문 알림 (상단 전체 너비) */}
+        {reorderAlerts.length > 0 && (
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              padding: "24px 32px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              border: "2px solid #f59e0b",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#111827",
+                }}
+              >
+                🔔 재주문 필요 ({reorderAlerts.length}건)
+              </h3>
+            </div>
+            <div
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gap: "12px",
+              }}
+            >
+              {reorderAlerts.slice(0, 4).map((alert) => (
+                <div
+                  key={alert.id}
+                  onClick={() => navigate(`/manage/${alert.id}`)}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 8,
+                    background: alert.urgency >= 80 ? "#fee2e2" : alert.urgency >= 50 ? "#fef3c7" : "#f0fdf4",
+                    border: `1px solid ${alert.urgency >= 80 ? "#fca5a5" : alert.urgency >= 50 ? "#fbbf24" : "#86efac"}`,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = "translateY(-2px)";
+                    e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                        {alert.name}
+                        {alert.size && ` (${alert.size})`}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>
+                        현재 재고: {alert.currentStock}개 / 재주문 포인트: {alert.reorderPoint}개
+                      </div>
+                      {alert.reorderQuantity && (
+                        <div style={{ fontSize: 11, color: "#374151", fontWeight: 600 }}>
+                          권장 주문량: {alert.reorderQuantity}개
+                        </div>
+                      )}
+                    </div>
+                    {alert.urgency >= 80 && (
+                      <span style={{ fontSize: 20 }}>🚨</span>
+                    )}
+                    {alert.urgency >= 50 && alert.urgency < 80 && (
+                      <span style={{ fontSize: 20 }}>⚠️</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {reorderAlerts.length > 4 && (
+              <div style={{ marginTop: 12, textAlign: "center" }}>
+                <button
+                  onClick={() => navigate("/reorder")}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "#ffffff",
+                    color: "#374151",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  전체 보기 ({reorderAlerts.length}건)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 콘텐츠 그리드 (3칸) */}
         <div
           style={{
@@ -391,6 +516,82 @@ function HomePage() {
                 }}
               >
                 최근 판매 데이터가 없습니다.
+              </div>
+            )}
+          </div>
+
+          {/* 입출고 추이 차트 */}
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              padding: "32px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "#111827",
+                marginBottom: 20,
+              }}
+            >
+              📊 입출고 추이 (최근 30일)
+            </h3>
+            {dashboardStats.stockTrend.length > 0 ? (
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={dashboardStats.stockTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 12 }}
+                    stroke="#6b7280"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    stroke="#6b7280"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="in"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    name="입고"
+                    dot={{ fill: "#10b981" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="out"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    name="출고"
+                    dot={{ fill: "#ef4444" }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div
+                style={{
+                  height: 280,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#9ca3af",
+                  fontSize: 14,
+                }}
+              >
+                최근 입출고 데이터가 없습니다.
               </div>
             )}
           </div>

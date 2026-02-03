@@ -10,6 +10,7 @@ import RecordFilters from "../components/manage/RecordFilters";
 import RecordList from "../components/manage/RecordList";
 import StockDisplay from "../components/manage/StockDisplay";
 import PurchaseForm from "../components/forms/PurchaseForm";
+import ReorderSettingsModal from "../components/manage/ReorderSettingsModal";
 import {
   getItems as fetchItems,
   getItemDetail,
@@ -65,6 +66,7 @@ export default function ManageDetailPage() {
   const [toast, setToast] = useState("");
   const [editModal, setEditModal] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null);
+  const [showReorderModal, setShowReorderModal] = useState(false);
 
   const [memoText, setMemoText] = useState("");
 
@@ -450,9 +452,23 @@ export default function ManageDetailPage() {
         <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName || "(품목)"}</h2>
 
         <button
-          onClick={handleDeleteItem}
+          onClick={() => setShowReorderModal(true)}
           style={{
             marginLeft: "auto",
+            padding: "6px 12px",
+            backgroundColor: "#7c8db5",
+            borderRadius: 8,
+            border: "none",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          📊 재주문 설정
+        </button>
+
+        <button
+          onClick={handleDeleteItem}
+          style={{
             padding: "6px 12px",
             backgroundColor: "#dc2626",
             borderRadius: 8,
@@ -873,6 +889,17 @@ export default function ManageDetailPage() {
         onCancel={() => setDeleteModal(null)}
         onConfirm={handleDeleteOption}
       />
+
+      {showReorderModal && selectedOption && (
+        <ReorderSettingsModal
+          item={selectedOption}
+          onClose={() => setShowReorderModal(false)}
+          onSuccess={() => {
+            showToast("재주문 설정 저장 완료!");
+            loadDetail(selectedOption.id, { loadCategoryItems: false, reason: "reorder-update" });
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -177,6 +177,14 @@ export default function TopNav() {
           보고서
         </NavLink>
 
+        <NavLink to="/purchase-orders" active={isActive("/purchase-orders")}>
+          발주 관리
+        </NavLink>
+
+        <NavLink to="/excel" active={isActive("/excel")}>
+          엑셀 관리
+        </NavLink>
+
         {/* 창고 관리 드롭다운 */}
         <div
           ref={warehouseRef}
