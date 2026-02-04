@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import useMobile from "../hooks/useMobile";
 import StatsSection from "../components/StatsSection";
 import Toast from "../components/common/Toast";
 import ConfirmDialog from "../components/common/ConfirmDialog";
@@ -49,6 +50,7 @@ function mapRecords(rawRecords) {
 
 export default function ManageDetailPage() {
   const navigate = useNavigate();
+  const isMobile = useMobile();
   const { itemId } = useParams();
   const numericItemId = Number(itemId);
 
@@ -434,7 +436,7 @@ export default function ManageDetailPage() {
       <Toast message={toast} />
 
       {/* 상단 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 16, gap: 8, flexWrap: isMobile ? "wrap" : "nowrap" }}>
         <button
           onClick={() => navigate("/manage")}
           style={{
@@ -449,7 +451,7 @@ export default function ManageDetailPage() {
           ← 뒤로
         </button>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{decodedName || "(품목)"}</h2>
+        <h2 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, margin: 0, flex: 1, minWidth: 0 }}>{decodedName || "(품목)"}</h2>
 
         <button
           onClick={() => setShowReorderModal(true)}
@@ -481,7 +483,7 @@ export default function ManageDetailPage() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1.1fr) minmax(0,1fr)", gap: isMobile ? 16 : 24 }}>
         {/* 좌측: 옵션 목록 */}
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>옵션 목록</h3>

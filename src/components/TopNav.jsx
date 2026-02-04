@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getAuthMe, logout } from "../api/auth";
+import useMobile from "../hooks/useMobile";
 
 export default function TopNav() {
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+
+  const isMobile = useMobile();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   //  드롭다운 상태
   const [manageOpen, setManageOpen] = useState(false);
@@ -89,15 +93,34 @@ export default function TopNav() {
         </span>
       </div>
 
-      {/* 가운데: 탭 네비게이션 */}
+      {/* 모바일 햄버거 */}
+      {isMobile && (
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen((v) => !v)}
+          style={{
+            border: "none",
+            background: "transparent",
+            fontSize: 24,
+            cursor: "pointer",
+            color: "#4b5563",
+            padding: "4px 8px",
+            borderRadius: 8,
+          }}
+        >
+          {mobileMenuOpen ? "✕" : "☰"}
+        </button>
+      )}
+
+      {/* 가운데: 탭 네비게이션 (desktop) */}
       <nav
         style={{
-          display: "flex",
-          gap: window.innerWidth > 768 ? 16 : 8,
+          display: isMobile ? "none" : "flex",
+          gap: 16,
           alignItems: "center",
           flexWrap: "wrap",
           flex: 1,
-          justifyContent: window.innerWidth > 768 ? "center" : "flex-start",
+          justifyContent: "center",
         }}
       >
         <NavLink to="/home" active={isActive("/home")}>
@@ -262,6 +285,40 @@ export default function TopNav() {
         </div>
       </nav>
 
+      {/* 모바일 메뉴 드롭다운 */}
+      {isMobile && mobileMenuOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            backgroundColor: "#ffffff",
+            borderBottom: "1px solid #e5e7eb",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            zIndex: 999,
+            padding: "8px 0",
+          }}
+        >
+          <MobileLink to="/home" active={isActive("/home")} onClick={() => setMobileMenuOpen(false)}>메인</MobileLink>
+          <div style={{ padding: "4px 16px 0", fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase" }}>품목</div>
+          <MobileLink to="/manage" active={isActive("/manage")} onClick={() => setMobileMenuOpen(false)}>품목 목록</MobileLink>
+          <MobileLink to="/in" active={isActive("/in")} onClick={() => setMobileMenuOpen(false)}>입고 관리</MobileLink>
+          <MobileLink to="/out" active={isActive("/out")} onClick={() => setMobileMenuOpen(false)}>판매 관리</MobileLink>
+          <MobileLink to="/add" active={isActive("/add")} onClick={() => setMobileMenuOpen(false)}>품목 등록</MobileLink>
+          <MobileLink to="/sync" active={isActive("/sync")} onClick={() => setMobileMenuOpen(false)}>채널 연동</MobileLink>
+          <MobileLink to="/reports" active={isActive("/reports")} onClick={() => setMobileMenuOpen(false)}>보고서</MobileLink>
+          <div style={{ padding: "4px 16px 0", fontSize: 11, fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", marginTop: 4 }}>관리</div>
+          <MobileLink to="/purchase-orders" active={isActive("/purchase-orders")} onClick={() => setMobileMenuOpen(false)}>발주 관리</MobileLink>
+          <MobileLink to="/suppliers" active={isActive("/suppliers")} onClick={() => setMobileMenuOpen(false)}>공급업체 관리</MobileLink>
+          <MobileLink to="/warehouses" active={isActive("/warehouses")} onClick={() => setMobileMenuOpen(false)}>창고 목록</MobileLink>
+          <MobileLink to="/stock-transfers" active={isActive("/stock-transfers")} onClick={() => setMobileMenuOpen(false)}>재고 이동</MobileLink>
+          <MobileLink to="/stock-audits" active={isActive("/stock-audits")} onClick={() => setMobileMenuOpen(false)}>재고 실사</MobileLink>
+          <MobileLink to="/excel" active={isActive("/excel")} onClick={() => setMobileMenuOpen(false)}>엑셀 관리</MobileLink>
+          <MobileLink to="/backup" active={isActive("/backup")} onClick={() => setMobileMenuOpen(false)}>백업/복원</MobileLink>
+        </div>
+      )}
+
       {/* 오른쪽: 유저 정보 + 로그아웃 */}
       <div
         style={{
@@ -368,6 +425,27 @@ function DropItem({ to, active, onClick, children }) {
         fontWeight: 600,
         backgroundColor: active ? "rgba(29,78,216,0.10)" : "transparent",
         color: "#111827",
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
+function MobileLink({ to, active, onClick, children }) {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      style={{
+        display: "block",
+        padding: "12px 20px",
+        textDecoration: "none",
+        fontSize: 15,
+        fontWeight: 600,
+        backgroundColor: active ? "#eff6ff" : "transparent",
+        color: active ? "#1d4ed8" : "#111827",
+        borderLeft: active ? "3px solid #1d4ed8" : "3px solid transparent",
       }}
     >
       {children}

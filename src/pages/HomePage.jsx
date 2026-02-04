@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import useMobile from "../hooks/useMobile";
 import {
   PieChart,
   Pie,
@@ -19,6 +20,7 @@ import { getReorderAlerts } from "../api/reorder";
 
 function HomePage() {
   const navigate = useNavigate();
+  const isMobile = useMobile();
   const [now, setNow] = useState(new Date());
   const [dashboardStats, setDashboardStats] = useState({
     totalItems: 0,
@@ -134,7 +136,7 @@ function HomePage() {
           style={{
             background: "#ffffff",
             borderRadius: "16px",
-            padding: "32px 40px",
+            padding: isMobile ? "16px" : "32px 40px",
             boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
             border: "1px solid #e5e7eb",
           }}
@@ -150,7 +152,7 @@ function HomePage() {
               <h1
                 style={{
                   margin: 0,
-                  fontSize: 32,
+                  fontSize: isMobile ? 22 : 32,
                   fontWeight: 900,
                   color: "#7c8db5",
                   marginBottom: 8,
@@ -229,8 +231,8 @@ function HomePage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-            gap: "20px",
+            gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: isMobile ? "12px" : "20px",
           }}
         >
           <DashboardStatCard
@@ -294,7 +296,7 @@ function HomePage() {
               style={{
                 marginTop: 16,
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(280px, 1fr))",
                 gap: "12px",
               }}
             >
@@ -366,12 +368,12 @@ function HomePage() {
           </div>
         )}
 
-        {/* 콘텐츠 그리드 (3칸) */}
+        {/* 콘텐츠 그리드 */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
-            gap: "20px",
+            gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr",
+            gap: isMobile ? "16px" : "20px",
           }}
         >
           {/* 재고 부족 품목 목록 */}

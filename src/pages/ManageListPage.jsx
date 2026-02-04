@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import useMobile from "../hooks/useMobile";
 import {
   getItems as fetchItems,
   getCategories,
@@ -26,6 +27,7 @@ const calcStock = (records) => {
 
 export default function ManageListPage() {
   const navigate = useNavigate();
+  const isMobile = useMobile();
 
   const [categories, setCategories] = useState([]);
   const [activeCategoryId, setActiveCategoryId] = useState(null);
@@ -381,16 +383,16 @@ export default function ManageListPage() {
           margin: "0 auto",
           background: "#ffffff",
           borderRadius: "16px",
-          padding: "40px",
+          padding: isMobile ? "16px" : "40px",
           boxShadow: "0 2px 8px rgba(123, 97, 255, 0.08)",
           border: "1px solid rgba(184, 197, 242, 0.3)",
         }}
       >
         <h2
           style={{
-            fontSize: 28,
+            fontSize: isMobile ? 20 : 28,
             fontWeight: 800,
-            marginBottom: 24,
+            marginBottom: isMobile ? 16 : 24,
             color: "#7c8db5",
           }}
         >
@@ -528,7 +530,7 @@ export default function ManageListPage() {
             borderRadius: 8,
             border: "1px solid #d1d5db",
             flex: 1,
-            minWidth: 200,
+            minWidth: isMobile ? 0 : 200,
             fontSize: 14,
           }}
         />
@@ -676,7 +678,7 @@ export default function ManageListPage() {
       {Object.keys(filteredGroups).length === 0 ? (
         <div style={{ fontSize: 14, color: "#9ca3af" }}>등록된 물품이 없습니다.</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fill, minmax(240px, 1fr))", gap: isMobile ? 10 : 16 }}>
           {sortedGroupEntries.map(([name, list]) => {
             const representative = list.find((i) => i.imageUrl) || list[0];
 

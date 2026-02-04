@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import useMobile from "../hooks/useMobile";
 import PriceInputModal from "../components/PriceInputModal";
 import {
   lookupItemByBarcode,
@@ -17,6 +18,7 @@ const safeNum = (v, d = 0) => {
 
 export default function OutPage() {
   const navigate = useNavigate();
+  const isMobile = useMobile();
   const scanRef = useRef(null);
   const manualRef = useRef(null);
 
@@ -325,16 +327,16 @@ export default function OutPage() {
           margin: "0 auto",
           background: "#ffffff",
           borderRadius: "16px",
-          padding: "40px",
+          padding: isMobile ? "16px" : "40px",
           boxShadow: "0 2px 8px rgba(123, 97, 255, 0.08)",
           border: "1px solid rgba(184, 197, 242, 0.3)",
         }}
       >
         <h2
           style={{
-            fontSize: 28,
+            fontSize: isMobile ? 20 : 28,
             fontWeight: 800,
-            marginBottom: 24,
+            marginBottom: 16,
             color: "#7c8db5",
           }}
         >
@@ -371,8 +373,8 @@ export default function OutPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1.2fr",
-          gap: 24,
+          gridTemplateColumns: isMobile ? "1fr" : "1fr 1.2fr",
+          gap: isMobile ? 16 : 24,
         }}
       >
         {/* ==================== LEFT ==================== */}
@@ -459,15 +461,15 @@ export default function OutPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                      <button onClick={() => updateCount(x.itemId, -1)}>-</button>
-                      <div style={{ minWidth: 20, textAlign: "center" }}>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <button onClick={() => updateCount(x.itemId, -1)} style={countBtn}>-</button>
+                      <div style={{ minWidth: 24, textAlign: "center", fontWeight: 700 }}>
                         {x.count}
                       </div>
-                      <button onClick={() => updateCount(x.itemId, +1)}>+</button>
+                      <button onClick={() => updateCount(x.itemId, +1)} style={countBtn}>+</button>
                     </div>
 
-                    <button onClick={() => removeFromCart(x.itemId)}>✕</button>
+                    <button onClick={() => removeFromCart(x.itemId)} style={removeBtn}>✕</button>
                   </div>
                 ))}
 
@@ -795,6 +797,36 @@ const warnBtn = {
   color: "#1d4ed8",
   fontSize: 12,
   cursor: "pointer",
+};
+
+const countBtn = {
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  border: "1px solid #e5e7eb",
+  background: "#ffffff",
+  cursor: "pointer",
+  fontSize: 16,
+  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  color: "#374151",
+};
+
+const removeBtn = {
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: "1px solid #ef4444",
+  background: "#ffffff",
+  cursor: "pointer",
+  fontSize: 14,
+  color: "#ef4444",
+  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const scanToast = {
