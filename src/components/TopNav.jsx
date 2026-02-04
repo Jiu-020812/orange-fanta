@@ -9,9 +9,9 @@ export default function TopNav() {
 
   //  드롭다운 상태
   const [manageOpen, setManageOpen] = useState(false);
-  const [warehouseOpen, setWarehouseOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const manageRef = useRef(null);
-  const warehouseRef = useRef(null);
+  const moreRef = useRef(null);
 
   useEffect(() => {
     async function fetchMe() {
@@ -31,8 +31,8 @@ export default function TopNav() {
       if (manageRef.current && !manageRef.current.contains(e.target)) {
         setManageOpen(false);
       }
-      if (warehouseRef.current && !warehouseRef.current.contains(e.target)) {
-        setWarehouseOpen(false);
+      if (moreRef.current && !moreRef.current.contains(e.target)) {
+        setMoreOpen(false);
       }
     }
     document.addEventListener("mousedown", onDocDown);
@@ -177,24 +177,20 @@ export default function TopNav() {
           보고서
         </NavLink>
 
-        <NavLink to="/purchase-orders" active={isActive("/purchase-orders")}>
-          발주 관리
+        <NavLink to="/add" active={isActive("/add")}>
+          품목 등록
         </NavLink>
 
-        <NavLink to="/excel" active={isActive("/excel")}>
-          엑셀 관리
-        </NavLink>
-
-        {/* 창고 관리 드롭다운 */}
+        {/* 관리 드롭다운 */}
         <div
-          ref={warehouseRef}
+          ref={moreRef}
           style={{ position: "relative" }}
-          onMouseEnter={() => setWarehouseOpen(true)}
-          onMouseLeave={() => setWarehouseOpen(false)}
+          onMouseEnter={() => setMoreOpen(true)}
+          onMouseLeave={() => setMoreOpen(false)}
         >
           <button
             type="button"
-            onClick={() => setWarehouseOpen((v) => !v)}
+            onClick={() => setMoreOpen((v) => !v)}
             style={{
               padding: "8px 12px",
               borderRadius: 999,
@@ -203,19 +199,23 @@ export default function TopNav() {
               border: "none",
               cursor: "pointer",
               backgroundColor:
-                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits")
+                isActive("/purchase-orders") || isActive("/suppliers") || isActive("/excel") ||
+                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits") ||
+                isActive("/backup")
                   ? "#dbeafe"
                   : "transparent",
               color:
-                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits")
+                isActive("/purchase-orders") || isActive("/suppliers") || isActive("/excel") ||
+                isActive("/warehouses") || isActive("/stock-transfers") || isActive("/stock-audits") ||
+                isActive("/backup")
                   ? "#1d4ed8"
                   : "#4b5563",
             }}
           >
-            창고 관리 ▾
+            관리 ▾
           </button>
 
-          {warehouseOpen && (
+          {moreOpen && (
             <div
               style={{
                 position: "absolute",
@@ -235,27 +235,31 @@ export default function TopNav() {
                   boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
                 }}
               >
-                <DropItem to="/warehouses" active={isActive("/warehouses")} onClick={() => setWarehouseOpen(false)}>
+                <DropItem to="/purchase-orders" active={isActive("/purchase-orders")} onClick={() => setMoreOpen(false)}>
+                  발주 관리
+                </DropItem>
+                <DropItem to="/suppliers" active={isActive("/suppliers")} onClick={() => setMoreOpen(false)}>
+                  공급업체 관리
+                </DropItem>
+                <DropItem to="/warehouses" active={isActive("/warehouses")} onClick={() => setMoreOpen(false)}>
                   창고 목록
                 </DropItem>
-                <DropItem to="/stock-transfers" active={isActive("/stock-transfers")} onClick={() => setWarehouseOpen(false)}>
+                <DropItem to="/stock-transfers" active={isActive("/stock-transfers")} onClick={() => setMoreOpen(false)}>
                   재고 이동
                 </DropItem>
-                <DropItem to="/stock-audits" active={isActive("/stock-audits")} onClick={() => setWarehouseOpen(false)}>
+                <DropItem to="/stock-audits" active={isActive("/stock-audits")} onClick={() => setMoreOpen(false)}>
                   재고 실사
+                </DropItem>
+                <DropItem to="/excel" active={isActive("/excel")} onClick={() => setMoreOpen(false)}>
+                  엑셀 관리
+                </DropItem>
+                <DropItem to="/backup" active={isActive("/backup")} onClick={() => setMoreOpen(false)}>
+                  백업/복원
                 </DropItem>
               </div>
             </div>
           )}
         </div>
-
-        <NavLink to="/add" active={isActive("/add")}>
-          품목 등록
-        </NavLink>
-
-        <NavLink to="/backup" active={isActive("/backup")}>
-          백업/복원
-        </NavLink>
       </nav>
 
       {/* 오른쪽: 유저 정보 + 로그아웃 */}

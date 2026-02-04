@@ -43,9 +43,10 @@ export default function QRCodeGenerator({ item, onClose }) {
     }
 
     // 바코드 생성
-    if (barcodeCanvasRef.current && item.barcode && (mode === "barcode" || mode === "both")) {
+    const barcodeData = item.barcode || `ITEM-${item.id}`;
+    if (barcodeCanvasRef.current && (mode === "barcode" || mode === "both")) {
       try {
-        JsBarcode(barcodeCanvasRef.current, item.barcode, {
+        JsBarcode(barcodeCanvasRef.current, barcodeData, {
           format: "CODE128",
           width: 2,
           height: 60,
@@ -289,40 +290,36 @@ export default function QRCodeGenerator({ item, onClose }) {
             >
               QR코드만
             </button>
-            {item.barcode && (
-              <button
-                onClick={() => setMode("barcode")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: mode === "barcode" ? "2px solid #3b82f6" : "1px solid #d1d5db",
-                  background: mode === "barcode" ? "#eff6ff" : "#ffffff",
-                  color: "#374151",
-                  fontSize: 13,
-                  fontWeight: mode === "barcode" ? 600 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                바코드만
-              </button>
-            )}
-            {item.barcode && (
-              <button
-                onClick={() => setMode("both")}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: mode === "both" ? "2px solid #3b82f6" : "1px solid #d1d5db",
-                  background: mode === "both" ? "#eff6ff" : "#ffffff",
-                  color: "#374151",
-                  fontSize: 13,
-                  fontWeight: mode === "both" ? 600 : 400,
-                  cursor: "pointer",
-                }}
-              >
-                둘 다
-              </button>
-            )}
+            <button
+              onClick={() => setMode("barcode")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: mode === "barcode" ? "2px solid #3b82f6" : "1px solid #d1d5db",
+                background: mode === "barcode" ? "#eff6ff" : "#ffffff",
+                color: "#374151",
+                fontSize: 13,
+                fontWeight: mode === "barcode" ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              바코드만
+            </button>
+            <button
+              onClick={() => setMode("both")}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: mode === "both" ? "2px solid #3b82f6" : "1px solid #d1d5db",
+                background: mode === "both" ? "#eff6ff" : "#ffffff",
+                color: "#374151",
+                fontSize: 13,
+                fontWeight: mode === "both" ? 600 : 400,
+                cursor: "pointer",
+              }}
+            >
+              둘 다
+            </button>
           </div>
         </div>
 
@@ -339,7 +336,7 @@ export default function QRCodeGenerator({ item, onClose }) {
               )}
             </div>
           )}
-          {(mode === "barcode" || mode === "both") && item.barcode && (
+          {(mode === "barcode" || mode === "both") && (
             <div style={{ marginBottom: 16 }}>
               <canvas
                 ref={barcodeCanvasRef}
@@ -348,11 +345,6 @@ export default function QRCodeGenerator({ item, onClose }) {
               {!barcodeGenerated && mode === "barcode" && (
                 <div style={{ color: "#6b7280", padding: "60px 0" }}>바코드 생성 중...</div>
               )}
-            </div>
-          )}
-          {mode === "barcode" && !item.barcode && (
-            <div style={{ color: "#ef4444", padding: "60px 0" }}>
-              이 품목에는 바코드가 등록되지 않았습니다.
             </div>
           )}
         </div>
@@ -365,11 +357,9 @@ export default function QRCodeGenerator({ item, onClose }) {
           <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 8 }}>
             {item.size}
           </div>
-          {item.barcode && (
-            <div style={{ fontSize: 12, color: "#9ca3af", fontFamily: "monospace" }}>
-              바코드: {item.barcode}
-            </div>
-          )}
+          <div style={{ fontSize: 12, color: "#9ca3af", fontFamily: "monospace" }}>
+            바코드: {item.barcode || `ITEM-${item.id}`}
+          </div>
         </div>
 
         {/* 버튼 */}
