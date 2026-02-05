@@ -238,7 +238,7 @@ export default function InventorySyncPage() {
   const handleManualSync = async (provider) => {
     try {
       await triggerManualSync({ provider });
-      showToast(`${provider} 수동 동기화 시작`);
+      showToast(`${provider} 즉시 동기화 실행됨`);
 
       // 동기화 로그 새로고침
       const logs = await getSyncLogs({ limit: 20 });
@@ -459,22 +459,27 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                     </div>
 
                     {provider === "NAVER" ? (
-                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <div style={{ marginTop: 4 }}>
                         {saved ? (
                           <>
-                            <button
-                              onClick={() => handleManualSync(provider)}
-                              style={{ ...smallButtonStyle, backgroundColor: "#10b981", flex: 1 }}
-                            >
-                              동기화
-                            </button>
-                            <button
-                              onClick={() => handleRemoveIntegration(provider)}
-                              disabled={saving}
-                              style={{ ...smallButtonStyle, backgroundColor: "transparent", border: "1px solid #ef4444", color: "#ef4444" }}
-                            >
-                              해제
-                            </button>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button
+                                onClick={() => handleManualSync(provider)}
+                                style={{ ...smallButtonStyle, backgroundColor: "#10b981", flex: 1 }}
+                              >
+                                즉시 동기화
+                              </button>
+                              <button
+                                onClick={() => handleRemoveIntegration(provider)}
+                                disabled={saving}
+                                style={{ ...smallButtonStyle, backgroundColor: "transparent", border: "1px solid #ef4444", color: "#ef4444" }}
+                              >
+                                해제
+                              </button>
+                            </div>
+                            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+                              자동 동기화 중 · 5분간격
+                            </div>
                           </>
                         ) : (
                           <button
