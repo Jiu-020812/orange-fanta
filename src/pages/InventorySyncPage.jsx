@@ -145,7 +145,7 @@ export default function InventorySyncPage() {
       const credentials = connectionForms[provider] || {};
       let result;
       if (provider === "NAVER") {
-        result = await naverConnect({ clientId: credentials.clientId, clientSecret: credentials.clientSecret });
+        result = await naverConnect({});
       } else {
         result = await upsertIntegration({ provider, credentials, isActive: true });
       }
@@ -458,60 +458,92 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                       </span>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {fields.map((field) => (
-                        <label key={field.key} style={{ fontSize: 11 }}>
-                          {field.label}
-                          <input
-                            value={values[field.key] || ""}
-                            onChange={(e) =>
-                              handleIntegrationChange(provider, field.key, e.target.value)
-                            }
-                            placeholder={field.placeholder}
-                            style={smallInputStyle}
-                          />
-                        </label>
-                      ))}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <button
-                        onClick={() => handleSaveIntegration(provider)}
-                        disabled={saving}
-                        style={{
-                          ...smallButtonStyle,
-                          backgroundColor: "#9dadd6",
-                          flex: 1,
-                        }}
-                      >
-                        {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
-                      </button>
-                      {saved ? (
-                        <>
+                    {provider === "NAVER" ? (
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        {saved ? (
+                          <>
+                            <button
+                              onClick={() => handleManualSync(provider)}
+                              style={{ ...smallButtonStyle, backgroundColor: "#10b981", flex: 1 }}
+                            >
+                              동기화
+                            </button>
+                            <button
+                              onClick={() => handleRemoveIntegration(provider)}
+                              disabled={saving}
+                              style={{ ...smallButtonStyle, backgroundColor: "transparent", border: "1px solid #ef4444", color: "#ef4444" }}
+                            >
+                              해제
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            onClick={() => handleManualSync(provider)}
-                            style={{
-                              ...smallButtonStyle,
-                              backgroundColor: "#10b981",
-                            }}
+                            onClick={() => handleSaveIntegration(provider)}
+                            disabled={saving}
+                            style={{ ...smallButtonStyle, backgroundColor: "#03C75A", flex: 1 }}
                           >
-                            동기화
+                            {saving ? "연결 중..." : "Naver 연결하기"}
                           </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {fields.map((field) => (
+                            <label key={field.key} style={{ fontSize: 11 }}>
+                              {field.label}
+                              <input
+                                value={values[field.key] || ""}
+                                onChange={(e) =>
+                                  handleIntegrationChange(provider, field.key, e.target.value)
+                                }
+                                placeholder={field.placeholder}
+                                style={smallInputStyle}
+                              />
+                            </label>
+                          ))}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                           <button
-                            onClick={() => handleRemoveIntegration(provider)}
+                            onClick={() => handleSaveIntegration(provider)}
                             disabled={saving}
                             style={{
                               ...smallButtonStyle,
-                              backgroundColor: "transparent",
-                              border: "1px solid #ef4444",
-                              color: "#ef4444",
+                              backgroundColor: "#9dadd6",
+                              flex: 1,
                             }}
                           >
-                            해제
+                            {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
                           </button>
-                        </>
-                      ) : null}
-                    </div>
+                          {saved ? (
+                            <>
+                              <button
+                                onClick={() => handleManualSync(provider)}
+                                style={{
+                                  ...smallButtonStyle,
+                                  backgroundColor: "#10b981",
+                                }}
+                              >
+                                동기화
+                              </button>
+                              <button
+                                onClick={() => handleRemoveIntegration(provider)}
+                                disabled={saving}
+                                style={{
+                                  ...smallButtonStyle,
+                                  backgroundColor: "transparent",
+                                  border: "1px solid #ef4444",
+                                  color: "#ef4444",
+                                }}
+                              >
+                                해제
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
