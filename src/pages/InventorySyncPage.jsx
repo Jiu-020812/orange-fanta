@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import ItemPicker from "../components/ItemPicker";
 import Toast from "../components/common/Toast";
 import {
@@ -15,9 +16,11 @@ import {
   listIntegrations,
   removeIntegration,
   upsertIntegration,
+  getNaverOAuthStartUrl,
 } from "../api/integrations";
 
 export default function InventorySyncPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedItem, setSelectedItem] = useState(null);
   const [itemDetail, setItemDetail] = useState(null);
   const [toast, setToast] = useState("");
@@ -126,6 +129,43 @@ export default function InventorySyncPage() {
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
+  };
+
+  // ?naver=connected 감지 → 토스트 + 연결 목록 갱신
+  useEffect(() => {
+    if (searchParams.get("naver") === "connected") {
+      showToast("Naver Smart Store 연결 완료!");
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("naver");
+        return next;
+      });
+      // 연결 목록 갱신
+      (async () => {
+        try {
+          const data = await listIntegrations();
+          const map = {};
+          for (const conn of data?.connections || []) {
+            map[conn.provider] = conn;
+          }
+          setConnections(map);
+        } catch (err) {
+          console.error("connections refresh failed", err);
+        }
+      })();
+    }
+  }, [searchParams]);
+
+  const handleNaverOAuthConnect = async () => {
+    try {
+      setConnectionSaving((prev) => ({ ...prev, NAVER: true }));
+      const { url } = await getNaverOAuthStartUrl();
+      window.location.href = url;
+    } catch (err) {
+      console.error("Naver OAuth start failed", err);
+      window.alert(err?.message || "Naver 연결 실패");
+      setConnectionSaving((prev) => ({ ...prev, NAVER: false }));
+    }
   };
 
   const handleIntegrationChange = (provider, key, value) => {
@@ -456,60 +496,107 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                       </span>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                      {fields.map((field) => (
-                        <label key={field.key} style={{ fontSize: 11 }}>
-                          {field.label}
-                          <input
-                            value={values[field.key] || ""}
-                            onChange={(e) =>
-                              handleIntegrationChange(provider, field.key, e.target.value)
-                            }
-                            placeholder={field.placeholder}
-                            style={smallInputStyle}
-                          />
-                        </label>
-                      ))}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <button
-                        onClick={() => handleSaveIntegration(provider)}
-                        disabled={saving}
-                        style={{
-                          ...smallButtonStyle,
-                          backgroundColor: "#9dadd6",
-                          flex: 1,
-                        }}
-                      >
-                        {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
-                      </button>
-                      {saved ? (
-                        <>
+                    {provider === "NAVER" ? (
+                      /* NAVER: OAuth 플로우 */
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        {saved ? (
+                          <>
+                            <button
+                              onClick={() => handleManualSync(provider)}
+                              style={{
+                                ...smallButtonStyle,
+                                backgroundColor: "#10b981",
+                                flex: 1,
+                              }}
+                            >
+                              주문 동기화
+                            </button>
+                            <button
+                              onClick={() => handleRemoveIntegration(provider)}
+                              disabled={saving}
+                              style={{
+                                ...smallButtonStyle,
+                                backgroundColor: "transparent",
+                                border: "1px solid #ef4444",
+                                color: "#ef4444",
+                              }}
+                            >
+                              해제
+                            </button>
+                          </>
+                        ) : (
                           <button
-                            onClick={() => handleManualSync(provider)}
-                            style={{
-                              ...smallButtonStyle,
-                              backgroundColor: "#10b981",
-                            }}
-                          >
-                            동기화
-                          </button>
-                          <button
-                            onClick={() => handleRemoveIntegration(provider)}
+                            onClick={handleNaverOAuthConnect}
                             disabled={saving}
                             style={{
                               ...smallButtonStyle,
-                              backgroundColor: "transparent",
-                              border: "1px solid #ef4444",
-                              color: "#ef4444",
+                              backgroundColor: "#03C75A",
+                              flex: 1,
                             }}
                           >
-                            해제
+                            {saving ? "연결 중..." : "Naver 로그인으로 연결하기"}
                           </button>
-                        </>
-                      ) : null}
-                    </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* 기타 채널: 수동 credential 폼 */
+                      <>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          {fields.map((field) => (
+                            <label key={field.key} style={{ fontSize: 11 }}>
+                              {field.label}
+                              <input
+                                value={values[field.key] || ""}
+                                onChange={(e) =>
+                                  handleIntegrationChange(provider, field.key, e.target.value)
+                                }
+                                placeholder={field.placeholder}
+                                style={smallInputStyle}
+                              />
+                            </label>
+                          ))}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                          <button
+                            onClick={() => handleSaveIntegration(provider)}
+                            disabled={saving}
+                            style={{
+                              ...smallButtonStyle,
+                              backgroundColor: "#9dadd6",
+                              flex: 1,
+                            }}
+                          >
+                            {saving ? "저장 중..." : saved ? "재저장" : "연결하기"}
+                          </button>
+                          {saved ? (
+                            <>
+                              <button
+                                onClick={() => handleManualSync(provider)}
+                                style={{
+                                  ...smallButtonStyle,
+                                  backgroundColor: "#10b981",
+                                }}
+                              >
+                                동기화
+                              </button>
+                              <button
+                                onClick={() => handleRemoveIntegration(provider)}
+                                disabled={saving}
+                                style={{
+                                  ...smallButtonStyle,
+                                  backgroundColor: "transparent",
+                                  border: "1px solid #ef4444",
+                                  color: "#ef4444",
+                                }}
+                              >
+                                해제
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
