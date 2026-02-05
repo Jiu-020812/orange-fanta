@@ -18,7 +18,7 @@ export async function removeIntegration(provider) {
   return res.data;
 }
 
-export async function getNaverOAuthStartUrl() {
-  const res = await request(() => client.get("/api/naver/oauth/start"));
+export async function naverConnect(payload) {
+  const res = await request(() => client.post("/api/naver/connect", payload));
   return res.data;
 }
