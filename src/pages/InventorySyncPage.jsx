@@ -145,7 +145,12 @@ export default function InventorySyncPage() {
       const credentials = connectionForms[provider] || {};
       let result;
       if (provider === "NAVER") {
-        result = await naverConnect({});
+        // Naver는 유저가 직접 clientId/clientSecret 입력
+        if (!credentials.clientId || !credentials.clientSecret) {
+          window.alert("Client ID와 Client Secret을 입력해주세요.");
+          return;
+        }
+        result = await naverConnect(credentials);
       } else {
         result = await upsertIntegration({ provider, credentials, isActive: true });
       }
@@ -482,13 +487,30 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                             </div>
                           </>
                         ) : (
-                          <button
-                            onClick={() => handleSaveIntegration(provider)}
-                            disabled={saving}
-                            style={{ ...smallButtonStyle, backgroundColor: "#03C75A", flex: 1 }}
-                          >
-                            {saving ? "연결 중..." : "Naver 연결하기"}
-                          </button>
+                          <>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                              {fields.map((field) => (
+                                <label key={field.key} style={{ fontSize: 11 }}>
+                                  {field.label}
+                                  <input
+                                    value={values[field.key] || ""}
+                                    onChange={(e) =>
+                                      handleIntegrationChange(provider, field.key, e.target.value)
+                                    }
+                                    placeholder={field.placeholder}
+                                    style={smallInputStyle}
+                                  />
+                                </label>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => handleSaveIntegration(provider)}
+                              disabled={saving}
+                              style={{ ...smallButtonStyle, backgroundColor: "#03C75A", width: "100%" }}
+                            >
+                              {saving ? "연결 중..." : "Naver 연결하기"}
+                            </button>
+                          </>
                         )}
                       </div>
                     ) : (
