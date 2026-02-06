@@ -476,6 +476,30 @@ export default function LandingPage() {
           textAlign: 'center',
         }}
       >
+        <div
+          style={{
+            maxWidth: '800px',
+            margin: '0 auto 20px',
+            padding: '16px',
+            background: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '12px',
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.5)',
+            lineHeight: '1.6',
+            textAlign: 'left',
+          }}
+        >
+          <div style={{ marginBottom: '8px', fontWeight: '600', color: 'rgba(255, 255, 255, 0.7)' }}>
+            ⚠️ 베타 서비스 안내
+          </div>
+          <div>
+            현재 MyInventory는 <strong style={{ color: 'rgba(255, 255, 255, 0.8)' }}>무료 베타 버전</strong>으로 운영 중입니다.
+            향후 정식 서비스 전환 시 유료화가 진행될 수 있으나, 베타 기간 중 가입하신 초기 사용자분들께는
+            <strong style={{ color: '#10b981' }}> 특별 혜택 및 할인</strong>이 제공될 예정입니다.
+            서비스 이용 중 발생하는 데이터 손실 및 장애에 대해서는 책임을 지지 않으며,
+            베타 테스트 참여에 동의하시는 경우에만 회원가입을 진행해주시기 바랍니다.
+          </div>
+        </div>
         <div style={{ fontSize: '14px', color: 'rgba(255, 255, 255, 0.6)' }}>
           © 2026 MyInventory. All rights reserved.
         </div>

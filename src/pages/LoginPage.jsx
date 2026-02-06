@@ -20,6 +20,10 @@ export default function LoginPage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [name, setName] = useState("");
 
+  // 베타 서비스 동의
+  const [betaAgreed, setBetaAgreed] = useState(false);
+  const [betaAgreementText, setBetaAgreementText] = useState("");
+
   // 상태
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -85,6 +89,10 @@ export default function LoginPage() {
       }
       if (password !== passwordConfirm) {
         setError("비밀번호가 일치하지 않습니다.");
+        return;
+      }
+      if (!betaAgreed || betaAgreementText !== "동의합니다") {
+        setError("베타 서비스 이용 약관에 동의해주세요. (하단에 '동의합니다'를 입력해주세요)");
         return;
       }
     }
@@ -495,6 +503,81 @@ export default function LoginPage() {
               </div>
             )}
 
+            {/* 베타 서비스 동의 */}
+            {mode === "signup" && (
+              <div
+                style={{
+                  padding: '16px',
+                  background: '#fef3c7',
+                  border: '2px solid #f59e0b',
+                  borderRadius: '12px',
+                  marginTop: '8px',
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#92400e', marginBottom: '8px' }}>
+                  ⚠️ 베타 서비스 이용 약관
+                </div>
+                <div style={{ fontSize: '11px', color: '#78350f', lineHeight: '1.6', marginBottom: '12px' }}>
+                  현재 MyInventory는 <strong>무료 베타 버전</strong>으로 운영 중입니다.
+                  향후 정식 서비스 전환 시 유료화가 진행될 수 있으나, 베타 기간 중 가입하신 초기 사용자분들께는
+                  <strong style={{ color: '#10b981' }}> 특별 혜택 및 할인</strong>이 제공될 예정입니다.
+                  서비스 이용 중 발생하는 데이터 손실 및 장애에 대해서는 책임을 지지 않으며,
+                  베타 테스트 참여에 동의하시는 경우에만 회원가입을 진행해주시기 바랍니다.
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="checkbox"
+                    checked={betaAgreed}
+                    onChange={(e) => {
+                      setBetaAgreed(e.target.checked);
+                      if (!e.target.checked) setBetaAgreementText("");
+                    }}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  <label style={{ fontSize: '12px', color: '#78350f', fontWeight: '600', flex: 1 }}>
+                    위 내용을 확인하였으며 베타 서비스 이용에 동의합니다
+                  </label>
+                </div>
+
+                {betaAgreed && (
+                  <div style={{ marginTop: '12px' }}>
+                    <input
+                      type="text"
+                      placeholder="동의합니다"
+                      value={betaAgreementText}
+                      onChange={(e) => setBetaAgreementText(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        fontSize: '13px',
+                        border: `2px solid ${betaAgreementText === "동의합니다" ? '#10b981' : '#f59e0b'}`,
+                        borderRadius: '8px',
+                        outline: 'none',
+                        textAlign: 'center',
+                        fontWeight: '600',
+                        background: 'white',
+                      }}
+                    />
+                    {betaAgreementText && betaAgreementText !== "동의합니다" && (
+                      <div style={{ fontSize: '11px', color: '#dc2626', marginTop: '6px', textAlign: 'center' }}>
+                        정확히 "동의합니다"를 입력해주세요
+                      </div>
+                    )}
+                    {betaAgreementText === "동의합니다" && (
+                      <div style={{ fontSize: '11px', color: '#10b981', marginTop: '6px', textAlign: 'center' }}>
+                        ✓ 동의 완료
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -525,6 +608,8 @@ export default function LoginPage() {
                 setError("");
                 setNotice("");
                 setPasswordConfirm("");
+                setBetaAgreed(false);
+                setBetaAgreementText("");
               }}
               style={{
                 background: 'none',
