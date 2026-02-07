@@ -1,5 +1,6 @@
 # MyInventory - 재고 관리 시스템
 # https://myinvetory.com
+# Last updated: 2026-02-07
 
 User-agent: *
 Allow: /
