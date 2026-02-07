@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import SEO from '../components/SEO';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -52,9 +53,35 @@ export default function LandingPage() {
     '소규모 매장 사장님',
   ];
 
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MyInventory",
+    "applicationCategory": "BusinessApplication",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "KRW"
+    },
+    "description": "네이버, 쿠팡 등 다중 채널 재고를 한 곳에서 관리하는 스마트 재고 관리 시스템",
+    "operatingSystem": "Web Browser",
+    "author": {
+      "@type": "Organization",
+      "name": "MyInventory Team"
+    }
+  };
+
   return (
-    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', overflow: 'hidden' }}>
-      {/* Hero Section */}
+    <>
+      <SEO
+        title="MyInventory - 스마트 재고 관리 시스템 | 네이버·쿠팡 연동"
+        description="네이버 스마트스토어, 쿠팡 등 다중 채널 재고를 한 곳에서 관리하세요. 실시간 동기화, 자동 발주, 재고 분석 리포트 제공. 무료 베타 서비스 운영 중!"
+        keywords="재고관리, 재고관리시스템, 재고관리프로그램, 네이버스마트스토어, 쿠팡, 온라인쇼핑몰, 재고추적, 발주관리, 입출고관리, 무료재고관리"
+        url="https://myinvetory.com"
+        structuredData={structuredData}
+      />
+      <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', overflow: 'hidden' }}>
+        {/* Hero Section */}
       <section
         style={{
           minHeight: '100vh',
@@ -505,5 +532,6 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

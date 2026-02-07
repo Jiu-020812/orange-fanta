@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 
 import HomePage from "./pages/HomePage";
 import AddItemPage from "./pages/AddItemPage";
@@ -30,10 +31,11 @@ function App() {
   const hideTopNav = location.pathname.startsWith("/login") || location.pathname === "/";
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
-      {!hideTopNav && <TopNav />}
+    <HelmetProvider>
+      <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa" }}>
+        {!hideTopNav && <TopNav />}
 
-      <main style={{ maxWidth: "none", margin: "0 auto", padding: hideTopNav ? "0" : "0" }}>
+        <main style={{ maxWidth: "none", margin: "0 auto", padding: hideTopNav ? "0" : "0" }}>
         <Routes>
           {/* ================= 공개 ================= */}
           <Route path="/" element={<LandingPage />} />
@@ -101,9 +103,10 @@ function App() {
           {/* ================= fallback ================= */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-        
+
       </main>
     </div>
+    </HelmetProvider>
   );
 }
 

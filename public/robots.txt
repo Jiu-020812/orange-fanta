@@ -2,6 +2,9 @@
 # https://myinvetory.com
 # Last updated: 2026-02-07
 
+# ======================
+# 기본 검색엔진 규칙
+# ======================
 User-agent: *
 Allow: /
 Allow: /login
@@ -30,8 +33,100 @@ Disallow: /in
 Disallow: /out
 Disallow: /migrate
 
+# ======================
+# 구글봇 특화 설정
+# ======================
+User-agent: Googlebot
+Allow: /
+Allow: /login
+Allow: /forgot-password
+Allow: /reset-password
+Disallow: /api/
+Disallow: /admin/
+Disallow: /home
+Disallow: /manage
+Disallow: /add
+Disallow: /sync
+Disallow: /reports
+Disallow: /warehouses
+Disallow: /stock-transfers
+Disallow: /stock-audits
+Disallow: /backup
+Disallow: /purchase-orders
+Disallow: /suppliers
+Disallow: /excel
+Disallow: /mypage
+Disallow: /in
+Disallow: /out
+Disallow: /migrate
+
+# ======================
+# 네이버 검색봇 설정
+# ======================
+User-agent: Yeti
+Allow: /
+Allow: /login
+Allow: /forgot-password
+Allow: /reset-password
+Disallow: /api/
+Disallow: /admin/
+Disallow: /home
+Disallow: /manage
+Disallow: /add
+Disallow: /sync
+Disallow: /reports
+Disallow: /warehouses
+Disallow: /stock-transfers
+Disallow: /stock-audits
+Disallow: /backup
+Disallow: /purchase-orders
+Disallow: /suppliers
+Disallow: /excel
+Disallow: /mypage
+Disallow: /in
+Disallow: /out
+Disallow: /migrate
+
+# ======================
+# 빙 검색봇 설정
+# ======================
+User-agent: Bingbot
+Allow: /
+Allow: /login
+Allow: /forgot-password
+Allow: /reset-password
+Disallow: /api/
+Disallow: /admin/
+Disallow: /home
+Disallow: /manage
+
+# ======================
+# 악의적 봇 차단
+# ======================
+User-agent: AhrefsBot
+Disallow: /
+
+User-agent: SemrushBot
+Disallow: /
+
+User-agent: DotBot
+Disallow: /
+
+User-agent: MJ12bot
+Disallow: /
+
+# ======================
 # 사이트맵 위치
+# ======================
 Sitemap: https://myinvetory.com/sitemap.xml
 
+# ======================
+# 크롤링 정책
+# ======================
 # 크롤링 속도 제한 (1초당 1페이지)
 Crawl-delay: 1
+
+# ======================
+# 호스트 선호도 (선호 도메인 명시)
+# ======================
+Host: https://myinvetory.com

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { forgotPassword } from "../api/auth";
+import SEO from "../components/SEO";
 
 export default function ForgotPasswordPage() {
   const navigate = useNavigate();
@@ -23,8 +24,16 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 380, padding: 24, borderRadius: 14, background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
+    <>
+      <SEO
+        title="비밀번호 찾기 - MyInventory"
+        description="MyInventory 비밀번호 재설정 페이지"
+        url="https://myinvetory.com/forgot-password"
+        noindex={true}
+        nofollow={true}
+      />
+      <div style={{ minHeight: "100vh", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 380, padding: 24, borderRadius: 14, background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>비밀번호 찾기</h2>
         <div style={{ marginTop: 8, fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
           가입한 이메일로 비밀번호 재설정 링크를 보내드려요.
@@ -65,5 +74,6 @@ export default function ForgotPasswordPage() {
         </button>
       </div>
     </div>
+    </>
   );
 }

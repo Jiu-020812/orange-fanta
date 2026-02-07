@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { login, signup, resendVerify } from "../api/auth";
 import api from "../api/client";
+import SEO from "../components/SEO";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -171,20 +172,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}
-    >
-      {/* 배경 애니메이션 */}
+    <>
+      <SEO
+        title={mode === "login" ? "로그인 - MyInventory" : "회원가입 - MyInventory"}
+        description={mode === "login" ? "MyInventory 재고 관리 시스템에 로그인하세요. 네이버, 쿠팡 연동 재고관리" : "MyInventory 무료 회원가입. 베타 기간 중 가입 시 특별 혜택 제공"}
+        url={`https://myinvetory.com${mode === "signup" ? "?mode=signup" : "/login"}`}
+        noindex={true}
+        nofollow={true}
+      />
+      <div
+        ref={containerRef}
+        style={{
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        {/* 배경 애니메이션 */}
       <div
         style={{
           position: 'absolute',
@@ -690,5 +699,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

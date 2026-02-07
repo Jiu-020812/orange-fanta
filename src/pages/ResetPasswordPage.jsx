@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { resetPassword } from "../api/auth";
+import SEO from "../components/SEO";
+
 const PASSWORD_REGEX =
   /^(?=.*\d)(?=.*[!@#$%^&*()[\]{};:'",.<>/?\\|`~+=_-]).{8,}$/;
 
@@ -36,8 +38,16 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 380, padding: 24, borderRadius: 14, background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
+    <>
+      <SEO
+        title="비밀번호 재설정 - MyInventory"
+        description="MyInventory 비밀번호 재설정 페이지"
+        url="https://myinvetory.com/reset-password"
+        noindex={true}
+        nofollow={true}
+      />
+      <div style={{ minHeight: "100vh", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 380, padding: 24, borderRadius: 14, background: "#fff", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>비밀번호 재설정</h2>
 
         <form onSubmit={submit} style={{ marginTop: 14, display: "grid", gap: 10 }}>
@@ -79,5 +89,6 @@ export default function ResetPasswordPage() {
         )}
       </div>
     </div>
+    </>
   );
 }
