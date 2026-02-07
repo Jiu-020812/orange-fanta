@@ -16,6 +16,7 @@ import {
   removeIntegration,
   upsertIntegration,
   naverConnect,
+  coupangConnect,
 } from "../api/integrations";
 
 export default function InventorySyncPage() {
@@ -45,6 +46,8 @@ export default function InventorySyncPage() {
   const [syncStatus, setSyncStatus] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [csvUploading, setCsvUploading] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvUploadResult, setCsvUploadResult] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -151,6 +154,13 @@ export default function InventorySyncPage() {
           return;
         }
         result = await naverConnect(credentials);
+      } else if (provider === "COUPANG") {
+        // 쿠팡은 vendorId, accessKey, secretKey 입력
+        if (!credentials.vendorId || !credentials.accessKey || !credentials.secretKey) {
+          window.alert("업체코드, Access Key, Secret Key를 입력해주세요.");
+          return;
+        }
+        result = await coupangConnect(credentials);
       } else {
         result = await upsertIntegration({ provider, credentials, isActive: true });
       }
@@ -183,6 +193,45 @@ export default function InventorySyncPage() {
       window.alert(err?.message || "연동 해제 실패");
     } finally {
       setConnectionSaving((prev) => ({ ...prev, [provider]: false }));
+    }
+  };
+
+  const handleOrderCsvUpload = async (provider) => {
+    if (!csvFile) {
+      window.alert("CSV 파일을 선택해주세요.");
+      return;
+    }
+
+    try {
+      setCsvUploading(true);
+      const formData = new FormData();
+      formData.append("file", csvFile);
+      formData.append("provider", provider);
+
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/sync/upload-csv`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        setCsvUploadResult(data.result);
+        showToast(`업로드 완료: ${data.result.processed}건 처리`);
+        setCsvFile(null);
+        // 파일 입력 초기화
+        const fileInput = document.getElementById(`csv-upload-${provider}`);
+        if (fileInput) fileInput.value = "";
+      } else {
+        window.alert(data.reason || "업로드 실패");
+      }
+    } catch (err) {
+      console.error("CSV upload error", err);
+      window.alert("CSV 업로드 중 오류 발생");
+    } finally {
+      setCsvUploading(false);
     }
   };
 
@@ -463,7 +512,7 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                       </span>
                     </div>
 
-                    {provider === "NAVER" ? (
+                    {provider === "NAVER" || provider === "COUPANG" ? (
                       <div style={{ marginTop: 4 }}>
                         {saved ? (
                           <>
@@ -485,6 +534,39 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                             <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
                               자동 동기화 중 · 5분간격
                             </div>
+
+                            {/* CSV 업로드 섹션 (NAVER만) */}
+                            {provider === "NAVER" && (
+                              <div style={{ marginTop: 12, padding: 12, background: "#f9fafb", borderRadius: 8 }}>
+                                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>
+                                  또는 CSV 파일로 주문 업로드
+                                </div>
+                                <input
+                                  id={`csv-upload-${provider}`}
+                                  type="file"
+                                  accept=".csv"
+                                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                                  style={{ fontSize: 11, marginBottom: 8, width: "100%" }}
+                                />
+                                <button
+                                  onClick={() => handleOrderCsvUpload(provider)}
+                                  disabled={csvUploading || !csvFile}
+                                  style={{
+                                    ...smallButtonStyle,
+                                    backgroundColor: csvFile ? "#6366f1" : "#9ca3af",
+                                    width: "100%",
+                                    cursor: csvFile ? "pointer" : "not-allowed"
+                                  }}
+                                >
+                                  {csvUploading ? "업로드 중..." : "CSV 업로드"}
+                                </button>
+                                {csvUploadResult && (
+                                  <div style={{ fontSize: 10, color: "#059669", marginTop: 8 }}>
+                                    ✓ 처리: {csvUploadResult.processed}건 | 스킵: {csvUploadResult.skipped}건
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <>
@@ -506,9 +588,13 @@ ONION-001,양파링,34567890,765432,19876543,678901`;
                             <button
                               onClick={() => handleSaveIntegration(provider)}
                               disabled={saving}
-                              style={{ ...smallButtonStyle, backgroundColor: "#03C75A", width: "100%" }}
+                              style={{
+                                ...smallButtonStyle,
+                                backgroundColor: provider === "NAVER" ? "#03C75A" : "#fa622f",
+                                width: "100%"
+                              }}
                             >
-                              {saving ? "연결 중..." : "Naver 연결하기"}
+                              {saving ? "연결 중..." : `${provider === "NAVER" ? "Naver" : "쿠팡"} 연결하기`}
                             </button>
                           </>
                         )}

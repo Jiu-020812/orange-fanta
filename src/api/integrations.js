@@ -22,3 +22,8 @@ export async function naverConnect(payload) {
   const res = await request(() => client.post("/api/naver/connect", payload));
   return res.data;
 }
+
+export async function coupangConnect(payload) {
+  const res = await request(() => client.post("/api/coupang/connect", payload));
+  return res.data;
+}
