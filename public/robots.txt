@@ -1,22 +1,36 @@
 # MyInventory - 재고 관리 시스템
-# https://myinventory.com
+# https://myinvetory.com
 
 User-agent: *
 Allow: /
 Allow: /login
-Allow: /dashboard
-Allow: /items
-Allow: /records
-Allow: /sync
-Allow: /reports
+Allow: /forgot-password
+Allow: /reset-password
 
 # 검색 엔진에 노출하지 않을 경로
 Disallow: /api/
 Disallow: /admin/
 Disallow: /*.json$
+Disallow: /home
+Disallow: /manage
+Disallow: /manage/
+Disallow: /add
+Disallow: /sync
+Disallow: /reports
+Disallow: /warehouses
+Disallow: /stock-transfers
+Disallow: /stock-audits
+Disallow: /backup
+Disallow: /purchase-orders
+Disallow: /suppliers
+Disallow: /excel
+Disallow: /mypage
+Disallow: /in
+Disallow: /out
+Disallow: /migrate
 
 # 사이트맵 위치
-Sitemap: https://myinventory.com/sitemap.xml
+Sitemap: https://myinvetory.com/sitemap.xml
 
 # 크롤링 속도 제한 (1초당 1페이지)
 Crawl-delay: 1
