@@ -1,5 +1,5 @@
 # MyInventory - 재고 관리 시스템
-# https://myinventory.vercel.app
+# https://myinventory.com
 
 User-agent: *
 Allow: /
@@ -16,7 +16,7 @@ Disallow: /admin/
 Disallow: /*.json$
 
 # 사이트맵 위치
-Sitemap: https://myinventory.vercel.app/sitemap.xml
+Sitemap: https://myinventory.com/sitemap.xml
 
 # 크롤링 속도 제한 (1초당 1페이지)
 Crawl-delay: 1
