@@ -118,7 +118,13 @@ Disallow: /
 # ======================
 # 사이트맵 위치
 # ======================
-Sitemap: https://myinvetory.com/sitemap.xml
+# 메인 sitemap index (자동으로 하위 sitemap 포함)
+Sitemap: https://myinvetory.com/api/sitemap.xml
+
+# 개별 sitemap (선택사항)
+# Sitemap: https://myinvetory.com/api/sitemap-static.xml
+# Sitemap: https://myinvetory.com/api/sitemap-dynamic.xml
+# Sitemap: https://myinvetory.com/api/sitemap-images.xml
 
 # ======================
 # 크롤링 정책
