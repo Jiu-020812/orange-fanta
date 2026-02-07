@@ -1,6 +1,22 @@
 {
   "rewrites": [
     {
+      "source": "/api/sitemap.xml",
+      "destination": "https://orange-fanta-back.vercel.app/api/sitemap.xml"
+    },
+    {
+      "source": "/api/sitemap-static.xml",
+      "destination": "https://orange-fanta-back.vercel.app/api/sitemap-static.xml"
+    },
+    {
+      "source": "/api/sitemap-dynamic.xml",
+      "destination": "https://orange-fanta-back.vercel.app/api/sitemap-dynamic.xml"
+    },
+    {
+      "source": "/api/sitemap-images.xml",
+      "destination": "https://orange-fanta-back.vercel.app/api/sitemap-images.xml"
+    },
+    {
       "source": "/((?!sitemap\\.xml|robots\\.txt).*)",
       "destination": "/"
     }
